@@ -1,4 +1,4 @@
-package com.example.lending_nelson
+package com.nelson.lending
 
 import io.flutter.embedding.android.FlutterActivity
 
