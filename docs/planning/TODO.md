@@ -24,7 +24,7 @@ This checklist tracks actionable tasks across all implementation phases. Only ve
 - [x] Add `dio` to `pubspec.yaml`.
 - [x] Add `flutter_secure_storage` to `pubspec.yaml`.
 - [x] Add `shared_preferences` to `pubspec.yaml`.
-- [ ] Initialize local storage database dependencies (Isar/SQLite).
+- [x] Initialize local storage database dependencies (Isar/SQLite).
 - [x] Configure `analysis_options.yaml` with strict linter rules.
 
 ---
