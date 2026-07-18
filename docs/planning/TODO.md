@@ -31,10 +31,12 @@ This checklist tracks actionable tasks across all implementation phases. Only ve
 
 ## 🎨 Phase 3: Design System & Navigation
 
-- [ ] Define corporate color palettes and fonts in UI theme.
-- [ ] Design shared buttons, input fields, and dialog boxes.
-- [ ] Implement main GoRouter routing map.
-- [ ] Set up default loading, error, and splash screens.
+- [x] Define corporate color palettes and fonts in UI theme.
+- [x] Design shared buttons and input fields.
+- [ ] Design shared dialog boxes.
+- [x] Implement main GoRouter routing map.
+- [x] Set up default loading and splash screens.
+- [ ] Set up a default router error screen.
 
 ---
 
