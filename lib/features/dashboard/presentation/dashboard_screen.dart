@@ -7,7 +7,6 @@ class DashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Dashboard')),
@@ -105,13 +104,7 @@ class DashboardScreen extends StatelessWidget {
             const SizedBox(height: 12),
 
             Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(
-                  color: isDark ? Colors.white10 : Colors.black12,
-                ),
-              ),
+              margin: EdgeInsets.zero,
               child: ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(8),
@@ -142,15 +135,8 @@ class DashboardScreen extends StatelessWidget {
     required IconData icon,
     required Color color,
   }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Card(
-      elevation: 0,
-      color: isDark ? const Color(0xFF1E293B) : Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: isDark ? Colors.white10 : Colors.black12),
-      ),
+      margin: EdgeInsets.zero,
       child: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Column(
@@ -159,7 +145,16 @@ class DashboardScreen extends StatelessWidget {
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [Icon(icon, color: color, size: 24)],
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: color, size: 20),
+                ),
+              ],
             ),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,

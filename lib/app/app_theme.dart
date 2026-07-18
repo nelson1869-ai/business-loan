@@ -1,19 +1,90 @@
+// ignore_for_file: prefer_initializing_formals
+
 import 'package:flutter/material.dart';
 
 class AppTheme {
   AppTheme._();
 
+  // Core Brand Colors
   static const Color primaryColor = Color(0xFF0F172A); // Slate 900 (Deep Navy)
   static const Color accentColor = Color(
     0xFF0D9488,
   ); // Teal 600 (Primary Brand Accent)
   static const Color textMuted = Color(0xFF64748B); // Slate 500
 
+  // Neutral Background Colors
   static const Color lightBg = Color(0xFFF8FAFC); // Slate 50 (Very light gray)
   static const Color darkBg = Color(0xFF0B0F19); // Custom Midnight Navy
   static const Color darkSurface = Color(0xFF1E293B); // Slate 800
 
-  // Shared Input Decoration Theme
+  // Status Colors (Success, Warning, Error, Info)
+  static const Color successColor = Color(0xFF10B981); // Emerald 500
+  static const Color warningColor = Color(0xFFF59E0B); // Amber 500
+  static const Color errorColor = Color(0xFFEF4444); // Rose 500
+  static const Color infoColor = Color(0xFF3B82F6); // Blue 500
+
+  // Shared Typography Style Definitions
+  static TextTheme _textTheme({required bool isDark}) {
+    final baseColor = isDark ? Colors.white : primaryColor;
+    final secondaryColor = isDark ? Colors.white70 : textMuted;
+
+    return TextTheme(
+      headlineLarge: TextStyle(
+        fontSize: 32,
+        fontWeight: FontWeight.bold,
+        color: baseColor,
+      ),
+      headlineMedium: TextStyle(
+        fontSize: 24,
+        fontWeight: FontWeight.bold,
+        color: baseColor,
+      ),
+      titleLarge: TextStyle(
+        fontSize: 20,
+        fontWeight: FontWeight.w600,
+        color: baseColor,
+      ),
+      titleMedium: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        color: baseColor,
+      ),
+      bodyLarge: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.normal,
+        color: baseColor,
+      ),
+      bodyMedium: TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.normal,
+        color: secondaryColor,
+      ),
+      labelLarge: TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        color: baseColor,
+      ),
+    );
+  }
+
+  // Custom Card Theme Styling
+  static CardThemeData _cardTheme({required bool isDark}) {
+    return CardThemeData(
+      color: isDark ? darkSurface : Colors.white,
+      elevation: isDark ? 0 : 2,
+      shadowColor: Colors.black.withValues(alpha: 0.05),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: isDark ? Colors.white10 : Colors.black12,
+          width: 1,
+        ),
+      ),
+      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+    );
+  }
+
+  // Shared Input Decoration Theme (TextFormField boxes)
   static InputDecorationTheme _inputTheme({required bool isDark}) {
     final borderColor = isDark ? Colors.white24 : Colors.black12;
     const focusColor = accentColor;
@@ -45,7 +116,7 @@ class AppTheme {
     );
   }
 
-  // Shared Button Theme
+  // Shared ElevatedButton Style
   static ElevatedButtonThemeData _buttonTheme() {
     return ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
@@ -76,8 +147,27 @@ class AppTheme {
         onPrimary: Colors.white,
       ),
       scaffoldBackgroundColor: lightBg,
+      textTheme: _textTheme(isDark: false),
+      cardTheme: _cardTheme(isDark: false),
       inputDecorationTheme: _inputTheme(isDark: false),
       elevatedButtonTheme: _buttonTheme(),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: accentColor,
+        foregroundColor: Colors.white,
+        elevation: 4,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(16)),
+        ),
+      ),
+      listTileTheme: const ListTileThemeData(
+        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        iconColor: accentColor,
+      ),
+      dividerTheme: const DividerThemeData(
+        color: Colors.black12,
+        space: 24,
+        thickness: 1,
+      ),
       appBarTheme: const AppBarTheme(
         backgroundColor: lightBg,
         elevation: 0,
@@ -104,8 +194,27 @@ class AppTheme {
         onPrimary: Colors.white,
       ),
       scaffoldBackgroundColor: darkBg,
+      textTheme: _textTheme(isDark: true),
+      cardTheme: _cardTheme(isDark: true),
       inputDecorationTheme: _inputTheme(isDark: true),
       elevatedButtonTheme: _buttonTheme(),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: accentColor,
+        foregroundColor: Colors.white,
+        elevation: 4,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(16)),
+        ),
+      ),
+      listTileTheme: const ListTileThemeData(
+        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        iconColor: accentColor,
+      ),
+      dividerTheme: const DividerThemeData(
+        color: Colors.white10,
+        space: 24,
+        thickness: 1,
+      ),
       appBarTheme: const AppBarTheme(
         backgroundColor: darkBg,
         elevation: 0,
