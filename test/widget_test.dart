@@ -10,14 +10,16 @@ void main() {
     // Build our app under ProviderScope and trigger a frame.
     await tester.pumpWidget(const ProviderScope(child: LendingNelsonApp()));
 
-    // Let the GoRouter transition settle
+    // Verify that the splash screen elements are rendered
+    expect(find.text('Lending Nelson'), findsOneWidget);
+    expect(find.text('Secure Mobile Lending'), findsOneWidget);
+    expect(find.byIcon(Icons.account_balance), findsOneWidget);
+
+    // Wait for the redirect timer to run
+    await tester.pump(const Duration(milliseconds: 1500));
     await tester.pumpAndSettle();
 
-    // Verify that the title 'Lending Nelson' is rendered on the screen
-    expect(find.text('Lending Nelson'), findsOneWidget);
-    expect(find.text('Mobile Client Platform'), findsOneWidget);
-
-    // Verify that our modern icon is present
-    expect(find.byIcon(Icons.account_balance), findsOneWidget);
+    // Verify that it transitioned to the login screen
+    expect(find.text('Welcome Back'), findsOneWidget);
   });
 }
