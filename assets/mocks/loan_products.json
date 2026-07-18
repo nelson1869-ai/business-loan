@@ -1,0 +1,32 @@
+[
+  {
+    "id": "prod-001",
+    "name": "Standard Business Loan",
+    "interestRate": 0.12,
+    "minAmount": 100.0,
+    "maxAmount": 1000.0,
+    "minTerms": 3,
+    "maxTerms": 12,
+    "interestMethod": "declining_balance"
+  },
+  {
+    "id": "prod-002",
+    "name": "Micro-Enterprise Growth Loan",
+    "interestRate": 0.15,
+    "minAmount": 500.0,
+    "maxAmount": 5000.0,
+    "minTerms": 6,
+    "maxTerms": 24,
+    "interestMethod": "flat_rate"
+  },
+  {
+    "id": "prod-003",
+    "name": "Emergency Capital Loan",
+    "interestRate": 0.18,
+    "minAmount": 50.0,
+    "maxAmount": 300.0,
+    "minTerms": 1,
+    "maxTerms": 3,
+    "interestMethod": "flat_rate"
+  }
+]
