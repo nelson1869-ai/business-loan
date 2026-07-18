@@ -28,6 +28,8 @@ dependencies:
   # Local Storage
   shared_preferences: ^2.5.3
   flutter_secure_storage: ^9.2.4
+  sqflite: ^2.3.3
+  path: ^1.9.0
 
   # Logging
   logger: ^2.6.1
@@ -45,6 +47,7 @@ dev_dependencies:
     sdk: flutter
 
   flutter_lints: ^6.0.0
+  sqflite_common_ffi: ^2.3.3
 
   build_runner: ^2.5.4
   freezed: ^3.2.0
@@ -52,3 +55,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/mocks/loan_products.json
+    - assets/mocks/borrowers.json
+    - assets/mocks/user_profile.json
