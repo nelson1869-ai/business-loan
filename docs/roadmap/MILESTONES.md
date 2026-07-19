@@ -30,12 +30,12 @@ Deliverable: one borrower can hold several independent active loans.
 
 ## Phase 2: Interest engine
 
-- [ ] Implement a pure decimal interest-calculation service.
-- [ ] Support mid-cycle date calculations.
-- [ ] Keep accrued interest separate from principal.
+- [x] Implement a pure decimal interest-calculation service.
+- [x] Support mid-cycle date calculations.
+- [x] Keep accrued interest separate from principal in calculations.
 - [ ] Add boundary tests for February, leap years, and 31-day cycles.
-- [ ] Add examples from `LOAN_RULES.md` as automated tests.
-- [ ] Verify a 600 payment on 1,100 due leaves 500 principal and 50 next interest.
+- [x] Add current examples from `LOAN_RULES.md` as automated tests.
+- [x] Verify a 600 payment on 1,100 due leaves 500 principal and 50 next interest.
 
 Deliverable: calculations match approved hand-worked examples exactly.
 
