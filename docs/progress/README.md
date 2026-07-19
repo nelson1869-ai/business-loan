@@ -47,9 +47,9 @@ Study details: [Flutter Frontend Study Guide](../frontend/README.md)
 Study details: [FastAPI Backend Study Guide](../backend/README.md)
 
 - [ ] Explain how `main.py` creates the FastAPI application.
-- [ ] Identify every registered API router.
-- [ ] Explain request validation with Pydantic schemas.
-- [ ] Explain async database sessions.
+- [x] Identify every registered API router.
+- [x] Explain request validation with Pydantic schemas.
+- [x] Explain async database sessions.
 - [ ] Create a development officer with the bootstrap command.
 - [ ] Reset a development officer password.
 - [ ] Log in through Swagger and inspect the token response.
@@ -59,9 +59,9 @@ Study details: [FastAPI Backend Study Guide](../backend/README.md)
 - [ ] Trace borrower editing from router to PostgreSQL.
 - [ ] Explain soft deletion.
 - [ ] Inspect a redacted audit record.
-- [ ] Apply all Alembic migrations.
+- [x] Apply all Alembic migrations.
 - [ ] Explain how to create a new Alembic migration.
-- [ ] Run `python -m alembic check` successfully.
+- [x] Run `python -m alembic check` successfully.
 
 ## 4. Frontend and backend integration
 
@@ -77,19 +77,19 @@ Study details: [FastAPI Backend Study Guide](../backend/README.md)
 - [ ] Explain how legacy local-only borrowers are migrated remotely.
 - [ ] Record a payment five days after its due date and verify overdue interest.
 - [ ] Compare full, interest-only, and partial payments made five days early.
-- [ ] Verify reducing-balance interest after a partial monthly payment.
+- [x] Verify reducing-balance interest after a partial monthly payment.
 - [ ] Create two loans with different lender-selected rates and verify both.
-- [ ] Generate and explain a 5-month schedule with 10 installments.
-- [ ] Verify the final installment clears the rounding balance exactly.
+- [x] Generate and explain a 5-month schedule with 10 installments.
+- [x] Verify the final installment clears the rounding balance exactly.
 
 ## 5. Code quality and security
 
 - [ ] Confirm secrets are excluded by `.gitignore`.
 - [ ] Confirm no real password or token is committed for production use.
 - [ ] Format modified Dart files.
-- [ ] Run Flutter analysis and tests before committing.
-- [ ] Review `git diff` before staging.
-- [ ] Use a focused conventional commit message.
+- [x] Run Flutter analysis and tests before committing.
+- [x] Review `git diff` before staging.
+- [x] Use a focused conventional commit message.
 - [ ] Explain why borrower PII is redacted from audit logs.
 - [ ] Explain why PostgreSQL must not be exposed directly to Flutter.
 
