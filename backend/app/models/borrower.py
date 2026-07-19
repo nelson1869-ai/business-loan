@@ -3,7 +3,7 @@
 from datetime import date, datetime
 
 from sqlalchemy import Date, DateTime, String, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
@@ -23,3 +23,8 @@ class Borrower(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+    loans: Mapped[list["Loan"]] = relationship(back_populates="borrower")
+
+
+from app.models.loan import Loan  # noqa: E402

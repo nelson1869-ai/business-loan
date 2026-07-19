@@ -109,6 +109,15 @@ milestone is blocked, record the reason and next action in the learning log.
 
 ## 7. Learning log
 
+### 2026-07-19 — Loan persistence foundation
+
+- Added exact PostgreSQL loan and installment models and migration.
+- Added validated loan API schemas and authenticated create/list/detail routes.
+- Loan creation now calculates and persists the full reducing-balance schedule
+  and an immutable audit event in one transaction.
+- Verification: all backend unit and API-contract tests, Flutter analysis, and
+  the complete Flutter test suite passed.
+
 Copy this entry whenever you complete a study session:
 
 ```text

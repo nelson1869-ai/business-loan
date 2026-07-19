@@ -2,6 +2,12 @@
 
 from app.schemas.auth import LoginRequest, RefreshTokenRequest, TokenResponse
 from app.schemas.borrower import BorrowerCreate, BorrowerResponse, BorrowerUpdate
+from app.schemas.loan import (
+    InstallmentResponse,
+    LoanCreate,
+    LoanDetailResponse,
+    LoanResponse,
+)
 from app.schemas.sync import SyncBatchRequest, SyncBatchResponse, SyncQueueItem
 
 __all__ = [
@@ -9,6 +15,10 @@ __all__ = [
     "BorrowerResponse",
     "BorrowerUpdate",
     "LoginRequest",
+    "InstallmentResponse",
+    "LoanCreate",
+    "LoanDetailResponse",
+    "LoanResponse",
     "RefreshTokenRequest",
     "SyncBatchRequest",
     "SyncBatchResponse",

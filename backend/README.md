@@ -74,7 +74,9 @@ Put that value in `JWT_SECRET_KEY`. Never commit `.env`.
 python -m alembic upgrade head
 ```
 
-The migration creates `users`, `borrowers`, and `audit_logs`. The offline queue remains in Flutter's device-local SQLite database.
+The migrations create `users`, `borrowers`, `audit_logs`, `loans`, and
+`installments`. The offline queue remains in Flutter's device-local SQLite
+database.
 
 ## 5. Create the first officer
 

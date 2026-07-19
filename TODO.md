@@ -5,25 +5,28 @@ next step.
 
 Long-term work remains in the [Product Roadmap](docs/roadmap/README.md).
 
-## Step 3: Build the tested loan-calculation foundation
+## Step 4: Persist loan accounts and installment schedules
 
-Goal: turn the approved loan rules into exact backend calculations before loan
-database tables or Flutter screens depend on them.
+Goal: store lender-approved loans and their generated installment schedules in
+PostgreSQL using exact decimal columns and auditable records.
 
-1. [x] Add backend test tooling and calculation test structure.
-2. [x] Implement exact decimal interest and payment-allocation calculations.
-3. [x] Implement regular installments with a final-payment adjustment.
-4. [x] Add tests for partial, interest-only, early, and late payments.
-5. [x] Run all backend and Flutter checks and document the verified results.
+1. [x] Add SQLAlchemy loan and installment models with relationships.
+2. [x] Add and apply the PostgreSQL Alembic migration.
+3. [x] Add Pydantic loan request and response schemas.
+4. [x] Add loan creation, listing, and detail services and API routes.
+5. [x] Add backend tests, run all checks, document results, and commit Step 4.
 
-Required worked examples come from
-[Loan and Payment Rules](docs/roadmap/LOAN_RULES.md), including:
+Version-one persistence rules:
 
-- `1,000.00` at 10% monthly;
-- `600.00` partial payment on `1,100.00` due;
-- full payoff five days early or late; and
-- ten twice-monthly installments with the final payment adjusted.
+- every loan belongs to one borrower;
+- one borrower may have multiple active loans;
+- rates and money use exact decimal database types;
+- the lender-selected rate is stored on each loan;
+- approved terms and payment frequency cannot change silently;
+- installments preserve expected interest, principal, amount, and balance;
+- the final installment clears the remaining balance; and
+- financial records use audit events instead of destructive history changes.
 
-Step 3 is complete only when calculations use exact decimal arithmetic and all
-documented examples pass automated tests. After that, replace this step with
-Step 4.
+Step 4 is complete only when a tested API can create a loan, generate and store
+its schedule, list borrower loans, and return one loan with its installments.
+After that, replace this step with Step 5.
