@@ -5,28 +5,27 @@ next step.
 
 Long-term work remains in the [Product Roadmap](docs/roadmap/README.md).
 
-## Step 4: Persist loan accounts and installment schedules
+## Step 5: Connect Flutter to backend loans
 
-Goal: store lender-approved loans and their generated installment schedules in
-PostgreSQL using exact decimal columns and auditable records.
+Goal: let an authenticated officer create and inspect borrower loans from the
+Flutter application using the tested FastAPI loan endpoints.
 
-1. [x] Add SQLAlchemy loan and installment models with relationships.
-2. [x] Add and apply the PostgreSQL Alembic migration.
-3. [x] Add Pydantic loan request and response schemas.
-4. [x] Add loan creation, listing, and detail services and API routes.
-5. [x] Add backend tests, run all checks, document results, and commit Step 4.
+1. [x] Add immutable Flutter loan and installment models with JSON conversion.
+2. [x] Add repository methods for loan creation, listing, and detail requests.
+3. [x] Add a borrower loan list and navigation to loan creation and details.
+4. [x] Add a validated create-loan form and installment-schedule detail screen.
+5. [x] Add Flutter tests, run all checks, update student docs, and commit Step 5.
 
-Version-one persistence rules:
+Version-one frontend rules:
 
-- every loan belongs to one borrower;
-- one borrower may have multiple active loans;
-- rates and money use exact decimal database types;
-- the lender-selected rate is stored on each loan;
-- approved terms and payment frequency cannot change silently;
-- installments preserve expected interest, principal, amount, and balance;
-- the final installment clears the remaining balance; and
-- financial records use audit events instead of destructive history changes.
+- Flutter sends exact money and rate values as decimal strings;
+- every new loan starts from an existing borrower;
+- the lender chooses the monthly interest rate and repayment terms;
+- the backend remains the source of truth for all calculations;
+- Flutter displays the persisted schedule instead of recalculating it;
+- monthly and twice-monthly schedules are supported by the initial UI; and
+- API failures produce clear, actionable messages without losing form input.
 
-Step 4 is complete only when a tested API can create a loan, generate and store
-its schedule, list borrower loans, and return one loan with its installments.
-After that, replace this step with Step 5.
+Step 5 is complete only when an officer can open a borrower, create a loan, and
+view the backend-generated installment schedule in Flutter. After that, replace
+this step with Step 6.

@@ -13,7 +13,8 @@ By the end of this path, you should understand how to:
 - manage asynchronous state with Riverpod;
 - separate presentation, domain, and data code;
 - store encrypted borrower data in SQLite;
-- call authenticated APIs with Dio; and
+- call authenticated APIs with Dio;
+- create loans and display backend-generated installment schedules; and
 - queue changes when the device is offline.
 
 ## Frontend map
@@ -39,6 +40,7 @@ flowchart TD
 | `lib/core/security/` | Encryption of local borrower information |
 | `lib/features/auth/` | Login UI and authentication repository |
 | `lib/features/dashboard/` | Dashboard and borrower CRUD feature |
+| `lib/features/loans/` | Loan models, API repository, Riverpod state, form, and schedule UI |
 | `test/` | Unit and widget test examples |
 
 ## Recommended reading order
@@ -53,6 +55,10 @@ flowchart TD
 8. `lib/features/dashboard/presentation/providers/borrowers_provider.dart`
 9. `lib/features/dashboard/data/repositories/borrower_repository.dart`
 10. `lib/features/dashboard/data/repositories/remote_borrower_repository.dart`
+11. `lib/features/loans/domain/models/loan.dart`
+12. `lib/features/loans/data/repositories/remote_loan_repository.dart`
+13. `lib/features/loans/presentation/loan_create_screen.dart`
+14. `lib/features/loans/presentation/loan_detail_screen.dart`
 
 ## Borrower feature flow
 
@@ -71,6 +77,30 @@ sequenceDiagram
     Provider-->>Screen: Publish updated state
     Screen-->>User: Show success or error
 ```
+
+## Loan feature flow
+
+```mermaid
+sequenceDiagram
+    actor Officer
+    participant Form as Flutter loan form
+    participant Repo as RemoteLoanRepository
+    participant API as FastAPI loan route
+    participant DB as PostgreSQL
+    participant Detail as Flutter schedule screen
+
+    Officer->>Form: Enter principal, rate, term, frequency, dates
+    Form->>Repo: Submit exact decimal strings
+    Repo->>API: POST /api/v1/loans
+    API->>DB: Calculate and persist loan plus installments
+    DB-->>API: Stored schedule
+    API-->>Repo: Loan detail JSON
+    Repo-->>Detail: Immutable Loan and Installment models
+    Detail-->>Officer: Display backend-generated schedule
+```
+
+Flutter never calculates the authoritative installment amounts. It validates
+input, sends exact terms, and displays the schedule returned by FastAPI.
 
 ## Run and verify
 

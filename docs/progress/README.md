@@ -37,10 +37,10 @@ Study details: [Flutter Frontend Study Guide](../frontend/README.md)
 - [ ] Explain local PII encryption.
 - [ ] Explain Dio access-token and refresh-token handling.
 - [ ] Explain how an offline mutation enters the sync queue.
-- [ ] Write and pass one Flutter unit test.
-- [ ] Write and pass one Flutter widget test.
-- [ ] Run `flutter analyze` with no issues.
-- [ ] Run the complete Flutter test suite.
+- [x] Write and pass one Flutter unit test.
+- [x] Write and pass one Flutter widget test.
+- [x] Run `flutter analyze` with no issues.
+- [x] Run the complete Flutter test suite.
 
 ## 3. Backend progress
 
@@ -117,6 +117,14 @@ milestone is blocked, record the reason and next action in the learning log.
   and an immutable audit event in one transaction.
 - Verification: all backend unit and API-contract tests, Flutter analysis, and
   the complete Flutter test suite passed.
+
+### 2026-07-19 — Flutter loan integration
+
+- Added exact loan/installment models and authenticated repository requests.
+- Added borrower loan lists, a validated create-loan form, and schedule details.
+- Confirmed Flutter displays backend calculations instead of recalculating them.
+- Verification: Flutter analysis, the complete Flutter suite, backend tests, and
+  Alembic schema checks passed.
 
 Copy this entry whenever you complete a study session:
 

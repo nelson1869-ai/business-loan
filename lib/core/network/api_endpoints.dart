@@ -11,6 +11,9 @@ class ApiEndpoints {
   /// Borrower collection endpoint.
   static const String borrowers = '/api/v1/borrowers';
 
+  /// Loan collection endpoint.
+  static const String loans = '/api/v1/loans';
+
   /// Offline mutation batch endpoint.
   static const String syncDrain = '/api/v1/sync/drain';
 }

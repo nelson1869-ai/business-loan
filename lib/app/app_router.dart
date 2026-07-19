@@ -9,6 +9,9 @@ import 'package:lending_nelson/features/dashboard/presentation/borrower_registra
 import 'package:lending_nelson/features/dashboard/presentation/dashboard_screen.dart';
 import 'package:lending_nelson/features/dashboard/presentation/settings_screen.dart';
 import 'package:lending_nelson/features/splash/presentation/splash_screen.dart';
+import 'package:lending_nelson/features/loans/domain/models/loan.dart';
+import 'package:lending_nelson/features/loans/presentation/loan_create_screen.dart';
+import 'package:lending_nelson/features/loans/presentation/loan_detail_screen.dart';
 
 // Feature Domain Layer (carries Borrower payload between routes via state.extra)
 import 'package:lending_nelson/features/dashboard/domain/models/borrower.dart';
@@ -54,7 +57,20 @@ final appRouter = GoRouter(
                 return BorrowerRegistrationScreen(borrower: borrower);
               },
             ),
+            GoRoute(
+              path: ':borrowerId/loans/new',
+              builder: (context, state) => LoanCreateScreen(
+                borrowerId: state.pathParameters['borrowerId']!,
+              ),
+            ),
           ],
+        ),
+        GoRoute(
+          path: '/loans/:loanId',
+          builder: (context, state) => LoanDetailScreen(
+            loanId: state.pathParameters['loanId']!,
+            initialLoan: state.extra as Loan?,
+          ),
         ),
         GoRoute(
           path: '/settings',

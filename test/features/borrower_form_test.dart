@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lending_nelson/features/dashboard/domain/models/borrower.dart';
 import 'package:lending_nelson/features/dashboard/presentation/borrower_registration_screen.dart';
+import 'package:lending_nelson/features/loans/presentation/providers/loans_provider.dart';
 
 void main() {
   const borrower = Borrower(
@@ -19,6 +20,10 @@ void main() {
   Future<void> showForm(WidgetTester tester, {Borrower? existing}) async {
     await tester.pumpWidget(
       ProviderScope(
+        overrides: [
+          if (existing != null)
+            borrowerLoansProvider(existing.id).overrideWith((ref) => const []),
+        ],
         child: MaterialApp(
           home: BorrowerRegistrationScreen(borrower: existing),
         ),
@@ -39,5 +44,8 @@ void main() {
     expect(find.text('Edit Borrower'), findsOneWidget);
     expect(find.text('Save Changes'), findsOneWidget);
     expect(find.text('Register Borrower'), findsNothing);
+    await tester.pump();
+    expect(find.text('Loans'), findsOneWidget);
+    expect(find.text('New Loan'), findsOneWidget);
   });
 }

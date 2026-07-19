@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 
 // Feature Domain Layer
 import '../domain/models/borrower.dart';
+import '../../loans/presentation/borrower_loans_section.dart';
 
 // Presentation Layer Providers
 import 'providers/borrowers_provider.dart';
@@ -352,6 +353,10 @@ class _BorrowerRegistrationScreenState
                 ),
               ),
               const SizedBox(height: 24),
+              if (widget.borrower case final borrower?) ...[
+                BorrowerLoansSection(borrower: borrower),
+                const SizedBox(height: 24),
+              ],
               ElevatedButton(
                 onPressed: _isSubmitting ? null : _submitForm,
                 child: _isSubmitting
