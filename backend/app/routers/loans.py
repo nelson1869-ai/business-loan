@@ -23,7 +23,7 @@ async def create_one_loan(
     if borrower is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Borrower not found")
     try:
-        loan = await loan_service.create_loan(db, payload, current_user)
+        created_loan = await loan_service.create_loan(db, payload, current_user)
         await db.commit()
     except IntegrityError as error:
         await db.rollback()
@@ -31,7 +31,12 @@ async def create_one_loan(
             status_code=status.HTTP_409_CONFLICT,
             detail="Loan could not be created",
         ) from error
-    await db.refresh(loan)
+    loan = await loan_service.get_loan(db, created_loan.id)
+    if loan is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Created loan could not be reloaded",
+        )
     return LoanDetailResponse.model_validate(loan)
 
 
