@@ -160,71 +160,11 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   }
 
   Future<void> _reversePayment(LoanPayment payment) async {
-    final reasonController = TextEditingController();
-    var reversalDate = DateTime.now();
     final paymentDate = DateTime.parse(payment.effectiveDate);
-    if (reversalDate.isBefore(paymentDate)) reversalDate = paymentDate;
     final result = await showDialog<(String, DateTime)>(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Reverse payment?'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              const Text(
-                'The original record remains in history. Reversal restores its balance changes.',
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: reasonController,
-                autofocus: true,
-                maxLength: 500,
-                decoration: const InputDecoration(
-                  labelText: 'Reason for reversal',
-                  helperText: 'Required: at least 3 characters',
-                ),
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Financial reversal date'),
-                subtitle: Text(_formatDate(reversalDate)),
-                trailing: const Icon(Icons.edit_calendar),
-                onTap: () async {
-                  final picked = await showDatePicker(
-                    context: dialogContext,
-                    initialDate: reversalDate,
-                    firstDate: paymentDate,
-                    lastDate: DateTime(2200),
-                  );
-                  if (picked != null) {
-                    setDialogState(() => reversalDate = picked);
-                  }
-                },
-              ),
-              const Text(
-                'The recorded date and time are saved automatically for the audit history.',
-              ),
-            ],
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final reason = reasonController.text.trim();
-                if (reason.length < 3) return;
-                Navigator.pop(dialogContext, (reason, reversalDate));
-              },
-              child: const Text('Reverse Payment'),
-            ),
-          ],
-        ),
-      ),
+      builder: (_) => _ReversalDialog(paymentDate: paymentDate),
     );
-    reasonController.dispose();
     if (result == null || !mounted) return;
 
     final date = _formatDate(result.$2);
@@ -420,6 +360,103 @@ String _formatDate(DateTime value) =>
     '${value.year.toString().padLeft(4, '0')}-'
     '${value.month.toString().padLeft(2, '0')}-'
     '${value.day.toString().padLeft(2, '0')}';
+
+class _ReversalDialog extends StatefulWidget {
+  const _ReversalDialog({required this.paymentDate});
+
+  final DateTime paymentDate;
+
+  @override
+  State<_ReversalDialog> createState() => _ReversalDialogState();
+}
+
+class _ReversalDialogState extends State<_ReversalDialog> {
+  final _reasonController = TextEditingController();
+  late DateTime _reversalDate;
+  String? _reasonError;
+
+  @override
+  void initState() {
+    super.initState();
+    final today = DateTime.now();
+    _reversalDate = today.isBefore(widget.paymentDate)
+        ? widget.paymentDate
+        : today;
+  }
+
+  @override
+  void dispose() {
+    _reasonController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _reversalDate,
+      firstDate: widget.paymentDate,
+      lastDate: DateTime(2200),
+    );
+    if (picked != null && mounted) {
+      setState(() => _reversalDate = picked);
+    }
+  }
+
+  void _submit() {
+    final reason = _reasonController.text.trim();
+    if (reason.length < 3) {
+      setState(() => _reasonError = 'Enter at least 3 characters');
+      return;
+    }
+    Navigator.pop(context, (reason, _reversalDate));
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Reverse payment?'),
+    content: SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          const Text(
+            'The original record remains in history. Reversal restores its balance changes.',
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _reasonController,
+            autofocus: true,
+            maxLength: 500,
+            decoration: InputDecoration(
+              labelText: 'Reason for reversal',
+              helperText: 'Required: at least 3 characters',
+              errorText: _reasonError,
+            ),
+            onChanged: (_) {
+              if (_reasonError != null) setState(() => _reasonError = null);
+            },
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Financial reversal date'),
+            subtitle: Text(_formatDate(_reversalDate)),
+            trailing: const Icon(Icons.edit_calendar),
+            onTap: _pickDate,
+          ),
+          const Text(
+            'The recorded date and time are saved automatically for the audit history.',
+          ),
+        ],
+      ),
+    ),
+    actions: <Widget>[
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(onPressed: _submit, child: const Text('Reverse Payment')),
+    ],
+  );
+}
 
 class _PaymentHistory extends StatelessWidget {
   const _PaymentHistory({
