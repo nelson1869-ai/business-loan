@@ -61,6 +61,7 @@ final appRouter = GoRouter(
               path: ':borrowerId/loans/new',
               builder: (context, state) => LoanCreateScreen(
                 borrowerId: state.pathParameters['borrowerId']!,
+                borrower: state.extra as Borrower?,
               ),
             ),
           ],

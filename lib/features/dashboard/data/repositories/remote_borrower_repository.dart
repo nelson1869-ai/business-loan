@@ -38,6 +38,21 @@ class RemoteBorrowerRepository {
 
   final Dio _dio;
 
+  /// Ensures a legacy local borrower exists remotely before related writes.
+  Future<void> ensureBorrowerExists(Borrower borrower) async {
+    try {
+      await _dio.get<Map<String, dynamic>>(
+        '${ApiEndpoints.borrowers}/${borrower.id}',
+      );
+    } on DioException catch (error) {
+      if (error.response?.statusCode == 404) {
+        await saveBorrower(borrower);
+        return;
+      }
+      throw _mapError(error, 'Unable to verify borrower');
+    }
+  }
+
   /// Creates [borrower] remotely.
   Future<void> saveBorrower(Borrower borrower) async {
     try {

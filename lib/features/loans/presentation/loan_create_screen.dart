@@ -5,13 +5,16 @@ import 'package:go_router/go_router.dart';
 
 import '../data/models/loan_create_request.dart';
 import '../data/repositories/remote_loan_repository.dart';
+import '../../dashboard/data/repositories/remote_borrower_repository.dart';
+import '../../dashboard/domain/models/borrower.dart';
 import 'providers/loans_provider.dart';
 
 /// Collects lender-approved terms while leaving calculations to FastAPI.
 class LoanCreateScreen extends ConsumerStatefulWidget {
-  const LoanCreateScreen({super.key, required this.borrowerId});
+  const LoanCreateScreen({super.key, required this.borrowerId, this.borrower});
 
   final String borrowerId;
+  final Borrower? borrower;
 
   @override
   ConsumerState<LoanCreateScreen> createState() => _LoanCreateScreenState();
@@ -100,6 +103,12 @@ class _LoanCreateScreenState extends ConsumerState<LoanCreateScreen> {
 
     setState(() => _isSubmitting = true);
     try {
+      final borrower = widget.borrower;
+      if (borrower != null) {
+        await ref
+            .read(remoteBorrowerRepositoryProvider)
+            .ensureBorrowerExists(borrower);
+      }
       final loan = await ref
           .read(remoteLoanRepositoryProvider)
           .createLoan(
@@ -117,6 +126,11 @@ class _LoanCreateScreenState extends ConsumerState<LoanCreateScreen> {
       if (!mounted) return;
       context.pushReplacement('/loans/${loan.id}', extra: loan);
     } on RemoteLoanException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } on RemoteBorrowerException catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
