@@ -16,7 +16,12 @@ from app.models.loan import Installment, Loan
 from app.models.payment import Payment, PaymentAllocation
 from app.models.user import User
 from app.routers.payments import confirm_one_payment, reverse_one_payment
-from app.schemas.payment import PaymentCreate, PaymentReversalCreate
+from app.schemas.payment import (
+    PaymentCreate,
+    PaymentPreviewRequest,
+    PaymentReversalCreate,
+)
+from app.services.payment_service import preview_payment
 
 
 @unittest.skipUnless(
@@ -126,6 +131,18 @@ class PostgreSqlPaymentIdempotencyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(loan.status, "Overdue")
         self.assertEqual(installment.paid_amount, Decimal("0.00"))
         self.assertEqual(installment.status, "Overdue")
+        async with AsyncSessionFactory() as db:
+            preview = await preview_payment(
+                db,
+                self.loan_id,
+                PaymentPreviewRequest.model_validate(
+                    {"amount": "100.00", "effectiveDate": "2026-09-02"}
+                ),
+            )
+            await db.rollback()
+        self.assertEqual(preview.accrual_start_date, date(2026, 8, 31))
+        self.assertEqual(preview.principal_before, Decimal("1000.00"))
+        self.assertEqual(preview.total_interest_before, Decimal("106.67"))
 
     async def _submit(self, payload: PaymentCreate):
         async with AsyncSessionFactory() as db:

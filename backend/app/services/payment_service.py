@@ -273,7 +273,10 @@ async def get_payment_by_request_id(db: AsyncSession, request_id: str) -> Paymen
 async def list_payments(db: AsyncSession, loan_id: str) -> list[Payment]:
     result = await db.execute(
         select(Payment)
-        .options(selectinload(Payment.allocation))
+        .options(
+            selectinload(Payment.allocation),
+            selectinload(Payment.reversal_of),
+        )
         .where(Payment.loan_id == loan_id)
         .order_by(Payment.created_at.desc(), Payment.id.desc())
     )
@@ -344,12 +347,15 @@ async def _locked_context(
     period_start = previous.due_date if previous is not None else loan.start_date
     payments_result = await db.execute(
         select(Payment)
-        .options(selectinload(Payment.allocation))
+        .options(
+            selectinload(Payment.allocation),
+            selectinload(Payment.reversal_of),
+        )
         .where(
             Payment.loan_id == loan.id,
             Payment.installment_id == installment.id,
         )
-        .order_by(Payment.effective_date.desc(), Payment.created_at.desc())
+        .order_by(Payment.created_at.desc(), Payment.id.desc())
     )
     latest = payments_result.scalars().first()
     accrual_start = (

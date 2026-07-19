@@ -187,7 +187,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Reversal date'),
+                title: const Text('Financial reversal date'),
                 subtitle: Text(_formatDate(reversalDate)),
                 trailing: const Icon(Icons.edit_calendar),
                 onTap: () async {
@@ -201,6 +201,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                     setDialogState(() => reversalDate = picked);
                   }
                 },
+              ),
+              const Text(
+                'The recorded date and time are saved automatically for the audit history.',
               ),
             ],
           ),
@@ -481,6 +484,8 @@ class _PaymentTile extends StatelessWidget {
         _row('Interest', payment.allocation.appliedInterest),
         _row('Principal', payment.allocation.appliedPrincipal),
         _row('Balance after', payment.allocation.principalAfter),
+        _row('Financial date', payment.effectiveDate),
+        _row('Recorded at', payment.createdAt),
         if (payment.note case final note?)
           Align(alignment: Alignment.centerLeft, child: Text('Note: $note')),
         if (onReverse != null) ...<Widget>[
