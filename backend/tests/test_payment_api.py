@@ -28,6 +28,15 @@ class PaymentApiContractTests(unittest.TestCase):
         self.assertIn("with_for_update()", source)
         self.assertIn("CREATE_PAYMENT", record_body)
 
+    def test_history_uses_ledger_creation_order_for_reversal_eligibility(self) -> None:
+        source = Path("app/services/payment_service.py").read_text(encoding="utf-8")
+        history_body = source.split("async def list_payments", maxsplit=1)[1].split(
+            "async def", maxsplit=1
+        )[0]
+
+        self.assertIn("Payment.created_at.desc()", history_body)
+        self.assertNotIn("Payment.effective_date.desc()", history_body)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -275,7 +275,7 @@ async def list_payments(db: AsyncSession, loan_id: str) -> list[Payment]:
         select(Payment)
         .options(selectinload(Payment.allocation))
         .where(Payment.loan_id == loan_id)
-        .order_by(Payment.effective_date.desc(), Payment.created_at.desc())
+        .order_by(Payment.created_at.desc(), Payment.id.desc())
     )
     return list(result.scalars())
 
