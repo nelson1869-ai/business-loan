@@ -81,7 +81,17 @@ class BorrowersNotifier extends AsyncNotifier<List<Borrower>> {
 
     state = await AsyncValue.guard(() async {
       await _runMutation(
-        remoteAction: (repository) => repository.updateBorrower(borrower),
+        remoteAction: (repository) async {
+          try {
+            await repository.updateBorrower(borrower);
+          } on RemoteBorrowerException catch (error) {
+            // Older app versions stored borrowers only in SQLite. When one of
+            // those records is edited for the first time, migrate it to the
+            // backend while preserving its existing ID and creation date.
+            if (error.statusCode != 404) rethrow;
+            await repository.saveBorrower(borrower);
+          }
+        },
         localAction: (repository) => repository.updateBorrower(borrower),
         endpoint: '${ApiEndpoints.borrowers}/${borrower.id}',
         method: 'PUT',

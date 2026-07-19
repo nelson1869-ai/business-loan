@@ -360,7 +360,11 @@ class _BorrowerRegistrationScreenState
                         height: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Register'),
+                    : Text(
+                        widget.borrower == null
+                            ? 'Register Borrower'
+                            : 'Save Changes',
+                      ),
               ),
             ],
           ),

@@ -84,6 +84,12 @@ Use a password of 8-72 UTF-8 bytes. The helper prompts for it securely, hashes i
 python -m app.bootstrap officer1 --role officer
 ```
 
+Reset a forgotten development password without deleting the user:
+
+```powershell
+python -m app.bootstrap officer1 --reset-password
+```
+
 Enter and confirm the password when prompted. Typed password characters are
 intentionally hidden by the terminal.
 

@@ -126,7 +126,17 @@ void main() {
         await tester.pumpAndSettle();
 
         // Verify Register Borrower Screen renders
-        expect(find.text('Register Borrower'), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byType(AppBar),
+            matching: find.text('Register Borrower'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.widgetWithText(ElevatedButton, 'Register Borrower'),
+          findsOneWidget,
+        );
         expect(
           find.widgetWithText(TextFormField, 'First Name'),
           findsOneWidget,

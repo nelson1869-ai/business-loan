@@ -1,4 +1,4 @@
-"""Command-line helper for creating the first API user."""
+"""Command-line helper for creating users and resetting their passwords."""
 
 import argparse
 import asyncio
@@ -29,18 +29,39 @@ async def create_user(username: str, password: str, role: str) -> None:
         await db.commit()
 
 
+async def reset_password(username: str, password: str) -> None:
+    """Replace the password hash for an existing user."""
+    async with AsyncSessionFactory() as db:
+        user = await db.scalar(select(User).where(User.username == username))
+        if user is None:
+            raise ValueError("Username does not exist")
+        user.hashed_password = hash_password(password)
+        await db.commit()
+
+
 def main() -> None:
-    """Prompt securely for a password and create a user."""
-    parser = argparse.ArgumentParser(description="Create a Lending Nelson API user")
+    """Prompt securely and create a user or reset an existing password."""
+    parser = argparse.ArgumentParser(
+        description="Create a Lending Nelson API user or reset a password"
+    )
     parser.add_argument("username")
     parser.add_argument("--role", choices=["officer", "admin"], default="officer")
+    parser.add_argument(
+        "--reset-password",
+        action="store_true",
+        help="reset the password of an existing user",
+    )
     arguments = parser.parse_args()
     password = getpass("Password: ")
     confirmation = getpass("Confirm password: ")
     if password != confirmation:
         raise ValueError("Passwords do not match")
-    asyncio.run(create_user(arguments.username, password, arguments.role))
-    print(f"Created {arguments.role} user: {arguments.username}")
+    if arguments.reset_password:
+        asyncio.run(reset_password(arguments.username, password))
+        print(f"Reset password for user: {arguments.username}")
+    else:
+        asyncio.run(create_user(arguments.username, password, arguments.role))
+        print(f"Created {arguments.role} user: {arguments.username}")
 
 
 if __name__ == "__main__":
