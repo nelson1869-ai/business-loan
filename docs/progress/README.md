@@ -77,6 +77,9 @@ Study details: [FastAPI Backend Study Guide](../backend/README.md)
 - [ ] Explain how legacy local-only borrowers are migrated remotely.
 - [ ] Record a payment five days after its due date and verify overdue interest.
 - [ ] Compare full, interest-only, and partial payments made five days early.
+- [x] Trace payment preview and confirmation from Flutter to PostgreSQL.
+- [x] Verify an extra payment reduces principal immediately.
+- [x] Verify repeated payment requests create only one ledger entry.
 - [x] Verify reducing-balance interest after a partial monthly payment.
 - [ ] Create two loans with different lender-selected rates and verify both.
 - [x] Generate and explain a 5-month schedule with 10 installments.
@@ -133,6 +136,16 @@ milestone is blocked, record the reason and next action in the learning log.
 - Flutter now reuses a UUID for unchanged retries and replaces it after edits.
 - Verification: repeated-tap and timeout widget tests, backend unit tests, and a
   live two-session PostgreSQL row-count test passed.
+
+### 2026-07-19 — Immutable flexible payments
+
+- Added payment and one-to-one allocation ledger tables in migration `004`.
+- FastAPI previews and confirms full, partial, early, late, interest-only, and
+  excess payments using exact decimal calculations.
+- Flutter shows the backend preview, confirms it, and displays payment history.
+- Row locking and unique request UUIDs prevent duplicate balance changes.
+- Verification: 52 backend tests, both live PostgreSQL concurrency tests,
+  Flutter analysis, 31 Flutter tests, and Alembic schema checks passed.
 
 Copy this entry whenever you complete a study session:
 

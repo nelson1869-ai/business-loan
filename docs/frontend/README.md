@@ -59,6 +59,9 @@ flowchart TD
 12. `lib/features/loans/data/repositories/remote_loan_repository.dart`
 13. `lib/features/loans/presentation/loan_create_screen.dart`
 14. `lib/features/loans/presentation/loan_detail_screen.dart`
+15. `lib/features/loans/domain/models/payment.dart`
+16. `lib/features/loans/data/repositories/remote_payment_repository.dart`
+17. `lib/features/loans/presentation/payment_screen.dart`
 
 ## Borrower feature flow
 
@@ -106,6 +109,29 @@ For safe retries, the form generates one UUID `requestId` for a valid set of
 terms. A timeout or unchanged retry reuses it, while editing any term generates
 a new UUID. The submit button is disabled while a request is pending. These UI
 guards improve feedback, while PostgreSQL remains the final duplicate barrier.
+
+## Payment feature flow
+
+```mermaid
+sequenceDiagram
+    actor Officer
+    participant Screen as PaymentScreen
+    participant Repo as RemotePaymentRepository
+    participant API as FastAPI
+    Officer->>Screen: Enter amount, date, and note
+    Screen->>Repo: Request preview with exact decimal string
+    Repo->>API: POST payments/preview
+    API-->>Screen: Authoritative allocation
+    Screen-->>Officer: Show interest, principal, and balance
+    Officer->>Screen: Confirm
+    Screen->>Repo: POST payment with stable requestId
+    API-->>Screen: Immutable payment record
+    Screen->>Repo: Reload history
+```
+
+Flutter validates input and displays results but does not calculate the
+financial allocation. A successful payment clears its retry UUID before the
+next collection.
 
 ## Run and verify
 

@@ -113,6 +113,10 @@ class Loan(Base):
         back_populates="loan",
         order_by="Installment.installment_number",
     )
+    payments: Mapped[list["Payment"]] = relationship(
+        back_populates="loan",
+        order_by="Payment.created_at",
+    )
 
 
 class Installment(Base):
@@ -174,7 +178,9 @@ class Installment(Base):
     )
 
     loan: Mapped[Loan] = relationship(back_populates="installments")
+    payments: Mapped[list["Payment"]] = relationship(back_populates="installment")
 
 
 from app.models.borrower import Borrower  # noqa: E402
 from app.models.user import User  # noqa: E402
+from app.models.payment import Payment  # noqa: E402

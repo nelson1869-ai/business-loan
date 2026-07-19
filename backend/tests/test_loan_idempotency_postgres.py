@@ -9,7 +9,7 @@ from uuid import uuid4
 from fastapi import HTTPException
 from sqlalchemy import delete, func, select
 
-from app.database import AsyncSessionFactory
+from app.database import AsyncSessionFactory, engine
 from app.models.audit_log import AuditLog
 from app.models.borrower import Borrower
 from app.models.loan import Installment, Loan
@@ -72,6 +72,7 @@ class PostgreSqlLoanIdempotencyTests(unittest.IsolatedAsyncioTestCase):
             await db.execute(delete(Borrower).where(Borrower.id == self.borrower_id))
             await db.execute(delete(User).where(User.id == self.user_id))
             await db.commit()
+        await engine.dispose()
 
     async def test_concurrent_retry_creates_exactly_one_loan(self) -> None:
         payload = self._payload()

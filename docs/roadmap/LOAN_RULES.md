@@ -225,16 +225,21 @@ dates. The agreement and preview must clearly state this method.
 
 ### Schedule changes
 
-Do not silently rebuild the schedule after a payment differs from the expected
-amount. Show the lender these choices:
+Version one uses one predictable default when a payment is above the expected
+installment: keep the regular installment amount, apply the excess to principal
+immediately, and shorten the remaining term or reduce the final payment. Show
+that effect in the payment preview before confirmation.
 
-- keep the installment and shorten the remaining term;
-- keep the term and recalculate future installments; or
-- hold extra money as borrower credit.
+Preserve the original agreed schedule as history. Display a separate current
+projection using the actual outstanding principal. When early principal
+reduction pays the loan off before the original final date, mark later
+installments satisfied or cancelled with an audit event rather than deleting
+or silently rewriting them.
 
-Any changed schedule requires confirmation and an audit record. A missed or
-partial payment should first be recorded as arrears, not automatically spread
-across later installments.
+A missed or partial payment should first be recorded as arrears, not
+automatically spread across later installments. Holding extra money as advance
+credit or recalculating every future installment can be added later as an
+explicit lender-selected, audited option.
 
 ## 3. Multiple active loans
 
@@ -315,6 +320,38 @@ Allow an authorized lender to choose `interest only`, `principal only`, or a
 custom split, but require a reason and audit entry when overriding the default.
 The preview must show how an override changes interest due, principal, and the
 remaining schedule.
+
+### Payment above the scheduled installment
+
+An amount above the scheduled installment is not automatically advance credit.
+After accrued interest is cleared, every remaining peso reduces principal.
+
+Example for a `1,000.00` loan at 10% monthly, paid twice monthly, with a regular
+installment of `129.50`:
+
+```text
+Payment received:                 200.00
+Accrued half-month interest:       50.00
+Applied to principal:             150.00
+Remaining principal:              850.00
+
+Normal scheduled principal:        79.50
+Additional principal reduction:    70.50
+```
+
+For the next planned half-month period:
+
+```text
+Interest on 850.00 at 5%:          42.50
+Regular payment remains:          129.50
+Applied to principal:              87.00
+Projected remaining principal:    763.00
+```
+
+Continue requesting the regular installment until the payoff amount is smaller,
+then make the last payment only the exact principal and accrued interest still
+owed. Create unapplied borrower credit only if money remains after all accrued
+interest and outstanding principal have been cleared.
 
 ## 6. Interest-only payment
 

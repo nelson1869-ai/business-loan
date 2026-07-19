@@ -22,6 +22,10 @@ class User(Base):
     )
 
     loans_created: Mapped[list["Loan"]] = relationship(back_populates="created_by")
+    payments_recorded: Mapped[list["Payment"]] = relationship(
+        back_populates="recorded_by"
+    )
 
 
 from app.models.loan import Loan  # noqa: E402
+from app.models.payment import Payment  # noqa: E402

@@ -170,7 +170,23 @@ flowchart TD
 SQLite lets the officer keep working without internet. PostgreSQL remains the
 central shared database, so queued changes must eventually synchronize.
 
-## 8. Student debugging path
+## 8. Payment flow
+
+```mermaid
+flowchart TD
+    Entry[Officer enters amount and effective date] --> Preview[FastAPI preview]
+    Preview --> Review{Officer confirms?}
+    Review -->|No| Entry
+    Review -->|Yes| Lock[PostgreSQL locks loan]
+    Lock --> Recalculate[FastAPI recalculates allocation]
+    Recalculate --> Interest[Apply accrued interest]
+    Interest --> Principal[Apply remaining money to principal]
+    Principal --> Credit[Keep excess as unapplied credit]
+    Credit --> Commit[Commit ledger, balances, and audit together]
+    Commit --> History[Flutter refreshes loan and payment history]
+```
+
+## 9. Student debugging path
 
 ```mermaid
 flowchart LR

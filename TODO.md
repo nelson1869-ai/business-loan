@@ -5,27 +5,16 @@ next step.
 
 Long-term work remains in the [Product Roadmap](docs/roadmap/README.md).
 
-## Step 6: Make loan creation idempotent
+## Step 8: Reverse payments safely
 
-Goal: guarantee that repeated taps, network retries, or a response failure can
-never create more than one loan for the same submission.
+Goal: correct a mistaken payment without deleting financial history or silently
+changing a previously issued balance.
 
-1. [x] Add a unique loan request ID column and PostgreSQL Alembic migration.
-2. [x] Make FastAPI return the existing loan when a request ID is retried.
-3. [x] Make Flutter generate and reuse one request ID for each submission.
-4. [x] Test repeated taps, timeouts, and retries to prove only one loan exists.
-5. [x] Run all checks, update student documentation, and commit Step 6.
+1. [ ] Define reversal rules and add reversal request/response schemas.
+2. [ ] Implement transactional backend reversal and balance reconstruction.
+3. [ ] Add an idempotent authenticated payment-reversal API.
+4. [ ] Add Flutter reversal reason, confirmation, and reversed-state UI.
+5. [ ] Test reversal scenarios, update student docs, and commit Step 8.
 
-Idempotency rules:
-
-- Flutter generates a UUID before the first loan-creation request;
-- retries of that submission reuse the same UUID;
-- PostgreSQL enforces uniqueness instead of relying only on UI state;
-- FastAPI returns the original loan and schedule for a repeated UUID;
-- a UUID cannot silently represent different loan terms; and
-- historical duplicate development rows are not deleted automatically.
-
-Step 6 is complete only when identical retries return one persisted loan and a
-conflicting reuse of a request ID is rejected safely. After that, replace this
-step with Step 7 for recording full, partial, interest-only, early, and late
-payments.
+Step 8 is complete only when an authorized officer can reverse a payment with a
+reason, preserve both ledger entries, and reproduce the corrected loan balance.

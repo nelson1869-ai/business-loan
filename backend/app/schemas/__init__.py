@@ -8,6 +8,7 @@ from app.schemas.loan import (
     LoanDetailResponse,
     LoanResponse,
 )
+from app.schemas.payment import PaymentPreviewRequest, PaymentPreviewResponse
 from app.schemas.sync import SyncBatchRequest, SyncBatchResponse, SyncQueueItem
 
 __all__ = [
@@ -19,9 +20,18 @@ __all__ = [
     "LoanCreate",
     "LoanDetailResponse",
     "LoanResponse",
+    "PaymentPreviewRequest",
+    "PaymentPreviewResponse",
     "RefreshTokenRequest",
     "SyncBatchRequest",
     "SyncBatchResponse",
     "SyncQueueItem",
     "TokenResponse",
 ]
+from app.schemas.payment import (
+    PaymentAllocationResponse,
+    PaymentCreate,
+    PaymentPreviewRequest,
+    PaymentPreviewResponse,
+    PaymentResponse,
+)

@@ -41,14 +41,14 @@ Deliverable: calculations match approved hand-worked examples exactly.
 
 ## Phase 3: Flexible payments
 
-- [ ] Add payment and payment-allocation models.
-- [ ] Preview allocation before confirmation.
-- [ ] Support interest-only payments.
-- [ ] Support partial payments.
-- [ ] Support early principal reduction.
-- [ ] Stop future interest when an early payment fully settles principal.
-- [ ] Continue remaining-cycle interest after interest-only or partial payment.
-- [ ] Support explicit credit or refund for overpayment.
+- [x] Add payment and payment-allocation models.
+- [x] Preview allocation before confirmation.
+- [x] Support interest-only payments.
+- [x] Support partial payments.
+- [x] Support early principal reduction.
+- [x] Stop future interest when an early payment fully settles principal.
+- [x] Continue remaining-cycle interest after interest-only or partial payment.
+- [x] Record explicit unapplied credit after a full overpayment.
 
 Deliverable: every payment produces balanced, understandable allocations.
 
@@ -84,7 +84,7 @@ Deliverable: every balance can be reconstructed from immutable events.
 ## Phase 6: Offline synchronization
 
 - [ ] Assign stable UUIDs on the device.
-- [ ] Make payment creation idempotent.
+- [x] Make payment creation idempotent.
 - [ ] Detect version conflicts before overwriting financial records.
 - [ ] Require user resolution for conflicting payment changes.
 - [ ] Test interrupted and repeated synchronization.

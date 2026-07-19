@@ -92,6 +92,35 @@ $env:RUN_POSTGRES_INTEGRATION='1'
 python -m unittest tests.test_loan_idempotency_postgres -v
 ```
 
+## Payment lifecycle
+
+Payment confirmation never accepts calculated interest or principal from
+Flutter. FastAPI locks the loan row and recalculates inside one transaction:
+
+```mermaid
+sequenceDiagram
+    participant Flutter
+    participant API as Payment router
+    participant Service as Payment service
+    participant PG as PostgreSQL
+    Flutter->>API: POST payments/preview
+    API->>Service: Calculate without saving
+    Service-->>Flutter: Interest and principal preview
+    Flutter->>API: POST payment with requestId
+    API->>PG: Lock loan row
+    API->>Service: Recalculate authoritative allocation
+    Service->>PG: Insert ledger and audit; update balances
+    PG-->>Flutter: Immutable payment response
+```
+
+Allocation order is accrued interest, principal, then unapplied credit. A
+unique request UUID makes unchanged retries safe. Run the live checks with:
+
+```powershell
+$env:RUN_POSTGRES_INTEGRATION='1'
+python -m unittest tests.test_loan_idempotency_postgres tests.test_payment_idempotency_postgres -v
+```
+
 ## Run and verify
 
 From `backend/`:

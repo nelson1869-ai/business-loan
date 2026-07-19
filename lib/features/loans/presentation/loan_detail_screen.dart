@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../domain/models/installment.dart';
 import '../domain/models/loan.dart';
@@ -30,20 +31,30 @@ class LoanDetailScreen extends ConsumerWidget {
       body: detail.when(
         loading: () => initialLoan == null
             ? const Center(child: CircularProgressIndicator())
-            : _LoanContent(loan: initialLoan!),
+            : _LoanContent(
+                loan: initialLoan!,
+                onRecordPayment: () => context.push('/loans/$loanId/payments'),
+              ),
         error: (Object error, StackTrace stackTrace) => initialLoan == null
             ? Center(child: Text('Could not load loan: $error'))
-            : _LoanContent(loan: initialLoan!),
-        data: (Loan loan) => _LoanContent(loan: loan),
+            : _LoanContent(
+                loan: initialLoan!,
+                onRecordPayment: () => context.push('/loans/$loanId/payments'),
+              ),
+        data: (Loan loan) => _LoanContent(
+          loan: loan,
+          onRecordPayment: () => context.push('/loans/$loanId/payments'),
+        ),
       ),
     );
   }
 }
 
 class _LoanContent extends StatelessWidget {
-  const _LoanContent({required this.loan});
+  const _LoanContent({required this.loan, required this.onRecordPayment});
 
   final Loan loan;
+  final VoidCallback onRecordPayment;
 
   @override
   Widget build(BuildContext context) {
@@ -81,6 +92,14 @@ class _LoanContent extends StatelessWidget {
               ],
             ),
           ),
+        ),
+        const SizedBox(height: 16),
+        FilledButton.icon(
+          onPressed: loan.status == 'Active' || loan.status == 'Overdue'
+              ? onRecordPayment
+              : null,
+          icon: const Icon(Icons.add_card),
+          label: const Text('Record Payment'),
         ),
         const SizedBox(height: 16),
         Text(

@@ -1,0 +1,64 @@
+"""Authenticated payment preview, confirmation, and history routes."""
+
+from fastapi import APIRouter, HTTPException, status
+from sqlalchemy.exc import IntegrityError
+
+from app.dependencies import CurrentUser, DbSession
+from app.schemas.payment import PaymentCreate, PaymentPreviewRequest, PaymentPreviewResponse, PaymentResponse
+from app.services import loan_service, payment_service
+from app.services.loan_calculator import LoanCalculationError
+
+router = APIRouter(prefix="/api/v1/loans/{loan_id}/payments", tags=["Payments"])
+
+
+@router.post("/preview", response_model=PaymentPreviewResponse)
+async def preview_one_payment(
+    loan_id: str, payload: PaymentPreviewRequest, db: DbSession, current_user: CurrentUser,
+) -> PaymentPreviewResponse:
+    del current_user
+    try:
+        preview = await payment_service.preview_payment(db, loan_id, payload)
+        await db.rollback()
+        return preview
+    except LoanCalculationError as error:
+        await db.rollback()
+        code = status.HTTP_404_NOT_FOUND if "not found" in str(error) else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=code, detail=str(error)) from error
+
+
+@router.post("", response_model=PaymentResponse, status_code=status.HTTP_201_CREATED)
+async def confirm_one_payment(
+    loan_id: str, payload: PaymentCreate, db: DbSession, current_user: CurrentUser,
+) -> PaymentResponse:
+    existing = await payment_service.get_payment_by_request_id(db, payload.request_id)
+    if existing is not None:
+        if not payment_service.payment_matches_request(existing, loan_id, payload):
+            raise HTTPException(status_code=409, detail="Request ID was already used for a different payment")
+        return PaymentResponse.model_validate(existing)
+    try:
+        payment = await payment_service.record_payment(db, loan_id, payload, current_user)
+        await db.commit()
+    except LoanCalculationError as error:
+        await db.rollback()
+        code = status.HTTP_404_NOT_FOUND if "not found" in str(error) else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=code, detail=str(error)) from error
+    except IntegrityError as error:
+        await db.rollback()
+        existing = await payment_service.get_payment_by_request_id(db, payload.request_id)
+        if existing is not None and payment_service.payment_matches_request(existing, loan_id, payload):
+            return PaymentResponse.model_validate(existing)
+        raise HTTPException(status_code=409, detail="Payment request conflicts with existing data") from error
+    reloaded = await payment_service.get_payment(db, payment.id)
+    if reloaded is None:
+        raise HTTPException(status_code=500, detail="Created payment could not be reloaded")
+    return PaymentResponse.model_validate(reloaded)
+
+
+@router.get("", response_model=list[PaymentResponse])
+async def list_loan_payments(
+    loan_id: str, db: DbSession, current_user: CurrentUser,
+) -> list[PaymentResponse]:
+    del current_user
+    if await loan_service.get_loan(db, loan_id) is None:
+        raise HTTPException(status_code=404, detail="Loan not found")
+    return [PaymentResponse.model_validate(item) for item in await payment_service.list_payments(db, loan_id)]
