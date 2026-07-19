@@ -18,5 +18,15 @@
     "dateOfBirth": "1988-11-22T00:00:00.000Z",
     "status": "Synced",
     "createdAt": "2026-07-12T14:30:00.000Z"
+  },
+  {
+    "id": "borrower-003",
+    "firstName": "Nelson",
+    "lastName": "Wanyama",
+    "nationalId": "37819399",
+    "phone": "+254798765432",
+    "dateOfBirth": "1990-05-15T00:00:00.000Z",
+    "status": "Synced",
+    "createdAt": "2026-07-12T14:30:00.000Z"
   }
 ]
