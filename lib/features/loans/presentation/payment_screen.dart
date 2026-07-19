@@ -27,6 +27,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   bool _working = false;
   String? _requestId;
   String? _fingerprint;
+  String? _reversalRequestId;
+  String? _reversalFingerprint;
 
   @override
   void dispose() {
@@ -157,6 +159,106 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Future<void> _reversePayment(LoanPayment payment) async {
+    final reasonController = TextEditingController();
+    var reversalDate = DateTime.now();
+    final paymentDate = DateTime.parse(payment.effectiveDate);
+    if (reversalDate.isBefore(paymentDate)) reversalDate = paymentDate;
+    final result = await showDialog<(String, DateTime)>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Reverse payment?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              const Text(
+                'The original record remains in history. Reversal restores its balance changes.',
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: reasonController,
+                autofocus: true,
+                maxLength: 500,
+                decoration: const InputDecoration(
+                  labelText: 'Reason for reversal',
+                  helperText: 'Required: at least 3 characters',
+                ),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Reversal date'),
+                subtitle: Text(_formatDate(reversalDate)),
+                trailing: const Icon(Icons.edit_calendar),
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: dialogContext,
+                    initialDate: reversalDate,
+                    firstDate: paymentDate,
+                    lastDate: DateTime(2200),
+                  );
+                  if (picked != null) {
+                    setDialogState(() => reversalDate = picked);
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final reason = reasonController.text.trim();
+                if (reason.length < 3) return;
+                Navigator.pop(dialogContext, (reason, reversalDate));
+              },
+              child: const Text('Reverse Payment'),
+            ),
+          ],
+        ),
+      ),
+    );
+    reasonController.dispose();
+    if (result == null || !mounted) return;
+
+    final date = _formatDate(result.$2);
+    final fingerprint = '${payment.id}|$date|${result.$1}';
+    if (_reversalFingerprint != fingerprint) {
+      _reversalFingerprint = fingerprint;
+      _reversalRequestId = const Uuid().v4();
+    }
+    setState(() => _working = true);
+    try {
+      await ref
+          .read(remotePaymentRepositoryProvider)
+          .reverse(
+            loanId: widget.loanId,
+            paymentId: payment.id,
+            requestId: _reversalRequestId!,
+            effectiveDate: date,
+            reason: result.$1,
+          );
+      ref.invalidate(loanPaymentsProvider(widget.loanId));
+      ref.invalidate(loanDetailProvider(widget.loanId));
+      if (!mounted) return;
+      setState(() {
+        _reversalRequestId = null;
+        _reversalFingerprint = null;
+        _preview = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Payment reversed successfully')),
+      );
+    } on RemoteLoanException catch (error) {
+      _showError(error.message);
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final history = ref.watch(loanPaymentsProvider(widget.loanId));
@@ -251,10 +353,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                       child: Text('No payments recorded yet.'),
                     ),
                   )
-                : Column(
-                    children: payments
-                        .map((payment) => _PaymentTile(payment: payment))
-                        .toList(),
+                : _PaymentHistory(
+                    payments: payments,
+                    working: _working,
+                    onReverse: _reversePayment,
                   ),
           ),
         ],
@@ -311,14 +413,68 @@ class _PreviewCard extends StatelessWidget {
   );
 }
 
+String _formatDate(DateTime value) =>
+    '${value.year.toString().padLeft(4, '0')}-'
+    '${value.month.toString().padLeft(2, '0')}-'
+    '${value.day.toString().padLeft(2, '0')}';
+
+class _PaymentHistory extends StatelessWidget {
+  const _PaymentHistory({
+    required this.payments,
+    required this.working,
+    required this.onReverse,
+  });
+
+  final List<LoanPayment> payments;
+  final bool working;
+  final ValueChanged<LoanPayment> onReverse;
+
+  @override
+  Widget build(BuildContext context) {
+    final reversedIds = payments
+        .map((payment) => payment.reversalOfPaymentId)
+        .whereType<String>()
+        .toSet();
+    final latestCanReverse =
+        payments.first.entryType == 'Payment' &&
+        !reversedIds.contains(payments.first.id);
+    return Column(
+      children: <Widget>[
+        for (var index = 0; index < payments.length; index++)
+          _PaymentTile(
+            payment: payments[index],
+            isReversed: reversedIds.contains(payments[index].id),
+            onReverse: index == 0 && latestCanReverse && !working
+                ? () => onReverse(payments[index])
+                : null,
+          ),
+      ],
+    );
+  }
+}
+
 class _PaymentTile extends StatelessWidget {
-  const _PaymentTile({required this.payment});
+  const _PaymentTile({
+    required this.payment,
+    required this.isReversed,
+    this.onReverse,
+  });
   final LoanPayment payment;
+  final bool isReversed;
+  final VoidCallback? onReverse;
 
   @override
   Widget build(BuildContext context) => Card(
     child: ExpansionTile(
-      title: Text(payment.amount),
+      title: Row(
+        children: <Widget>[
+          Expanded(child: Text(payment.amount)),
+          if (payment.entryType == 'Reversal')
+            const Chip(label: Text('Reversal'))
+          else if (isReversed)
+            const Chip(label: Text('Reversed')),
+        ],
+      ),
       subtitle: Text(payment.effectiveDate),
       childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       children: <Widget>[
@@ -327,6 +483,14 @@ class _PaymentTile extends StatelessWidget {
         _row('Balance after', payment.allocation.principalAfter),
         if (payment.note case final note?)
           Align(alignment: Alignment.centerLeft, child: Text('Note: $note')),
+        if (onReverse != null) ...<Widget>[
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: onReverse,
+            icon: const Icon(Icons.undo),
+            label: const Text('Reverse Payment'),
+          ),
+        ],
       ],
     ),
   );

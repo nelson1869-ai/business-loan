@@ -121,6 +121,23 @@ $env:RUN_POSTGRES_INTEGRATION='1'
 python -m unittest tests.test_loan_idempotency_postgres tests.test_payment_idempotency_postgres -v
 ```
 
+## Payment reversal lifecycle
+
+The reversal endpoint is
+`POST /api/v1/loans/{loanId}/payments/{paymentId}/reversal`. It requires a
+unique request UUID, effective date, and reason. The service locks the loan,
+requires the latest unreversed payment, creates a linked reversal entry, and
+reconstructs balances and statuses in the same transaction.
+
+The original payment is never edited or deleted. History therefore reads as:
+
+```text
+Payment -> Reversal -> Corrected payment (when needed)
+```
+
+This preserves the reason, actor, timestamps, and exact before/after allocation
+snapshots needed to audit the balance.
+
 ## Run and verify
 
 From `backend/`:

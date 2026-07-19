@@ -73,7 +73,7 @@ Deliverable: the lender can distinguish principal, current interest, and arrears
 
 ## Phase 5: Corrections, receipts, and audit
 
-- [ ] Add payment reversal instead of destructive deletion.
+- [x] Add payment reversal instead of destructive deletion.
 - [ ] Generate receipts with allocation details.
 - [ ] Record actor, timestamps, device, and reason for overrides.
 - [ ] Redact borrower PII from operational logs.

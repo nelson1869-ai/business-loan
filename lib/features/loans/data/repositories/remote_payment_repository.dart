@@ -65,14 +65,39 @@ class RemotePaymentRepository {
       );
       return (response.data ?? const <dynamic>[])
           .map((dynamic row) {
-        if (row is! Map) {
-          throw const FormatException('Payment must be an object');
-        }
+            if (row is! Map) {
+              throw const FormatException('Payment must be an object');
+            }
             return LoanPayment.fromJson(Map<String, dynamic>.from(row));
           })
           .toList(growable: false);
     } on DioException catch (error) {
       throw _mapError(error, 'Unable to load payment history');
+    } on FormatException catch (error) {
+      throw RemoteLoanException(error.message, isRetryable: false);
+    }
+  }
+
+  /// Reverses one complete payment while preserving both ledger entries.
+  Future<LoanPayment> reverse({
+    required String loanId,
+    required String paymentId,
+    required String requestId,
+    required String effectiveDate,
+    required String reason,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '${ApiEndpoints.loanPayments(loanId)}/$paymentId/reversal',
+        data: <String, dynamic>{
+          'requestId': requestId,
+          'effectiveDate': effectiveDate,
+          'reason': reason.trim(),
+        },
+      );
+      return LoanPayment.fromJson(_requiredMap(response.data));
+    } on DioException catch (error) {
+      throw _mapError(error, 'Unable to reverse payment');
     } on FormatException catch (error) {
       throw RemoteLoanException(error.message, isRetryable: false);
     }

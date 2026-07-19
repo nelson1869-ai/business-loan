@@ -74,6 +74,34 @@ void main() {
     expect(payments.single.amount, '200.00');
     expect(payments.single.allocation.appliedPrincipal, '150.00');
   });
+
+  test('reversal sends reason, date, and retry UUID to linked route', () async {
+    adapter.responseData = _paymentJson()
+      ..['id'] = 'reversal-1'
+      ..['entryType'] = 'Reversal'
+      ..['reversalOfPaymentId'] = 'payment-1'
+      ..['note'] = 'Wrong amount';
+
+    final reversal = await repository.reverse(
+      loanId: 'loan-1',
+      paymentId: 'payment-1',
+      requestId: '00000000-0000-4000-8000-000000000100',
+      effectiveDate: '2026-08-17',
+      reason: ' Wrong amount ',
+    );
+
+    expect(
+      adapter.lastRequest?.path,
+      '/api/v1/loans/loan-1/payments/payment-1/reversal',
+    );
+    expect(adapter.lastRequest?.data, <String, dynamic>{
+      'requestId': '00000000-0000-4000-8000-000000000100',
+      'effectiveDate': '2026-08-17',
+      'reason': 'Wrong amount',
+    });
+    expect(reversal.entryType, 'Reversal');
+    expect(reversal.reversalOfPaymentId, 'payment-1');
+  });
 }
 
 class _PaymentAdapter implements HttpClientAdapter {

@@ -67,6 +67,10 @@ class LoanPayment {
   const LoanPayment({
     required this.id,
     required this.requestId,
+    required this.loanId,
+    required this.installmentId,
+    required this.entryType,
+    required this.reversalOfPaymentId,
     required this.amount,
     required this.effectiveDate,
     required this.note,
@@ -76,6 +80,10 @@ class LoanPayment {
 
   final String id;
   final String requestId;
+  final String loanId;
+  final String? installmentId;
+  final String entryType;
+  final String? reversalOfPaymentId;
   final String amount;
   final String effectiveDate;
   final String? note;
@@ -85,6 +93,10 @@ class LoanPayment {
   factory LoanPayment.fromJson(Map<String, dynamic> json) => LoanPayment(
     id: _string(json, 'id'),
     requestId: _string(json, 'requestId'),
+    loanId: _string(json, 'loanId'),
+    installmentId: json['installmentId'] as String?,
+    entryType: _string(json, 'entryType'),
+    reversalOfPaymentId: json['reversalOfPaymentId'] as String?,
     amount: _decimal(json, 'amount'),
     effectiveDate: _string(json, 'effectiveDate'),
     note: json['note'] as String?,

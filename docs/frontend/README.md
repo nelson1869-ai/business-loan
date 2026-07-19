@@ -133,6 +133,12 @@ Flutter validates input and displays results but does not calculate the
 financial allocation. A successful payment clears its retry UUID before the
 next collection.
 
+For corrections, only the latest eligible payment shows `Reverse Payment`.
+The officer enters a required reason and confirms the reversal date. Flutter
+sends a stable retry UUID, then refreshes the loan and history. The original is
+labelled `Reversed`, while the linked entry is labelled `Reversal`; neither is
+removed from the screen.
+
 ## Run and verify
 
 From the project root:

@@ -526,6 +526,28 @@ Never edit or delete a completed payment silently. Create a reversal linked to
 the original payment, restore its allocations, and then record the corrected
 payment. Preserve both entries in the audit history.
 
+Version-one reversal rules:
+
+1. Reverse the complete payment; partial reversals are not allowed.
+2. Only the latest unreversed payment on a loan may be reversed. Reversing an
+   older payment would require replaying every later allocation and is deferred
+   until that reconstruction workflow is implemented explicitly.
+3. Require a unique request UUID, reversal effective date, and written reason.
+4. The reversal date cannot be earlier than the original payment date.
+5. Never update or delete the original payment or allocation rows.
+6. Create a linked `Reversal` ledger entry for the same amount and installment.
+7. Void any unapplied credit from the original payment; do not turn it into
+   principal or interest.
+8. Reconstruct loan balance, carried interest, installment paid amounts, and
+   statuses from the remaining effective ledger inside one transaction.
+9. If the reversed payment had settled the loan, reopen the loan and restore
+   the applicable schedule state during reconstruction.
+10. Write an audit entry containing the actor, reason, original payment ID, and
+    reversal ID. Retrying the same request UUID must return the same reversal.
+
+A corrected payment is a separate new payment with its own request UUID. This
+keeps the history understandable: original payment, reversal, then correction.
+
 ## 12. Payment after the due date
 
 Count overdue calendar days from the due date up to, but not including, the

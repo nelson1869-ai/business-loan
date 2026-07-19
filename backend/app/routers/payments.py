@@ -4,7 +4,14 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 
 from app.dependencies import CurrentUser, DbSession
-from app.schemas.payment import PaymentCreate, PaymentPreviewRequest, PaymentPreviewResponse, PaymentResponse
+from app.schemas.payment import (
+    PaymentCreate,
+    PaymentPreviewRequest,
+    PaymentPreviewResponse,
+    PaymentResponse,
+    PaymentReversalCreate,
+    PaymentReversalResponse,
+)
 from app.services import loan_service, payment_service
 from app.services.loan_calculator import LoanCalculationError
 
@@ -62,3 +69,61 @@ async def list_loan_payments(
     if await loan_service.get_loan(db, loan_id) is None:
         raise HTTPException(status_code=404, detail="Loan not found")
     return [PaymentResponse.model_validate(item) for item in await payment_service.list_payments(db, loan_id)]
+
+
+@router.post(
+    "/{payment_id}/reversal",
+    response_model=PaymentReversalResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def reverse_one_payment(
+    loan_id: str,
+    payment_id: str,
+    payload: PaymentReversalCreate,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> PaymentReversalResponse:
+    """Reverse the latest payment without deleting its ledger history."""
+    existing = await payment_service.get_payment_by_request_id(db, payload.request_id)
+    if existing is not None:
+        if not payment_service.reversal_matches_request(
+            existing, loan_id, payment_id, payload
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Request ID was already used for a different entry",
+            )
+        return PaymentReversalResponse.model_validate(existing)
+    try:
+        reversal = await payment_service.reverse_latest_payment(
+            db, loan_id, payment_id, payload, current_user
+        )
+        await db.commit()
+    except LoanCalculationError as error:
+        await db.rollback()
+        code = (
+            status.HTTP_404_NOT_FOUND
+            if "not found" in str(error)
+            else status.HTTP_409_CONFLICT
+        )
+        raise HTTPException(status_code=code, detail=str(error)) from error
+    except IntegrityError as error:
+        await db.rollback()
+        existing = await payment_service.get_payment_by_request_id(
+            db, payload.request_id
+        )
+        if existing is not None and payment_service.reversal_matches_request(
+            existing, loan_id, payment_id, payload
+        ):
+            return PaymentReversalResponse.model_validate(existing)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Reversal request conflicts with existing data",
+        ) from error
+    reloaded = await payment_service.get_payment(db, reversal.id)
+    if reloaded is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Created reversal could not be reloaded",
+        )
+    return PaymentReversalResponse.model_validate(reloaded)

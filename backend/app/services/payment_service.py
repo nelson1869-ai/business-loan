@@ -13,7 +13,12 @@ from app.models.audit_log import AuditLog
 from app.models.loan import Installment, Loan
 from app.models.payment import Payment, PaymentAllocation
 from app.models.user import User
-from app.schemas.payment import PaymentCreate, PaymentPreviewRequest, PaymentPreviewResponse
+from app.schemas.payment import (
+    PaymentCreate,
+    PaymentPreviewRequest,
+    PaymentPreviewResponse,
+    PaymentReversalCreate,
+)
 from app.services.loan_calculator import (
     CENT,
     LoanCalculationError,
@@ -116,10 +121,150 @@ async def get_payment(db: AsyncSession, payment_id: str) -> Payment | None:
     return result.scalar_one_or_none()
 
 
+def apply_latest_reversal_state(
+    loan: Loan,
+    installment: Installment,
+    original: Payment,
+    effective_date: date,
+) -> None:
+    """Restore balances represented by the original payment's before-snapshot."""
+    allocation = original.allocation
+    restored_paid_amount = (
+        installment.paid_amount
+        - allocation.applied_interest
+        - allocation.applied_principal
+    )
+    if restored_paid_amount < Decimal("0.00"):
+        raise LoanCalculationError("payment allocation exceeds installment paid amount")
+
+    loan.outstanding_principal = allocation.principal_before
+    installment.paid_amount = restored_paid_amount
+    for item in loan.installments:
+        if item.paid_amount >= item.expected_payment:
+            item.status = "Paid"
+        elif item.paid_amount > Decimal("0.00"):
+            item.status = "PartiallyPaid"
+        elif item.due_date < effective_date:
+            item.status = "Overdue"
+        else:
+            item.status = "Scheduled"
+    loan.status = (
+        "Overdue"
+        if any(item.status == "Overdue" for item in loan.installments)
+        else "Active"
+    )
+
+
+async def reverse_latest_payment(
+    db: AsyncSession,
+    loan_id: str,
+    payment_id: str,
+    payload: PaymentReversalCreate,
+    user: User,
+) -> Payment:
+    """Create a reversal and restore the latest payment's state atomically."""
+    loan_result = await db.execute(
+        select(Loan)
+        .options(selectinload(Loan.installments))
+        .where(Loan.id == loan_id)
+        .with_for_update()
+    )
+    loan = loan_result.scalar_one_or_none()
+    if loan is None:
+        raise LoanCalculationError("loan not found")
+
+    ledger_result = await db.execute(
+        select(Payment)
+        .options(
+            selectinload(Payment.allocation),
+            selectinload(Payment.reversal),
+        )
+        .where(Payment.loan_id == loan_id)
+        .order_by(Payment.created_at.desc(), Payment.id.desc())
+    )
+    ledger = list(ledger_result.scalars())
+    retried = next(
+        (entry for entry in ledger if entry.request_id == payload.request_id),
+        None,
+    )
+    if retried is not None:
+        if reversal_matches_request(retried, loan_id, payment_id, payload):
+            return retried
+        raise LoanCalculationError("request ID was already used for a different entry")
+    original = next((entry for entry in ledger if entry.id == payment_id), None)
+    if original is None or original.entry_type != "Payment":
+        raise LoanCalculationError("payment not found")
+    if original.reversal is not None:
+        raise LoanCalculationError("payment is already reversed")
+    if not ledger or ledger[0].id != original.id:
+        raise LoanCalculationError("only the latest ledger payment may be reversed")
+    if payload.effective_date < original.effective_date:
+        raise LoanCalculationError("reversal date must not precede payment date")
+    installment = next(
+        (item for item in loan.installments if item.id == original.installment_id),
+        None,
+    )
+    if installment is None:
+        raise LoanCalculationError("payment installment not found")
+
+    allocation = original.allocation
+    reversal = Payment(
+        id=str(uuid4()),
+        request_id=payload.request_id,
+        loan_id=loan.id,
+        installment_id=installment.id,
+        recorded_by_user_id=user.id,
+        reversal_of_payment_id=original.id,
+        entry_type="Reversal",
+        amount=original.amount,
+        effective_date=payload.effective_date,
+        note=payload.reason,
+    )
+    reversal.allocation = PaymentAllocation(
+        id=str(uuid4()),
+        interest_before=allocation.interest_after,
+        principal_before=allocation.principal_after,
+        applied_interest=allocation.applied_interest,
+        applied_principal=allocation.applied_principal,
+        unapplied_credit=allocation.unapplied_credit,
+        interest_after=allocation.interest_before,
+        principal_after=allocation.principal_before,
+        overdue_days=max((payload.effective_date - installment.due_date).days, 0),
+        scheduled_period_days=allocation.scheduled_period_days,
+    )
+    apply_latest_reversal_state(loan, installment, original, payload.effective_date)
+    db.add(reversal)
+    db.add(
+        AuditLog(
+            id=str(uuid4()),
+            user_id=user.id,
+            action="REVERSE_PAYMENT",
+            entity_name="payments",
+            entity_id=reversal.id,
+            old_state_json=json.dumps(
+                {"paymentId": original.id, "principalAfter": str(allocation.principal_after)}
+            ),
+            new_state_json=json.dumps(
+                {
+                    "reversalId": reversal.id,
+                    "reason": payload.reason,
+                    "principalAfter": str(loan.outstanding_principal),
+                    "interestAfter": str(allocation.interest_before),
+                }
+            ),
+        )
+    )
+    await db.flush()
+    return reversal
+
+
 async def get_payment_by_request_id(db: AsyncSession, request_id: str) -> Payment | None:
     result = await db.execute(
         select(Payment)
-        .options(selectinload(Payment.allocation))
+        .options(
+            selectinload(Payment.allocation),
+            selectinload(Payment.reversal_of),
+        )
         .where(Payment.request_id == request_id)
     )
     return result.scalar_one_or_none()
@@ -147,6 +292,23 @@ def payment_matches_request(payment: Payment, loan_id: str, payload: PaymentCrea
         and payment.effective_date == payload.effective_date
         and payment.note == payload.note
         and payment.entry_type == "Payment"
+    )
+
+
+def reversal_matches_request(
+    reversal: Payment,
+    loan_id: str,
+    payment_id: str,
+    payload: PaymentReversalCreate,
+) -> bool:
+    """Return whether a stored reversal exactly represents a retried request."""
+    return (
+        reversal.loan_id == loan_id
+        and reversal.reversal_of_payment_id == payment_id
+        and reversal.amount > Decimal("0.00")
+        and reversal.effective_date == payload.effective_date
+        and reversal.note == payload.reason
+        and reversal.entry_type == "Reversal"
     )
 
 
@@ -186,12 +348,19 @@ async def _locked_context(
         .where(
             Payment.loan_id == loan.id,
             Payment.installment_id == installment.id,
-            Payment.entry_type == "Payment",
         )
         .order_by(Payment.effective_date.desc(), Payment.created_at.desc())
     )
     latest = payments_result.scalars().first()
-    accrual_start = latest.effective_date if latest is not None else period_start
+    accrual_start = (
+        latest.reversal_of.effective_date
+        if latest is not None
+        and latest.entry_type == "Reversal"
+        and latest.reversal_of is not None
+        else latest.effective_date
+        if latest is not None
+        else period_start
+    )
     carried_interest = latest.allocation.interest_after if latest is not None else Decimal("0.00")
     return loan, installment, period_start, accrual_start, carried_interest
 

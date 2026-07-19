@@ -7,9 +7,14 @@ from decimal import Decimal
 from pydantic import ValidationError
 
 from app.models.loan import Installment, Loan
-from app.schemas.payment import PaymentPreviewRequest
+from app.models.payment import Payment, PaymentAllocation
+from app.schemas.payment import PaymentPreviewRequest, PaymentReversalCreate
 from app.services.loan_calculator import LoanCalculationError
-from app.services.payment_service import build_payment_preview
+from app.services.payment_service import (
+    apply_latest_reversal_state,
+    build_payment_preview,
+    reversal_matches_request,
+)
 
 
 class PaymentPreviewScenarioTests(unittest.TestCase):
@@ -156,6 +161,128 @@ class PaymentPreviewSchemaTests(unittest.TestCase):
             )
 
 
+class PaymentReversalStateTests(unittest.TestCase):
+    """Verify reconstruction restores the immutable before-snapshot."""
+
+    def test_reversal_reopens_paid_loan_and_restores_schedule(self) -> None:
+        loan, installment = _loan_and_installment(due_date=date(2026, 8, 31))
+        future = Installment(
+            id="installment-2",
+            loan_id=loan.id,
+            installment_number=2,
+            due_date=date(2026, 9, 30),
+            expected_payment=Decimal("1100.00"),
+            expected_interest=Decimal("100.00"),
+            expected_principal=Decimal("1000.00"),
+            expected_remaining_principal=Decimal("0.00"),
+            paid_amount=Decimal("0.00"),
+            status="Cancelled",
+        )
+        loan.installments = [installment, future]
+        loan.outstanding_principal = Decimal("0.00")
+        loan.status = "Paid"
+        installment.paid_amount = Decimal("1100.00")
+        installment.status = "Paid"
+        original = _payment_with_allocation(
+            loan.id,
+            installment.id,
+            principal_before="1000.00",
+            applied_interest="100.00",
+            applied_principal="1000.00",
+        )
+
+        apply_latest_reversal_state(
+            loan,
+            installment,
+            original,
+            date(2026, 8, 31),
+        )
+
+        self.assertEqual(loan.outstanding_principal, Decimal("1000.00"))
+        self.assertEqual(loan.status, "Active")
+        self.assertEqual(installment.paid_amount, Decimal("0.00"))
+        self.assertEqual(installment.status, "Scheduled")
+        self.assertEqual(future.status, "Scheduled")
+
+    def test_reversal_rejects_inconsistent_paid_amount(self) -> None:
+        loan, installment = _loan_and_installment(due_date=date(2026, 8, 31))
+        loan.installments = [installment]
+        original = _payment_with_allocation(
+            loan.id,
+            installment.id,
+            principal_before="1000.00",
+            applied_interest="100.00",
+            applied_principal="100.00",
+        )
+
+        with self.assertRaisesRegex(LoanCalculationError, "exceeds"):
+            apply_latest_reversal_state(
+                loan,
+                installment,
+                original,
+                date(2026, 8, 31),
+            )
+
+    def test_reversal_requires_uuid_date_and_trimmed_reason(self) -> None:
+        request = PaymentReversalCreate.model_validate(
+            {
+                "requestId": "00000000-0000-4000-8000-000000000099",
+                "effectiveDate": "2026-08-17",
+                "reason": "  Wrong amount entered  ",
+            }
+        )
+
+        self.assertEqual(request.reason, "Wrong amount entered")
+
+    def test_reversal_rejects_blank_reason(self) -> None:
+        with self.assertRaisesRegex(ValidationError, "non-whitespace"):
+            PaymentReversalCreate.model_validate(
+                {
+                    "requestId": "00000000-0000-4000-8000-000000000099",
+                    "effectiveDate": "2026-08-17",
+                    "reason": "   ",
+                }
+            )
+
+    def test_identical_reversal_retry_matches_stored_entry(self) -> None:
+        reversal = _payment_with_allocation(
+            "loan-1",
+            "installment-1",
+            principal_before="900.00",
+            applied_interest="100.00",
+            applied_principal="100.00",
+        )
+        reversal.request_id = "00000000-0000-4000-8000-000000000099"
+        reversal.reversal_of_payment_id = "payment-original"
+        reversal.entry_type = "Reversal"
+        reversal.effective_date = date(2026, 9, 1)
+        reversal.note = "Wrong amount"
+        payload = PaymentReversalCreate.model_validate(
+            {
+                "requestId": reversal.request_id,
+                "effectiveDate": "2026-09-01",
+                "reason": "Wrong amount",
+            }
+        )
+
+        self.assertTrue(
+            reversal_matches_request(
+                reversal,
+                "loan-1",
+                "payment-original",
+                payload,
+            )
+        )
+        self.assertFalse(
+            reversal_matches_request(
+                reversal,
+                "loan-1",
+                "different-payment",
+                payload,
+            )
+        )
+
+
 def _loan_and_installment(
     *,
     payments_per_month: int = 1,
@@ -194,6 +321,39 @@ def _loan_and_installment(
         status="Scheduled",
     )
     return loan, installment
+
+
+def _payment_with_allocation(
+    loan_id: str,
+    installment_id: str,
+    *,
+    principal_before: str,
+    applied_interest: str,
+    applied_principal: str,
+) -> Payment:
+    payment = Payment(
+        id="payment-1",
+        request_id="request-1",
+        loan_id=loan_id,
+        installment_id=installment_id,
+        recorded_by_user_id="user-1",
+        entry_type="Payment",
+        amount=Decimal(applied_interest) + Decimal(applied_principal),
+        effective_date=date(2026, 8, 31),
+    )
+    payment.allocation = PaymentAllocation(
+        id="allocation-1",
+        interest_before=Decimal(applied_interest),
+        principal_before=Decimal(principal_before),
+        applied_interest=Decimal(applied_interest),
+        applied_principal=Decimal(applied_principal),
+        unapplied_credit=Decimal("0.00"),
+        interest_after=Decimal("0.00"),
+        principal_after=Decimal(principal_before) - Decimal(applied_principal),
+        overdue_days=0,
+        scheduled_period_days=30,
+    )
+    return payment
 
 
 if __name__ == "__main__":

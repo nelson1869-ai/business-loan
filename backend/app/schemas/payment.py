@@ -2,7 +2,7 @@
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -44,6 +44,29 @@ class PaymentCreate(PaymentPreviewRequest):
     @classmethod
     def validate_request_id(cls, value: str) -> str:
         return str(UUID(value))
+
+
+class PaymentReversalCreate(BaseModel):
+    """Reasoned, retry-safe request to reverse one complete payment."""
+
+    request_id: str = Field(min_length=36, max_length=36)
+    effective_date: date
+    reason: str = Field(min_length=3, max_length=500)
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    @field_validator("request_id")
+    @classmethod
+    def validate_request_id(cls, value: str) -> str:
+        return str(UUID(value))
+
+    @field_validator("reason")
+    @classmethod
+    def normalize_reason(cls, value: str) -> str:
+        reason = value.strip()
+        if len(reason) < 3:
+            raise ValueError("must contain at least 3 non-whitespace characters")
+        return reason
 
 
 class PaymentPreviewResponse(BaseModel):
@@ -102,7 +125,8 @@ class PaymentResponse(BaseModel):
     loan_id: str
     installment_id: str | None
     recorded_by_user_id: str
-    entry_type: str
+    reversal_of_payment_id: str | None
+    entry_type: Literal["Payment", "Reversal"]
     amount: Decimal
     effective_date: date
     note: str | None
@@ -110,3 +134,10 @@ class PaymentResponse(BaseModel):
     allocation: PaymentAllocationResponse
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, from_attributes=True)
+
+
+class PaymentReversalResponse(PaymentResponse):
+    """A reversal ledger entry linked permanently to its original payment."""
+
+    reversal_of_payment_id: str
+    entry_type: Literal["Reversal"]

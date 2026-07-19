@@ -33,5 +33,7 @@ from app.schemas.payment import (
     PaymentCreate,
     PaymentPreviewRequest,
     PaymentPreviewResponse,
+    PaymentReversalCreate,
+    PaymentReversalResponse,
     PaymentResponse,
 )

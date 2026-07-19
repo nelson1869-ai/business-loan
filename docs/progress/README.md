@@ -80,6 +80,8 @@ Study details: [FastAPI Backend Study Guide](../backend/README.md)
 - [x] Trace payment preview and confirmation from Flutter to PostgreSQL.
 - [x] Verify an extra payment reduces principal immediately.
 - [x] Verify repeated payment requests create only one ledger entry.
+- [x] Reverse a payment and verify its original ledger row remains unchanged.
+- [x] Verify concurrent reversal retries restore the balance only once.
 - [x] Verify reducing-balance interest after a partial monthly payment.
 - [ ] Create two loans with different lender-selected rates and verify both.
 - [x] Generate and explain a 5-month schedule with 10 installments.
@@ -146,6 +148,16 @@ milestone is blocked, record the reason and next action in the learning log.
 - Row locking and unique request UUIDs prevent duplicate balance changes.
 - Verification: 52 backend tests, both live PostgreSQL concurrency tests,
   Flutter analysis, 31 Flutter tests, and Alembic schema checks passed.
+
+### 2026-07-19 — Safe payment reversals
+
+- Added reasoned, full-payment reversals for the latest eligible payment.
+- Reversals preserve original rows and reconstruct principal, installment paid
+  amounts, schedule statuses, carried interest, and loan status atomically.
+- Flutter labels original and reversal entries and retains a UUID across an
+  unchanged failed retry.
+- Verification: 58 backend tests, three live PostgreSQL concurrency tests,
+  Flutter analysis, 32 Flutter tests, and Alembic schema checks passed.
 
 Copy this entry whenever you complete a study session:
 

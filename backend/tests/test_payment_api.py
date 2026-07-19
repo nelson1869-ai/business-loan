@@ -13,6 +13,12 @@ class PaymentApiContractTests(unittest.TestCase):
         self.assertIn("post", paths["/api/v1/loans/{loan_id}/payments/preview"])
         self.assertIn("post", paths["/api/v1/loans/{loan_id}/payments"])
         self.assertIn("get", paths["/api/v1/loans/{loan_id}/payments"])
+        self.assertIn(
+            "post",
+            paths[
+                "/api/v1/loans/{loan_id}/payments/{payment_id}/reversal"
+            ],
+        )
 
     def test_confirmation_recalculates_before_persisting(self) -> None:
         source = Path("app/services/payment_service.py").read_text(encoding="utf-8")

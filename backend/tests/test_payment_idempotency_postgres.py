@@ -15,8 +15,8 @@ from app.models.borrower import Borrower
 from app.models.loan import Installment, Loan
 from app.models.payment import Payment, PaymentAllocation
 from app.models.user import User
-from app.routers.payments import confirm_one_payment
-from app.schemas.payment import PaymentCreate
+from app.routers.payments import confirm_one_payment, reverse_one_payment
+from app.schemas.payment import PaymentCreate, PaymentReversalCreate
 
 
 @unittest.skipUnless(
@@ -86,11 +86,64 @@ class PostgreSqlPaymentIdempotencyTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(loan)
         self.assertEqual(loan.outstanding_principal, Decimal("900.00"))
 
+    async def test_concurrent_reversal_restores_balance_once(self) -> None:
+        payment = await self._submit(
+            PaymentCreate.model_validate(
+                {
+                    "requestId": self.request_id,
+                    "amount": "200.00",
+                    "effectiveDate": "2026-08-31",
+                }
+            )
+        )
+        reversal_request_id = str(uuid4())
+        payload = PaymentReversalCreate.model_validate(
+            {
+                "requestId": reversal_request_id,
+                "effectiveDate": "2026-09-01",
+                "reason": "Integration test correction",
+            }
+        )
+
+        first, second = await asyncio.gather(
+            self._reverse(payment.id, payload),
+            self._reverse(payment.id, payload),
+        )
+
+        self.assertEqual(first.id, second.id)
+        async with AsyncSessionFactory() as db:
+            reversal_count = await db.scalar(
+                select(func.count())
+                .select_from(Payment)
+                .where(Payment.request_id == reversal_request_id)
+            )
+            loan = await db.get(Loan, self.loan_id)
+            installment = await db.get(Installment, self.installment_id)
+        self.assertEqual(reversal_count, 1)
+        self.assertIsNotNone(loan)
+        self.assertIsNotNone(installment)
+        self.assertEqual(loan.outstanding_principal, Decimal("1000.00"))
+        self.assertEqual(loan.status, "Overdue")
+        self.assertEqual(installment.paid_amount, Decimal("0.00"))
+        self.assertEqual(installment.status, "Overdue")
+
     async def _submit(self, payload: PaymentCreate):
         async with AsyncSessionFactory() as db:
             user = await db.get(User, self.user_id)
             assert user is not None
             return await confirm_one_payment(self.loan_id, payload, db, user)
+
+    async def _reverse(self, payment_id: str, payload: PaymentReversalCreate):
+        async with AsyncSessionFactory() as db:
+            user = await db.get(User, self.user_id)
+            assert user is not None
+            return await reverse_one_payment(
+                self.loan_id,
+                payment_id,
+                payload,
+                db,
+                user,
+            )
 
 
 if __name__ == "__main__":
