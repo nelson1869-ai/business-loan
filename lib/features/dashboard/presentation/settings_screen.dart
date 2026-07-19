@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../../app/app_theme.dart';
+import '../../auth/data/auth_repository.dart';
 
 /// Displays officer and application information with a logout action.
 ///
@@ -8,15 +11,18 @@ import '../../../app/app_theme.dart';
 ///
 /// Data Flow Diagram:
 /// ```text
-///  +-----------------+     +----------------------+     +-------------------+
-///  | app_router.dart | --> | settings_screen.dart | --> | login_screen.dart |
-///  +-----------------+     +----------------------+     +-------------------+
+///  +-----------------+     +----------------------+     +----------------------+
+///  | app_router.dart | --> | settings_screen.dart | --> | auth_repository.dart |
+///  +-----------------+     +----------------------+     +----------+-----------+
+///                                                               |
+///                                                               v
+///                                                    login_screen.dart
 /// ```
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
@@ -65,8 +71,9 @@ class SettingsScreen extends StatelessWidget {
               backgroundColor: AppTheme.errorColor,
               foregroundColor: Colors.white,
             ),
-            onPressed: () {
-              // Log the user out and redirect to the login screen
+            onPressed: () async {
+              await ref.read(authRepositoryProvider).logout();
+              if (!context.mounted) return;
               context.go('/login');
             },
             child: const Text('Logout'),

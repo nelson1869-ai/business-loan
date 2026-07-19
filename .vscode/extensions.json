@@ -2,6 +2,8 @@
   "recommendations": [
     "dart-code.dart-code",
     "dart-code.flutter",
+    "ms-python.python",
+    "ms-python.vscode-pylance",
     "ms-vscode.powershell",
     "davidanson.vscode-markdownlint",
     "yzhang.markdown-all-in-one",

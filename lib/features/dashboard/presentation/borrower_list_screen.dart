@@ -22,13 +22,15 @@ import 'providers/borrowers_provider.dart';
 ///  +-----------------------------------+
 ///  |     borrower_list_screen.dart     |
 ///  |        (BorrowerListScreen)       |
-///  +-----------------+-----------------+
-///                    |
-///                    | Tap Card -> Navigate (Placeholder)
-///                    v
-///  +-----------------------------------+
-///  |      (Borrower Details Screen)    |
-///  +-----------------------------------+
+///  +---------+-----------+------------+
+///            |           |
+///  Tap Edit  |           | Tap Delete
+///            v           v
+///  navigate to      confirm dialog ->
+///  /borrowers/      deleteBorrower(id)
+///  register         (notifier)
+///  (with extra:
+///   borrower)
 /// ```
 class BorrowerListScreen extends ConsumerWidget {
   const BorrowerListScreen({super.key});
@@ -99,10 +101,68 @@ class BorrowerListScreen extends ConsumerWidget {
                     'National ID: ${_maskNationalId(nationalId)} | '
                     'Phone: ${_maskPhone(phone)}',
                   ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    // We'll hook up the borrower details route later
-                  },
+                  // Popup menu with Edit and Delete actions
+                  trailing: PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert),
+                    tooltip: 'Actions',
+                    onSelected: (value) async {
+                      if (value == 'edit') {
+                        // Navigate to edit mode — pass the full Borrower via state.extra
+                        context.go('/borrowers/register', extra: borrower);
+                      } else if (value == 'delete') {
+                        // Show confirmation dialog before irreversible deletion
+                        final confirmed = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Delete Borrower'),
+                            content: Text(
+                              'Are you sure you want to delete $fullName? '
+                              'This action cannot be undone.',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, false),
+                                child: const Text('Cancel'),
+                              ),
+                              TextButton(
+                                style: TextButton.styleFrom(
+                                  foregroundColor: Theme.of(
+                                    context,
+                                  ).colorScheme.error,
+                                ),
+                                onPressed: () => Navigator.pop(ctx, true),
+                                child: const Text('Delete'),
+                              ),
+                            ],
+                          ),
+                        );
+
+                        if (confirmed == true) {
+                          await ref
+                              .read(borrowersNotifierProvider.notifier)
+                              .deleteBorrower(borrower.id);
+                        }
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'edit',
+                        child: ListTile(
+                          leading: Icon(Icons.edit_outlined),
+                          title: Text('Edit'),
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: ListTile(
+                          leading: Icon(Icons.delete_outline),
+                          title: Text('Delete'),
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               );
             },

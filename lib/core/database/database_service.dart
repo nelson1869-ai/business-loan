@@ -35,7 +35,12 @@ class DatabaseService {
       path = join(dbPath, 'lending_nelson.db');
     }
 
-    return await openDatabase(path, version: 1, onCreate: _onCreate);
+    return await openDatabase(
+      path,
+      version: 3,
+      onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
+    );
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -78,6 +83,12 @@ class DatabaseService {
         created_at TEXT NOT NULL
       )
     ''');
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 3) {
+      await db.execute('DROP TABLE IF EXISTS deleted_borrowers');
+    }
   }
 
   Future<void> close() async {

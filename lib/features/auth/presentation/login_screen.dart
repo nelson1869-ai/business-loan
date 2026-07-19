@@ -1,37 +1,36 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-/// Validates development credentials and opens the dashboard on success.
+// Feature data layer
+import 'package:lending_nelson/features/auth/data/auth_repository.dart';
+
+/// Authenticates an officer and opens the dashboard on success.
 ///
 /// File: `lib/features/auth/presentation/login_screen.dart`
 ///
 /// Data Flow Diagram:
 /// ```text
-///  +--------------------+     +-------------------+     +-----------------------+
-///  | splash_screen.dart | --> | login_screen.dart | --> | dashboard_screen.dart |
-///  +--------------------+     +-------------------+     +-----------------------+
+///  +--------------------+     +-------------------+     +----------------------+
+///  | splash_screen.dart | --> | login_screen.dart | --> | auth_repository.dart |
+///  +--------------------+     +-------------------+     +----------+-----------+
+///                                                               |
+///                                                               v
+///                                                    dashboard_screen.dart
 /// ```
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
-  // Development-only demo values. These are not production credentials.
-  static const _demoUsername = 'officer1';
-  static const _demoPassword = 'password123';
-
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _usernameController = TextEditingController(
-    text: kDebugMode ? _demoUsername : '',
-  );
-  final _passwordController = TextEditingController(
-    text: kDebugMode ? _demoPassword : '',
-  );
+  final _usernameController = TextEditingController();
+  final _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -40,30 +39,32 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _handleLogin() {
+  Future<void> _handleLogin() async {
     final formState = _formKey.currentState;
     if (formState == null || !formState.validate()) return;
 
-    final isValidDemoLogin =
-        kDebugMode &&
-        _usernameController.text.trim() == _demoUsername &&
-        _passwordController.text == _demoPassword;
+    setState(() => _isLoading = true);
 
-    if (isValidDemoLogin) {
+    try {
+      await ref
+          .read(authRepositoryProvider)
+          .login(_usernameController.text.trim(), _passwordController.text);
+
+      if (!mounted) return;
       context.go('/dashboard');
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          kDebugMode
-              ? 'Invalid development username or password.'
-              : 'Authentication is not configured for this build.',
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: Colors.redAccent,
         ),
-        backgroundColor: Colors.redAccent,
-      ),
-    );
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -102,14 +103,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.grey),
                 ),
-                if (kDebugMode) ...[
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Development login is prefilled for classroom testing.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.orange, fontSize: 12),
-                  ),
-                ],
                 const SizedBox(height: 32),
                 TextFormField(
                   controller: _usernameController,
@@ -155,8 +148,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton(
-                  onPressed: _handleLogin,
-                  child: const Text('Login'),
+                  onPressed: _isLoading ? null : _handleLogin,
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Login'),
                 ),
               ],
             ),

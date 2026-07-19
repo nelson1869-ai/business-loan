@@ -1,5 +1,3 @@
-// ignore_for_file: prefer_initializing_formals
-
 import 'package:flutter/material.dart';
 
 /// Provides shared light and dark Material theme configurations.

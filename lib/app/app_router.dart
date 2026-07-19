@@ -1,11 +1,17 @@
+// Flutter Packages
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
+// Presentation Layer Screens
 import 'package:lending_nelson/features/auth/presentation/login_screen.dart';
 import 'package:lending_nelson/features/dashboard/presentation/borrower_list_screen.dart';
 import 'package:lending_nelson/features/dashboard/presentation/borrower_registration_screen.dart';
 import 'package:lending_nelson/features/dashboard/presentation/dashboard_screen.dart';
 import 'package:lending_nelson/features/dashboard/presentation/settings_screen.dart';
 import 'package:lending_nelson/features/splash/presentation/splash_screen.dart';
+
+// Feature Domain Layer (carries Borrower payload between routes via state.extra)
+import 'package:lending_nelson/features/dashboard/domain/models/borrower.dart';
 
 /// Defines the application's routes and the shared navigation shell.
 ///
@@ -39,7 +45,14 @@ final appRouter = GoRouter(
           routes: [
             GoRoute(
               path: 'register',
-              builder: (context, state) => const BorrowerRegistrationScreen(),
+              builder: (context, state) {
+                // Extract optional Borrower from GoRouter state.extra.
+                // null  → Add Mode (blank registration form)
+                // non-null → Edit Mode (prefilled form with existing borrower data)
+                final borrower = state.extra as Borrower?;
+
+                return BorrowerRegistrationScreen(borrower: borrower);
+              },
             ),
           ],
         ),

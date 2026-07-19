@@ -1,9 +1,13 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
+// Feature Domain Layer
 import '../domain/models/borrower.dart';
+
+// Presentation Layer Providers
 import 'providers/borrowers_provider.dart';
 
 /// Validates borrower details and submits a new borrower for local storage.
@@ -20,7 +24,13 @@ import 'providers/borrowers_provider.dart';
 ///                                          borrowers_provider.dart
 /// ```
 class BorrowerRegistrationScreen extends ConsumerStatefulWidget {
-  const BorrowerRegistrationScreen({super.key});
+  /// Optional pre-existing borrower.
+  ///
+  /// - `null`     → Add Mode  (blank form)
+  /// - `non-null` → Edit Mode (form pre-filled with [borrower] data)
+  final Borrower? borrower;
+
+  const BorrowerRegistrationScreen({super.key, this.borrower});
 
   @override
   ConsumerState<BorrowerRegistrationScreen> createState() =>
@@ -29,6 +39,7 @@ class BorrowerRegistrationScreen extends ConsumerStatefulWidget {
 
 class _BorrowerRegistrationScreenState
     extends ConsumerState<BorrowerRegistrationScreen> {
+  // ==================== State & Controllers ====================
   final _formKey = GlobalKey<FormState>();
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
@@ -36,6 +47,21 @@ class _BorrowerRegistrationScreenState
   final _phoneController = TextEditingController();
 
   DateTime? _selectedDateOfBirth;
+
+  // ==================== Lifecycle Methods ====================
+  @override
+  void initState() {
+    super.initState();
+    // Pre-fill form fields when editing an existing borrower
+    final b = widget.borrower;
+    if (b != null) {
+      _firstNameController.text = b.firstName;
+      _lastNameController.text = b.lastName;
+      _nationalIdController.text = b.nationalId;
+      _phoneController.text = b.phone;
+      _selectedDateOfBirth = DateTime.tryParse(b.dateOfBirth);
+    }
+  }
 
   @override
   void dispose() {
@@ -46,6 +72,7 @@ class _BorrowerRegistrationScreenState
     super.dispose();
   }
 
+  // ==================== Business Logic & Helpers ====================
   // Age validation rule: Must be >= 18 years old
   bool _isValidAge(DateTime dob) {
     final today = DateTime.now();
@@ -57,7 +84,91 @@ class _BorrowerRegistrationScreenState
     return age >= 18;
   }
 
+  /// Fills out the form fields with random, realistic borrower data for development testing.
+  void _autoFillRandomData() {
+    final firstNames = [
+      'James',
+      'Mary',
+      'John',
+      'Patricia',
+      'Robert',
+      'Jennifer',
+      'Michael',
+      'Linda',
+      'William',
+      'Elizabeth',
+      'David',
+      'Barbara',
+    ];
+    final lastNames = [
+      'Smith',
+      'Johnson',
+      'Williams',
+      'Brown',
+      'Jones',
+      'Miller',
+      'Davis',
+      'Garcia',
+      'Rodriguez',
+      'Wilson',
+      'Martinez',
+      'Anderson',
+    ];
+
+    final random = Random();
+    final firstName = firstNames[random.nextInt(firstNames.length)];
+    final lastName = lastNames[random.nextInt(lastNames.length)];
+
+    // Generate a random 8-digit national ID
+    final nationalId = (10000000 + random.nextInt(90000000)).toString();
+
+    // Generate a random Kenyan phone number format (+2547xx xxx xxx)
+    final phone = '+2547${(10000000 + random.nextInt(90000000)).toString()}';
+
+    // Generate a random date of birth corresponding to a valid age (between 18 and 65 years old)
+    final ageInDays = (18 * 365) + random.nextInt((65 - 18) * 365);
+    final dob = DateTime.now().subtract(Duration(days: ageInDays));
+
+    setState(() {
+      _firstNameController.text = firstName;
+      _lastNameController.text = lastName;
+      _nationalIdController.text = nationalId;
+      _phoneController.text = phone;
+      _selectedDateOfBirth = dob;
+    });
+  }
+
   bool _isSubmitting = false;
+
+  String? _validateName(String? value) {
+    final text = value?.trim() ?? '';
+    if (text.isEmpty) return 'Required';
+    if (text.length > 100) return 'Must be 100 characters or fewer';
+    return null;
+  }
+
+  String? _validateNationalId(String? value) {
+    final text = value?.trim() ?? '';
+    if (text.isEmpty) return 'Required';
+    if (text.length < 4) return 'Must contain at least 4 characters';
+    if (text.length > 100) return 'Must be 100 characters or fewer';
+    return null;
+  }
+
+  String? _validatePhone(String? value) {
+    final text = value?.trim() ?? '';
+    if (text.isEmpty) return 'Required';
+    if (text.length < 7) return 'Must contain at least 7 characters';
+    if (text.length > 32) return 'Must be 32 characters or fewer';
+    return null;
+  }
+
+  String _formatDateOnly(DateTime value) {
+    final year = value.year.toString().padLeft(4, '0');
+    final month = value.month.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    return '$year-$month-$day';
+  }
 
   Future<void> _submitForm() async {
     final formState = _formKey.currentState;
@@ -80,20 +191,33 @@ class _BorrowerRegistrationScreenState
 
       setState(() => _isSubmitting = true);
 
+      final isEditMode = widget.borrower != null;
+
+      // In Edit Mode: preserve the original id and createdAt so the existing
+      // SQLite row is updated rather than inserting a duplicate.
+      // In Add Mode: generate a fresh UUID and set createdAt to now.
       final borrower = Borrower(
-        id: const Uuid().v4(),
+        id: isEditMode ? widget.borrower!.id : const Uuid().v4(),
         firstName: _firstNameController.text.trim(),
         lastName: _lastNameController.text.trim(),
         nationalId: _nationalIdController.text.trim(),
         phone: _phoneController.text.trim(),
-        dateOfBirth: _selectedDateOfBirth!.toIso8601String(),
-        status: 'Pending',
-        createdAt: DateTime.now().toUtc().toIso8601String(),
+        dateOfBirth: _formatDateOnly(_selectedDateOfBirth!),
+        status: widget.borrower?.status ?? 'Pending',
+        createdAt: isEditMode
+            ? widget.borrower!.createdAt
+            : DateTime.now().toUtc().toIso8601String(),
       );
 
-      await ref
-          .read(borrowersNotifierProvider.notifier)
-          .registerBorrower(borrower);
+      if (isEditMode) {
+        await ref
+            .read(borrowersNotifierProvider.notifier)
+            .updateBorrower(borrower);
+      } else {
+        await ref
+            .read(borrowersNotifierProvider.notifier)
+            .registerBorrower(borrower);
+      }
 
       if (!mounted) return;
       setState(() => _isSubmitting = false);
@@ -102,14 +226,24 @@ class _BorrowerRegistrationScreenState
       if (result.hasError) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Could not register borrower: ${result.error}'),
+            content: Text(
+              isEditMode
+                  ? 'Could not update borrower: ${result.error}'
+                  : 'Could not register borrower: ${result.error}',
+            ),
           ),
         );
         return;
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Borrower registered successfully')),
+        SnackBar(
+          content: Text(
+            isEditMode
+                ? 'Borrower updated successfully'
+                : 'Borrower registered successfully',
+          ),
+        ),
       );
       context.pop();
     }
@@ -129,10 +263,23 @@ class _BorrowerRegistrationScreenState
     }
   }
 
+  // ==================== UI Construction ====================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Register Borrower')),
+      appBar: AppBar(
+        // Show 'Edit Borrower' when in Edit Mode, otherwise 'Register Borrower'
+        title: Text(
+          widget.borrower != null ? 'Edit Borrower' : 'Register Borrower',
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.casino_outlined),
+            onPressed: _autoFillRandomData,
+            tooltip: 'Auto Fill (Dev)',
+          ),
+        ],
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -146,8 +293,7 @@ class _BorrowerRegistrationScreenState
                   labelText: 'First Name',
                   prefixIcon: Icon(Icons.person_outline),
                 ),
-                validator: (val) =>
-                    val == null || val.isEmpty ? 'Required' : null,
+                validator: _validateName,
               ),
               const SizedBox(height: 16),
               TextFormField(
@@ -156,8 +302,7 @@ class _BorrowerRegistrationScreenState
                   labelText: 'Last Name',
                   prefixIcon: Icon(Icons.person_outline),
                 ),
-                validator: (val) =>
-                    val == null || val.isEmpty ? 'Required' : null,
+                validator: _validateName,
               ),
               const SizedBox(height: 16),
               TextFormField(
@@ -167,8 +312,7 @@ class _BorrowerRegistrationScreenState
                   prefixIcon: Icon(Icons.badge_outlined),
                 ),
                 keyboardType: TextInputType.number,
-                validator: (val) =>
-                    val == null || val.isEmpty ? 'Required' : null,
+                validator: _validateNationalId,
               ),
               const SizedBox(height: 16),
               TextFormField(
@@ -179,8 +323,7 @@ class _BorrowerRegistrationScreenState
                   prefixIcon: Icon(Icons.phone_outlined),
                 ),
                 keyboardType: TextInputType.phone,
-                validator: (val) =>
-                    val == null || val.isEmpty ? 'Required' : null,
+                validator: _validatePhone,
               ),
               const SizedBox(height: 16),
 

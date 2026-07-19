@@ -23,6 +23,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 class EncryptionService {
   final FlutterSecureStorage _secureStorage;
   static const _keyAlias = 'db_encryption_key';
+  final Random _secureRandom = Random.secure();
   encrypt_lib.Key? _cachedKey;
 
   EncryptionService(this._secureStorage);
@@ -37,9 +38,7 @@ class EncryptionService {
 
     // If no key exists, generate a cryptographically secure 256-bit random key
     if (base64Key == null) {
-      final random = Random.secure();
-      final keyBytes = List<int>.generate(32, (i) => random.nextInt(256));
-      base64Key = base64Encode(keyBytes);
+      base64Key = base64Encode(_randomBytes(32));
 
       // Save it securely on the device
       await _secureStorage.write(key: _keyAlias, value: base64Key);
@@ -58,7 +57,7 @@ class EncryptionService {
     final key = await _getOrGenerateKey();
 
     // Generate a new random 16-byte initialization vector (IV) for uniqueness
-    final iv = encrypt_lib.IV.fromLength(16);
+    final iv = encrypt_lib.IV.fromBase64(base64Encode(_randomBytes(16)));
 
     // Setup AES encrypter in Cipher Block Chaining (CBC) mode
     final encrypter = encrypt_lib.Encrypter(
@@ -79,7 +78,9 @@ class EncryptionService {
 
     // Separate the IV prefix and ciphertext suffix
     final parts = cipherTextWithIv.split(':');
-    if (parts.length != 2) return '';
+    if (parts.length != 2 || parts.any((part) => part.isEmpty)) {
+      throw const FormatException('Invalid encrypted value format');
+    }
 
     // Reconstruct IV and Encrypted payloads from base64
     final iv = encrypt_lib.IV.fromBase64(parts[0]);
@@ -94,6 +95,10 @@ class EncryptionService {
       encrypt_lib.Encrypted.fromBase64(cipherText),
       iv: iv,
     );
+  }
+
+  List<int> _randomBytes(int length) {
+    return List<int>.generate(length, (_) => _secureRandom.nextInt(256));
   }
 }
 
