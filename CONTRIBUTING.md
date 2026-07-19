@@ -6,12 +6,15 @@ Thank you for contributing to the `lending-nelson` business loan application! Pl
 
 1. **Prerequisites:** Install Flutter (stable channel), Android SDK, and VS Code.
 2. **Setup:**
+
    ```powershell
    git clone https://github.com/nelson1869-ai/business-loan.git
    cd lending_nelson
    flutter pub get
    ```
+
 3. **Run local quality checks:**
+
    ```powershell
    dart format lib test
    flutter analyze
