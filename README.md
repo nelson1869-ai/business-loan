@@ -1,9 +1,14 @@
 # Lending Nelson
 
-Lending Nelson is an offline-capable microfinance application built with Flutter and a FastAPI/PostgreSQL backend.
+Student resources: [Documentation Index](docs/README.md) |
+[Student Guide](docs/STUDENT_GUIDE.md) |
+[Progress Tracker](docs/progress/README.md) |
+[Product Roadmap](docs/roadmap/README.md) |
+[Project TODO](TODO.md) |
+[Cheat Sheet](docs/CHEAT_SHEET.md) |
+[Visual Flow](docs/VISUAL_FLOW.md)
 
-New to the project? Follow the [Student Guide](docs/STUDENT_GUIDE.md) for a
-layer-by-layer explanation, setup instructions, troubleshooting, and exercises.
+Lending Nelson is an offline-capable microfinance application built with Flutter and a FastAPI/PostgreSQL backend.
 
 ## Project structure
 

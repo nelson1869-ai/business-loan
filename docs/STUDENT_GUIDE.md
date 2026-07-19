@@ -1,5 +1,13 @@
 # Lending Nelson Student Guide
 
+For diagram-based learning, open the [Frontend and Backend Visual Flow](VISUAL_FLOW.md).
+For focused study, choose the [Flutter frontend](frontend/README.md) or
+[FastAPI backend](backend/README.md) path.
+Track completed lessons and demonstrations in the
+[Student Progress Tracker](progress/README.md).
+Future loan, interest, and flexible-payment work is planned in the
+[Personal Lending Roadmap](roadmap/README.md).
+
 This guide explains how the Lending Nelson project works and how to run,
 study, test, and extend it safely.
 

@@ -1,0 +1,109 @@
+# FastAPI Backend Study Guide
+
+This path teaches the server side of Lending Nelson. FastAPI authenticates
+users, validates requests, applies business rules, records audits, and stores
+central data in PostgreSQL.
+
+## Learning goals
+
+By the end of this path, you should understand how to:
+
+- create REST endpoints with FastAPI;
+- validate JSON with Pydantic schemas;
+- authenticate users with password hashes and JWTs;
+- organize database work with SQLAlchemy services;
+- version PostgreSQL changes with Alembic;
+- record redacted audit logs; and
+- test endpoints through Swagger.
+
+## Backend map
+
+```mermaid
+flowchart TD
+    Main[app/main.py] --> Router[routers/]
+    Router --> Dependencies[dependencies.py]
+    Router --> Schemas[schemas/]
+    Router --> Services[services/]
+    Services --> Models[models/]
+    Models --> PostgreSQL[(PostgreSQL)]
+    Alembic[alembic/] --> PostgreSQL
+```
+
+| Folder or file | What to study |
+| --- | --- |
+| `backend/app/main.py` | FastAPI creation, middleware, and router registration |
+| `backend/app/config.py` | Environment-based settings |
+| `backend/app/database.py` | Async SQLAlchemy sessions |
+| `backend/app/dependencies.py` | Authentication and request dependencies |
+| `backend/app/routers/` | HTTP endpoints and status codes |
+| `backend/app/schemas/` | Request and response validation |
+| `backend/app/services/` | Authentication, borrower rules, and audit logging |
+| `backend/app/models/` | PostgreSQL table mappings |
+| `backend/alembic/` | Database migrations |
+
+## Recommended reading order
+
+1. `backend/app/main.py`
+2. `backend/app/config.py`
+3. `backend/app/database.py`
+4. `backend/app/models/user.py`
+5. `backend/app/services/auth_service.py`
+6. `backend/app/dependencies.py`
+7. `backend/app/routers/auth.py`
+8. `backend/app/schemas/borrower.py`
+9. `backend/app/routers/borrowers.py`
+10. `backend/app/services/borrower_service.py`
+
+## Request lifecycle
+
+```mermaid
+sequenceDiagram
+    participant Flutter
+    participant Router as FastAPI router
+    participant Schema as Pydantic schema
+    participant Service
+    participant DB as PostgreSQL
+
+    Flutter->>Router: HTTP request with JWT
+    Router->>Schema: Validate request body
+    Router->>Service: Run authenticated operation
+    Service->>DB: Query or mutate data
+    Service->>DB: Add redacted audit record
+    DB-->>Service: Result
+    Service-->>Router: Domain result
+    Router-->>Flutter: JSON and HTTP status
+```
+
+## Run and verify
+
+From `backend/`:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m alembic upgrade head
+python -m uvicorn app.main:app --reload
+```
+
+Useful addresses:
+
+- Health: `http://127.0.0.1:8000/health`
+- Swagger: `http://127.0.0.1:8000/docs`
+- OpenAPI: `http://127.0.0.1:8000/openapi.json`
+
+Useful checks:
+
+```powershell
+python -m alembic check
+python -m compileall app
+```
+
+## Backend exercises
+
+1. Add a borrower search query parameter.
+2. Add a Pydantic validation rule and observe HTTP 422.
+3. Add pagination metadata to the borrower response.
+4. Write an Alembic migration for a new non-sensitive field.
+5. Add an API test for unauthorized borrower access.
+
+Continue with the shared [Visual Flow](../VISUAL_FLOW.md) or switch to the
+[Frontend Study Guide](../frontend/README.md).
