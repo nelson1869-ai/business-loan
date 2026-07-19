@@ -122,6 +122,29 @@ class DashboardScreen extends StatelessWidget {
                 },
               ),
             ),
+            const SizedBox(height: 12),
+            Card(
+              margin: EdgeInsets.zero,
+              child: ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.secondary.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.person_add_alt_1,
+                    color: theme.colorScheme.secondary,
+                  ),
+                ),
+                title: const Text('Register Borrower'),
+                subtitle: const Text('Add a new borrower to the system'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  context.go('/borrowers/register');
+                },
+              ),
+            ),
           ],
         ),
       ),

@@ -23,7 +23,18 @@ class BorrowerListScreen extends StatelessWidget {
     ];
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Borrowers')),
+      appBar: AppBar(
+        title: const Text('Borrowers'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person_add_alt_1),
+            onPressed: () {
+              context.go('/borrowers/register');
+            },
+            tooltip: 'Register Borrower',
+          ),
+        ],
+      ),
       body: ListView.builder(
         itemCount: mockBorrowers.length,
         itemBuilder: (context, index) {
