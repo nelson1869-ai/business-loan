@@ -126,6 +126,14 @@ milestone is blocked, record the reason and next action in the learning log.
 - Verification: Flutter analysis, the complete Flutter suite, backend tests, and
   Alembic schema checks passed.
 
+### 2026-07-19 — Idempotent loan creation
+
+- Added unique PostgreSQL loan request IDs and migration `003`.
+- Added safe replay, conflicting-term rejection, and concurrent retry handling.
+- Flutter now reuses a UUID for unchanged retries and replaces it after edits.
+- Verification: repeated-tap and timeout widget tests, backend unit tests, and a
+  live two-session PostgreSQL row-count test passed.
+
 Copy this entry whenever you complete a study session:
 
 ```text

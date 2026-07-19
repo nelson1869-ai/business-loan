@@ -1,6 +1,11 @@
+import 'dart:async';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lending_nelson/features/loans/data/models/loan_create_request.dart';
+import 'package:lending_nelson/features/loans/data/repositories/remote_loan_repository.dart';
 import 'package:lending_nelson/features/loans/domain/models/installment.dart';
 import 'package:lending_nelson/features/loans/domain/models/loan.dart';
 import 'package:lending_nelson/features/loans/presentation/loan_create_screen.dart';
@@ -30,6 +35,71 @@ void main() {
     );
   });
 
+  testWidgets(
+    'unchanged retry reuses request ID and changed terms replace it',
+    (tester) async {
+      final repository = _FailingLoanRepository();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            remoteLoanRepositoryProvider.overrideWithValue(repository),
+          ],
+          child: const MaterialApp(
+            home: LoanCreateScreen(borrowerId: 'borrower-1'),
+          ),
+        ),
+      );
+      await tester.enterText(find.byType(TextFormField).first, '1000.00');
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Create Loan'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Create Loan'));
+      await tester.pumpAndSettle();
+
+      expect(repository.requests, hasLength(2));
+      expect(
+        repository.requests[1].requestId,
+        repository.requests[0].requestId,
+      );
+
+      await tester.enterText(find.byType(TextFormField).first, '1200.00');
+      await tester.tap(find.widgetWithText(FilledButton, 'Create Loan'));
+      await tester.pumpAndSettle();
+
+      expect(repository.requests, hasLength(3));
+      expect(
+        repository.requests[2].requestId,
+        isNot(repository.requests[0].requestId),
+      );
+    },
+  );
+
+  testWidgets('repeated tap while request is pending sends only once', (
+    tester,
+  ) async {
+    final repository = _PendingLoanRepository();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [remoteLoanRepositoryProvider.overrideWithValue(repository)],
+        child: const MaterialApp(
+          home: LoanCreateScreen(borrowerId: 'borrower-1'),
+        ),
+      ),
+    );
+    await tester.enterText(find.byType(TextFormField).first, '1000.00');
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Create Loan'));
+    await tester.pump();
+    await tester.tap(find.byType(FilledButton));
+    await tester.pump();
+
+    expect(repository.requests, hasLength(1));
+    repository.completer.completeError(
+      const RemoteLoanException('Timeout', isRetryable: true),
+    );
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('detail screen renders the backend installment breakdown', (
     tester,
   ) async {
@@ -57,8 +127,34 @@ void main() {
   });
 }
 
+class _FailingLoanRepository extends RemoteLoanRepository {
+  _FailingLoanRepository() : super(Dio());
+
+  final List<LoanCreateRequest> requests = <LoanCreateRequest>[];
+
+  @override
+  Future<Loan> createLoan(LoanCreateRequest request) async {
+    requests.add(request);
+    throw const RemoteLoanException('Temporary failure', isRetryable: true);
+  }
+}
+
+class _PendingLoanRepository extends RemoteLoanRepository {
+  _PendingLoanRepository() : super(Dio());
+
+  final List<LoanCreateRequest> requests = <LoanCreateRequest>[];
+  final Completer<Loan> completer = Completer<Loan>();
+
+  @override
+  Future<Loan> createLoan(LoanCreateRequest request) {
+    requests.add(request);
+    return completer.future;
+  }
+}
+
 Loan _loan() => Loan(
   id: 'loan-1',
+  requestId: '00000000-0000-4000-8000-000000000002',
   borrowerId: 'borrower-1',
   createdByUserId: 'user-1',
   originalPrincipal: '1000.00',

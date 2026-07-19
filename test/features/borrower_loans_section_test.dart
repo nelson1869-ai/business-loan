@@ -63,6 +63,7 @@ void main() {
 
 Loan _loan() => Loan(
   id: 'loan-1',
+  requestId: '00000000-0000-4000-8000-000000000002',
   borrowerId: 'borrower-1',
   createdByUserId: 'user-1',
   originalPrincipal: '1000.00',

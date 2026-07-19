@@ -22,6 +22,7 @@ void main() {
     adapter.responseData = _loanJson(includeInstallments: true);
     const request = LoanCreateRequest(
       borrowerId: 'borrower-1',
+      requestId: '00000000-0000-4000-8000-000000000002',
       originalPrincipal: '1000.00',
       monthlyRate: '0.10',
       termMonths: 5,
@@ -83,6 +84,7 @@ void main() {
       () => repository.createLoan(
         const LoanCreateRequest(
           borrowerId: 'borrower-1',
+          requestId: '00000000-0000-4000-8000-000000000002',
           originalPrincipal: '1000.00',
           monthlyRate: '0.10',
           termMonths: 5,
@@ -133,6 +135,7 @@ class _RecordingAdapter implements HttpClientAdapter {
 Map<String, dynamic> _loanJson({required bool includeInstallments}) {
   final loan = <String, dynamic>{
     'id': 'loan-1',
+    'requestId': '00000000-0000-4000-8000-000000000002',
     'borrowerId': 'borrower-1',
     'createdByUserId': 'user-1',
     'originalPrincipal': '1000.00',

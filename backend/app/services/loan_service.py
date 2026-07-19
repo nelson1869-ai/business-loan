@@ -49,6 +49,7 @@ async def create_loan(db: AsyncSession, payload: LoanCreate, user: User) -> Loan
     loan_id = str(uuid4())
     loan = Loan(
         id=loan_id,
+        request_id=payload.request_id or str(uuid4()),
         borrower_id=payload.borrower_id,
         created_by_user_id=user.id,
         original_principal=payload.original_principal,
@@ -100,6 +101,34 @@ async def create_loan(db: AsyncSession, payload: LoanCreate, user: User) -> Loan
     )
     await db.flush()
     return loan
+
+
+def loan_matches_request(loan: Loan, payload: LoanCreate, user_id: str) -> bool:
+    """Return whether a stored loan represents exactly the retried request."""
+    return (
+        loan.borrower_id == payload.borrower_id
+        and loan.created_by_user_id == user_id
+        and loan.original_principal == payload.original_principal
+        and loan.monthly_rate == payload.monthly_rate
+        and loan.term_months == payload.term_months
+        and loan.payments_per_month == payload.payments_per_month
+        and loan.start_date == payload.start_date
+        and loan.first_due_date == payload.first_due_date
+        and loan.calculation_method == payload.calculation_method
+    )
+
+
+async def get_loan_by_request_id(
+    db: AsyncSession,
+    request_id: str,
+) -> Loan | None:
+    """Return the loan and schedule previously created for a request UUID."""
+    result = await db.execute(
+        select(Loan)
+        .options(selectinload(Loan.installments))
+        .where(Loan.request_id == request_id)
+    )
+    return result.scalar_one_or_none()
 
 
 async def list_loans(

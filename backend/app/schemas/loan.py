@@ -24,6 +24,7 @@ class LoanCreate(BaseModel):
     """Lender-approved terms accepted when creating a loan account."""
 
     borrower_id: str = Field(min_length=36, max_length=36)
+    request_id: str | None = Field(default=None, min_length=36, max_length=36)
     original_principal: Decimal = Field(gt=0, max_digits=18, decimal_places=2)
     monthly_rate: Decimal = Field(ge=0, max_digits=10, decimal_places=8)
     term_months: int = Field(gt=0, le=600)
@@ -42,10 +43,12 @@ class LoanCreate(BaseModel):
             raise ValueError("must be sent as an exact decimal string")
         return value
 
-    @field_validator("borrower_id")
+    @field_validator("borrower_id", "request_id")
     @classmethod
-    def validate_borrower_id(cls, value: str) -> str:
-        """Require a canonical borrower UUID string."""
+    def validate_uuid(cls, value: str | None) -> str | None:
+        """Require canonical UUID strings for borrower and request IDs."""
+        if value is None:
+            return None
         return str(UUID(value))
 
     @model_validator(mode="after")
@@ -87,6 +90,7 @@ class LoanResponse(BaseModel):
     """A persisted loan account without its full installment collection."""
 
     id: str
+    request_id: str
     borrower_id: str
     created_by_user_id: str
     original_principal: Decimal

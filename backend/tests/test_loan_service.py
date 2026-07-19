@@ -60,6 +60,7 @@ class LoanCreationServiceTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsInstance(loan, Loan)
         self.assertEqual(loan.number_of_payments, 10)
+        self.assertEqual(loan.request_id, _payload().request_id)
         self.assertEqual(len(loan.installments), 10)
         self.assertEqual(loan.installments[-1].expected_remaining_principal, Decimal("0.00"))
         self.assertEqual(loan.final_due_date, date(2026, 12, 20))
@@ -73,6 +74,7 @@ class LoanCreationServiceTests(unittest.IsolatedAsyncioTestCase):
 def _payload(**overrides: object) -> LoanCreate:
     values: dict[str, object] = {
         "borrowerId": "00000000-0000-4000-8000-000000000001",
+        "requestId": "00000000-0000-4000-8000-000000000002",
         "originalPrincipal": "1000.00",
         "monthlyRate": "0.10",
         "termMonths": 5,

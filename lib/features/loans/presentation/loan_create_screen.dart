@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:uuid/uuid.dart';
 
 import '../data/models/loan_create_request.dart';
 import '../data/repositories/remote_loan_repository.dart';
@@ -33,6 +34,8 @@ class _LoanCreateScreenState extends ConsumerState<LoanCreateScreen> {
     _startDate.day,
   );
   bool _isSubmitting = false;
+  String? _requestId;
+  String? _requestFingerprint;
 
   @override
   void dispose() {
@@ -109,11 +112,26 @@ class _LoanCreateScreenState extends ConsumerState<LoanCreateScreen> {
             .read(remoteBorrowerRepositoryProvider)
             .ensureBorrowerExists(borrower);
       }
+      final fingerprint = <Object>[
+        widget.borrowerId,
+        _principalController.text.trim(),
+        _rateController.text.trim(),
+        _termController.text.trim(),
+        _paymentsPerMonth,
+        formatDateOnly(_startDate),
+        formatDateOnly(_firstDueDate),
+      ].join('|');
+      if (_requestFingerprint != fingerprint) {
+        _requestFingerprint = fingerprint;
+        _requestId = const Uuid().v4();
+      }
+
       final loan = await ref
           .read(remoteLoanRepositoryProvider)
           .createLoan(
             LoanCreateRequest(
               borrowerId: widget.borrowerId,
+              requestId: _requestId!,
               originalPrincipal: _principalController.text.trim(),
               monthlyRate: percentageToDecimalRate(_rateController.text.trim()),
               termMonths: int.parse(_termController.text.trim()),

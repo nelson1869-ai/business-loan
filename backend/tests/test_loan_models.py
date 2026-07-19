@@ -46,6 +46,17 @@ class LoanModelMetadataTests(unittest.TestCase):
         self.assertEqual(creator_fk.ondelete, "RESTRICT")
         self.assertEqual(loan_fk.ondelete, "RESTRICT")
 
+    def test_request_id_is_required_and_unique(self) -> None:
+        loan_table = Base.metadata.tables["loans"]
+
+        self.assertFalse(loan_table.c.request_id.nullable)
+        request_id_constraints = [
+            constraint
+            for constraint in loan_table.constraints
+            if constraint.name == "uq_loans_request_id"
+        ]
+        self.assertEqual(len(request_id_constraints), 1)
+
     def _assert_numeric(self, column_type: object, precision: int, scale: int) -> None:
         self.assertIsInstance(column_type, Numeric)
         assert isinstance(column_type, Numeric)

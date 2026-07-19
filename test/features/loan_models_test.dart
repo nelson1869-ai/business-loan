@@ -38,6 +38,7 @@ void main() {
 
 Map<String, dynamic> _loanJson() => <String, dynamic>{
   'id': '00000000-0000-4000-8000-000000000010',
+  'requestId': '00000000-0000-4000-8000-000000000002',
   'borrowerId': '00000000-0000-4000-8000-000000000001',
   'createdByUserId': '00000000-0000-4000-8000-000000000099',
   'originalPrincipal': '1000.00',

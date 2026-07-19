@@ -102,6 +102,11 @@ sequenceDiagram
 Flutter never calculates the authoritative installment amounts. It validates
 input, sends exact terms, and displays the schedule returned by FastAPI.
 
+For safe retries, the form generates one UUID `requestId` for a valid set of
+terms. A timeout or unchanged retry reuses it, while editing any term generates
+a new UUID. The submit button is disabled while a request is pending. These UI
+guards improve feedback, while PostgreSQL remains the final duplicate barrier.
+
 ## Run and verify
 
 From the project root:

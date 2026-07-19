@@ -74,6 +74,24 @@ sequenceDiagram
     Router-->>Flutter: JSON and HTTP status
 ```
 
+## Idempotent loan creation
+
+Every Flutter loan submission includes a UUID `requestId`. PostgreSQL stores it
+in `loans.request_id` under a unique constraint. FastAPI follows these rules:
+
+1. A new UUID creates and returns one loan and schedule.
+2. Retrying the same UUID with identical terms returns that existing loan.
+3. Reusing the UUID with different terms returns HTTP 409.
+4. Concurrent inserts are resolved by PostgreSQL, not timing assumptions.
+
+The live concurrency test is intentionally opt-in because it writes temporary
+rows to the configured PostgreSQL database and then removes only those rows:
+
+```powershell
+$env:RUN_POSTGRES_INTEGRATION='1'
+python -m unittest tests.test_loan_idempotency_postgres -v
+```
+
 ## Run and verify
 
 From `backend/`:

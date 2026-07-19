@@ -7,6 +7,7 @@ class Loan {
   /// Creates one loan snapshot and protects its schedule from mutation.
   Loan({
     required this.id,
+    required this.requestId,
     required this.borrowerId,
     required this.createdByUserId,
     required this.originalPrincipal,
@@ -26,6 +27,7 @@ class Loan {
   }) : installments = UnmodifiableListView<Installment>(installments);
 
   final String id;
+  final String requestId;
   final String borrowerId;
   final String createdByUserId;
   final String originalPrincipal;
@@ -57,6 +59,7 @@ class Loan {
 
     return Loan(
       id: _requiredString(json, 'id'),
+      requestId: _requiredString(json, 'requestId'),
       borrowerId: _requiredString(json, 'borrowerId'),
       createdByUserId: _requiredString(json, 'createdByUserId'),
       originalPrincipal: _requiredDecimal(json, 'originalPrincipal'),
@@ -84,6 +87,7 @@ class Loan {
   /// Converts this snapshot to the backend's camel-case representation.
   Map<String, dynamic> toJson() => <String, dynamic>{
     'id': id,
+    'requestId': requestId,
     'borrowerId': borrowerId,
     'createdByUserId': createdByUserId,
     'originalPrincipal': originalPrincipal,

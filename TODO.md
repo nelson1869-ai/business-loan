@@ -5,27 +5,27 @@ next step.
 
 Long-term work remains in the [Product Roadmap](docs/roadmap/README.md).
 
-## Step 5: Connect Flutter to backend loans
+## Step 6: Make loan creation idempotent
 
-Goal: let an authenticated officer create and inspect borrower loans from the
-Flutter application using the tested FastAPI loan endpoints.
+Goal: guarantee that repeated taps, network retries, or a response failure can
+never create more than one loan for the same submission.
 
-1. [x] Add immutable Flutter loan and installment models with JSON conversion.
-2. [x] Add repository methods for loan creation, listing, and detail requests.
-3. [x] Add a borrower loan list and navigation to loan creation and details.
-4. [x] Add a validated create-loan form and installment-schedule detail screen.
-5. [x] Add Flutter tests, run all checks, update student docs, and commit Step 5.
+1. [x] Add a unique loan request ID column and PostgreSQL Alembic migration.
+2. [x] Make FastAPI return the existing loan when a request ID is retried.
+3. [x] Make Flutter generate and reuse one request ID for each submission.
+4. [x] Test repeated taps, timeouts, and retries to prove only one loan exists.
+5. [x] Run all checks, update student documentation, and commit Step 6.
 
-Version-one frontend rules:
+Idempotency rules:
 
-- Flutter sends exact money and rate values as decimal strings;
-- every new loan starts from an existing borrower;
-- the lender chooses the monthly interest rate and repayment terms;
-- the backend remains the source of truth for all calculations;
-- Flutter displays the persisted schedule instead of recalculating it;
-- monthly and twice-monthly schedules are supported by the initial UI; and
-- API failures produce clear, actionable messages without losing form input.
+- Flutter generates a UUID before the first loan-creation request;
+- retries of that submission reuse the same UUID;
+- PostgreSQL enforces uniqueness instead of relying only on UI state;
+- FastAPI returns the original loan and schedule for a repeated UUID;
+- a UUID cannot silently represent different loan terms; and
+- historical duplicate development rows are not deleted automatically.
 
-Step 5 is complete only when an officer can open a borrower, create a loan, and
-view the backend-generated installment schedule in Flutter. After that, replace
-this step with Step 6.
+Step 6 is complete only when identical retries return one persisted loan and a
+conflicting reuse of a request ID is rejected safely. After that, replace this
+step with Step 7 for recording full, partial, interest-only, early, and late
+payments.

@@ -19,6 +19,17 @@ async def create_one_loan(
     current_user: CurrentUser,
 ) -> LoanDetailResponse:
     """Create an active loan and persist its complete installment schedule."""
+    current_user_id = current_user.id
+    if payload.request_id is not None:
+        existing = await loan_service.get_loan_by_request_id(db, payload.request_id)
+        if existing is not None:
+            if not loan_service.loan_matches_request(existing, payload, current_user_id):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Request ID was already used for different loan terms",
+                )
+            return LoanDetailResponse.model_validate(existing)
+
     borrower = await borrower_service.get_borrower(db, payload.borrower_id)
     if borrower is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Borrower not found")
@@ -27,6 +38,18 @@ async def create_one_loan(
         await db.commit()
     except IntegrityError as error:
         await db.rollback()
+        if payload.request_id is not None:
+            existing = await loan_service.get_loan_by_request_id(
+                db,
+                payload.request_id,
+            )
+            if existing is not None:
+                if loan_service.loan_matches_request(existing, payload, current_user_id):
+                    return LoanDetailResponse.model_validate(existing)
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Request ID was already used for different loan terms",
+                ) from error
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Loan could not be created",

@@ -2,6 +2,7 @@
 
 from datetime import date, datetime
 from decimal import Decimal
+from uuid import uuid4
 
 from sqlalchemy import (
     CheckConstraint,
@@ -25,6 +26,7 @@ class Loan(Base):
 
     __tablename__ = "loans"
     __table_args__ = (
+        UniqueConstraint("request_id", name="uq_loans_request_id"),
         CheckConstraint("original_principal > 0", name="ck_loans_original_principal"),
         CheckConstraint(
             "outstanding_principal >= 0",
@@ -51,6 +53,11 @@ class Loan(Base):
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    request_id: Mapped[str] = mapped_column(
+        String(36),
+        nullable=False,
+        default=lambda: str(uuid4()),
+    )
     borrower_id: Mapped[str] = mapped_column(
         ForeignKey("borrowers.id", ondelete="RESTRICT"),
         nullable=False,

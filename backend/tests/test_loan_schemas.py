@@ -15,6 +15,7 @@ class LoanCreateSchemaTests(unittest.TestCase):
     def _valid_payload(self) -> dict[str, object]:
         return {
             "borrowerId": "00000000-0000-4000-8000-000000000001",
+            "requestId": "00000000-0000-4000-8000-000000000002",
             "originalPrincipal": "1000.00",
             "monthlyRate": "0.10",
             "termMonths": 5,
@@ -31,6 +32,10 @@ class LoanCreateSchemaTests(unittest.TestCase):
         self.assertEqual(loan.number_of_payments, 10)
         self.assertEqual(loan.start_date, date(2026, 8, 1))
         self.assertEqual(loan.first_due_date, date(2026, 8, 15))
+        self.assertEqual(
+            loan.request_id,
+            "00000000-0000-4000-8000-000000000002",
+        )
 
     def test_first_due_date_must_follow_start_date(self) -> None:
         payload = self._valid_payload()
