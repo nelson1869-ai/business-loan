@@ -1,22 +1,52 @@
+// Flutter and Testing packages
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+// App Core Services
 import 'package:lending_nelson/app/app.dart';
+import 'package:lending_nelson/core/database/database_service.dart';
+import 'package:lending_nelson/core/security/encryption_service.dart';
+
+// Feature Repository & Models
+import 'package:lending_nelson/features/dashboard/data/repositories/borrower_repository.dart';
+import 'package:lending_nelson/features/dashboard/domain/models/borrower.dart';
+
+/// A mock borrower repository for widget tests to avoid FFI database issues.
+class FakeBorrowerRepository extends BorrowerRepository {
+  final List<Borrower> _borrowers = [];
+
+  FakeBorrowerRepository()
+    : super(DatabaseService(), EncryptionService(const FlutterSecureStorage()));
+
+  @override
+  Future<void> saveBorrower(Borrower borrower) async {
+    _borrowers.add(borrower);
+  }
+
+  @override
+  Future<List<Borrower>> getBorrowers() async {
+    return List.from(_borrowers);
+  }
+}
 
 void main() {
-  // Initialize FFI for database operation in test environments
-  setUpAll(() {
-    sqfliteFfiInit();
-    databaseFactory = databaseFactoryFfi;
-  });
-
   group('App Navigation & Flows Integration Widget Tests', () {
     testWidgets(
       'App starts with Splash, redirects to Login, and logs in successfully',
       (WidgetTester tester) async {
-        // 1. Launch the app
-        await tester.pumpWidget(const ProviderScope(child: LendingNelsonApp()));
+        // 1. Launch the app with the FakeBorrowerRepository override
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              borrowerRepositoryProvider.overrideWithValue(
+                FakeBorrowerRepository(),
+              ),
+            ],
+            child: const LendingNelsonApp(),
+          ),
+        );
 
         // Verify Splash Screen renders
         expect(find.text('Secure Mobile Lending'), findsOneWidget);

@@ -1,20 +1,35 @@
+// Flutter and GoRouter packages
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/mocks/mock_data_service.dart';
-
-/// Provider to load borrowers asynchronously from the mock data service.
-///
-/// It watches [mockDataServiceProvider] and automatically rebuilds when it changes.
-final borrowersProvider = FutureProvider<List<dynamic>>((ref) async {
-  final mockService = ref.watch(mockDataServiceProvider);
-  return mockService.loadBorrowers();
-});
+// State Layer Providers
+import 'providers/borrowers_provider.dart';
 
 /// Displays the list of registered borrowers with PII-masked identifiers.
 ///
-/// Uses [borrowersProvider] to handle asynchronous data retrieval.
+/// File: `lib/features/dashboard/presentation/borrower_list_screen.dart`
+///
+/// Data Flow Diagram:
+/// ```text
+///  +-----------------------------------+
+///  |      borrowers_provider.dart      |
+///  |     (borrowersNotifierProvider)   |
+///  +-----------------+-----------------+
+///                    |
+///                    | ref.watch (Listens to state changes)
+///                    v
+///  +-----------------------------------+
+///  |     borrower_list_screen.dart     |
+///  |        (BorrowerListScreen)       |
+///  +-----------------+-----------------+
+///                    |
+///                    | Tap Card -> Navigate (Placeholder)
+///                    v
+///  +-----------------------------------+
+///  |      (Borrower Details Screen)    |
+///  +-----------------------------------+
+/// ```
 class BorrowerListScreen extends ConsumerWidget {
   const BorrowerListScreen({super.key});
 
@@ -36,8 +51,8 @@ class BorrowerListScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Watch the future provider to dynamically listen to changes and async states.
-    final borrowersAsync = ref.watch(borrowersProvider);
+    // Watch the AsyncNotifier to dynamically listen to state changes (loading/error/data).
+    final borrowersAsync = ref.watch(borrowersNotifierProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -64,13 +79,9 @@ class BorrowerListScreen extends ConsumerWidget {
             itemCount: borrowers.length,
             itemBuilder: (context, index) {
               final borrower = borrowers[index];
-              // Combine firstName and lastName from the JSON file
-              final fullName =
-                  '${borrower['firstName']} ${borrower['lastName']}';
-              // Explicitly cast fields from dynamic JSON lookups to String? to prevent
-              // Dart static analysis errors: 'dynamic' can't be assigned to 'String'.
-              final nationalId = borrower['nationalId'] as String? ?? '';
-              final phone = borrower['phone'] as String? ?? '';
+              final fullName = borrower.fullName;
+              final nationalId = borrower.nationalId;
+              final phone = borrower.phone;
 
               return Card(
                 child: ListTile(

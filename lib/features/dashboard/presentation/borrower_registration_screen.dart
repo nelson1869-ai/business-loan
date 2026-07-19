@@ -1,16 +1,34 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:uuid/uuid.dart';
 
-class BorrowerRegistrationScreen extends StatefulWidget {
+import '../domain/models/borrower.dart';
+import 'providers/borrowers_provider.dart';
+
+/// Validates borrower details and submits a new borrower for local storage.
+///
+/// File: `lib/features/dashboard/presentation/borrower_registration_screen.dart`
+///
+/// Data Flow Diagram:
+/// ```text
+///  +---------------------------+     +-----------------------------------+
+///  | borrower_list_screen.dart | --> | borrower_registration_screen.dart |
+///  +---------------------------+     +----------------+------------------+
+///                                                     |
+///                                                     v
+///                                          borrowers_provider.dart
+/// ```
+class BorrowerRegistrationScreen extends ConsumerStatefulWidget {
   const BorrowerRegistrationScreen({super.key});
 
   @override
-  State<BorrowerRegistrationScreen> createState() =>
+  ConsumerState<BorrowerRegistrationScreen> createState() =>
       _BorrowerRegistrationScreenState();
 }
 
 class _BorrowerRegistrationScreenState
-    extends State<BorrowerRegistrationScreen> {
+    extends ConsumerState<BorrowerRegistrationScreen> {
   final _formKey = GlobalKey<FormState>();
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
@@ -39,7 +57,9 @@ class _BorrowerRegistrationScreenState
     return age >= 18;
   }
 
-  void _submitForm() {
+  bool _isSubmitting = false;
+
+  Future<void> _submitForm() async {
     final formState = _formKey.currentState;
     if (formState != null && formState.validate()) {
       if (_selectedDateOfBirth == null) {
@@ -58,14 +78,39 @@ class _BorrowerRegistrationScreenState
         return;
       }
 
-      // Success scenario placeholder (will write to SQLite cache later)
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Borrower registered successfully (Offline)'),
-        ),
+      setState(() => _isSubmitting = true);
+
+      final borrower = Borrower(
+        id: const Uuid().v4(),
+        firstName: _firstNameController.text.trim(),
+        lastName: _lastNameController.text.trim(),
+        nationalId: _nationalIdController.text.trim(),
+        phone: _phoneController.text.trim(),
+        dateOfBirth: _selectedDateOfBirth!.toIso8601String(),
+        status: 'Pending',
+        createdAt: DateTime.now().toUtc().toIso8601String(),
       );
 
-      // Return back to the borrower list
+      await ref
+          .read(borrowersNotifierProvider.notifier)
+          .registerBorrower(borrower);
+
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+
+      final result = ref.read(borrowersNotifierProvider);
+      if (result.hasError) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not register borrower: ${result.error}'),
+          ),
+        );
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Borrower registered successfully')),
+      );
       context.pop();
     }
   }
@@ -165,8 +210,14 @@ class _BorrowerRegistrationScreenState
               ),
               const SizedBox(height: 24),
               ElevatedButton(
-                onPressed: _submitForm,
-                child: const Text('Register'),
+                onPressed: _isSubmitting ? null : _submitForm,
+                child: _isSubmitting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Register'),
               ),
             ],
           ),

@@ -4,6 +4,16 @@ import 'dart:async';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
+/// Opens, initializes, and closes the application's SQLite database.
+///
+/// File: `lib/core/database/database_service.dart`
+///
+/// Data Flow Diagram:
+/// ```text
+///  +------------------------+     +-----------------------+     +------------+
+///  | database_provider.dart | --> | database_service.dart | --> | SQLite DB  |
+///  +------------------------+     +-----------------------+     +------------+
+/// ```
 class DatabaseService {
   DatabaseService({Database? db, String? dbPath}) : _db = db, _dbPath = dbPath;
 

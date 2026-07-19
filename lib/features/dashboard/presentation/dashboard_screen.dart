@@ -1,6 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+/// Displays portfolio metrics and entry points to borrower workflows.
+///
+/// File: `lib/features/dashboard/presentation/dashboard_screen.dart`
+///
+/// Data Flow Diagram:
+/// ```text
+///  +-----------------+     +-----------------------+
+///  | app_router.dart | --> | dashboard_screen.dart |
+///  +-----------------+     +-----------+-----------+
+///                                      |
+///                         +------------+----------------+
+///                         v                             v
+///              borrower_list_screen.dart   borrower_registration_screen.dart
+/// ```
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
 

@@ -2,6 +2,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+/// Validates development credentials and opens the dashboard on success.
+///
+/// File: `lib/features/auth/presentation/login_screen.dart`
+///
+/// Data Flow Diagram:
+/// ```text
+///  +--------------------+     +-------------------+     +-----------------------+
+///  | splash_screen.dart | --> | login_screen.dart | --> | dashboard_screen.dart |
+///  +--------------------+     +-------------------+     +-----------------------+
+/// ```
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 

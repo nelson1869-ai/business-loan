@@ -2,6 +2,18 @@
 
 import 'package:flutter/material.dart';
 
+/// Provides shared light and dark Material theme configurations.
+///
+/// File: `lib/app/app_theme.dart`
+///
+/// Data Flow Diagram:
+/// ```text
+///  +------------------+     +------------------+
+///  | app_theme.dart   | --> |     app.dart     |
+///  +--------+---------+     +------------------+
+///           |
+///           +-------------> presentation/*.dart
+/// ```
 class AppTheme {
   AppTheme._();
 

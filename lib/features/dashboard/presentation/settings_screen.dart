@@ -2,6 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/app_theme.dart';
 
+/// Displays officer and application information with a logout action.
+///
+/// File: `lib/features/dashboard/presentation/settings_screen.dart`
+///
+/// Data Flow Diagram:
+/// ```text
+///  +-----------------+     +----------------------+     +-------------------+
+///  | app_router.dart | --> | settings_screen.dart | --> | login_screen.dart |
+///  +-----------------+     +----------------------+     +-------------------+
+/// ```
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 

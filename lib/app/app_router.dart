@@ -7,6 +7,20 @@ import 'package:lending_nelson/features/dashboard/presentation/dashboard_screen.
 import 'package:lending_nelson/features/dashboard/presentation/settings_screen.dart';
 import 'package:lending_nelson/features/splash/presentation/splash_screen.dart';
 
+/// Defines the application's routes and the shared navigation shell.
+///
+/// File: `lib/app/app_router.dart`
+///
+/// Data Flow Diagram:
+/// ```text
+///  +------------+     +-----------------+     +-----------------------+
+///  |  app.dart  | --> | app_router.dart | --> | splash_screen.dart    |
+///  +------------+     +--------+--------+     | login_screen.dart     |
+///                              |              | dashboard_screen.dart |
+///                              +------------> | borrower_*.dart       |
+///                                             | settings_screen.dart  |
+///                                             +-----------------------+
+/// ```
 final appRouter = GoRouter(
   initialLocation: '/',
   routes: [
@@ -38,6 +52,7 @@ final appRouter = GoRouter(
   ],
 );
 
+/// Displays routed dashboard content above the shared bottom navigation bar.
 class MainShell extends StatelessWidget {
   final Widget child;
   const MainShell({super.key, required this.child});

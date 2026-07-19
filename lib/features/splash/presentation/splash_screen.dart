@@ -2,6 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/app_theme.dart';
 
+/// Displays application branding briefly before opening the login screen.
+///
+/// File: `lib/features/splash/presentation/splash_screen.dart`
+///
+/// Data Flow Diagram:
+/// ```text
+///  +-----------+     +--------------------+     +-------------------+
+///  | main.dart | --> | splash_screen.dart | --> | login_screen.dart |
+///  +-----------+     +--------------------+     +-------------------+
+/// ```
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
