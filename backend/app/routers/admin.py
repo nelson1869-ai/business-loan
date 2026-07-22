@@ -36,6 +36,27 @@ async def reset_all_data(
         ) from error
 
 
+@router.post("/seed", status_code=status.HTTP_200_OK)
+async def seed_database(
+    db: DbSession,
+    current_user: CurrentUser,
+) -> dict:
+    """Reset and populate the database with sample borrowers, overdue, due today, and paid loans.
+
+    Intended for development tooling and seeding.
+    """
+    try:
+        res = await admin_service.seed_database(db, current_user)
+        await db.commit()
+        return res
+    except Exception as error:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Seed failed: {error}",
+        ) from error
+
+
 @router.post("/loans/{loan_id}/status", status_code=status.HTTP_200_OK)
 async def update_loan_status(
     loan_id: str,
