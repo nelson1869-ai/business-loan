@@ -1,9 +1,6 @@
 $kind: http-request
-name: Preview Payment
+url: "{{baseUrl}}/api/v1/loans/{{loanId}}/payments/preview"
 method: POST
-url: '{{baseUrl}}/api/v1/loans/{{loanId}}/payments/preview'
-order: 1000
-description: Preview how a payment will be allocated before confirming it.
 body:
   type: json
   content: |-
@@ -13,24 +10,22 @@ body:
       "installmentId": null
     }
 scripts:
-  - type: prerequest
-    language: text/javascript
+  - type: beforeRequest
     code: |-
-      // Set today's date dynamically so payment is never rejected as past-due
       const today = new Date();
       const yyyy = today.getFullYear();
       const mm = String(today.getMonth() + 1).padStart(2, '0');
       const dd = String(today.getDate()).padStart(2, '0');
-      pm.collectionVariables.set("paymentDate", `${yyyy}-${mm}-${dd}`);
-  - type: afterResponse
+      pm.collectionVariables.set('paymentDate', `${yyyy}-${mm}-${dd}`);
     language: text/javascript
+  - type: afterResponse
     code: |-
-      pm.test("Status code is 200", function () {
-          pm.response.to.have.status(200);
-      });
-      pm.test("Preview returns interest-first allocation", function () {
+      pm.test('Status code is 200', function () { pm.response.to.have.status(200); });
+      pm.test('Preview returns interest-first allocation', function () {
           const json = pm.response.json();
-          pm.expect(json).to.have.property("appliedToInterest");
-          pm.expect(json).to.have.property("appliedToPrincipal");
-          pm.expect(json).to.have.property("outstandingPrincipalAfter");
+          pm.expect(json).to.have.property('appliedToInterest');
+          pm.expect(json).to.have.property('appliedToPrincipal');
+          pm.expect(json).to.have.property('outstandingPrincipalAfter');
       });
+    language: text/javascript
+order: 1000

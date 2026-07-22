@@ -1,0 +1,379 @@
+{
+  "info": {
+    "name": "Lending Nelson API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8000" },
+    { "key": "accessToken", "value": "" },
+    { "key": "refreshToken", "value": "" },
+    { "key": "borrowerId", "value": "" },
+    { "key": "loanId", "value": "" },
+    { "key": "paymentId", "value": "" },
+    { "key": "paymentDate", "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/token", "host": ["{{baseUrl}}"], "path": ["api", "v1", "auth", "token"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"officer1\",\n  \"password\": \"password123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const json = pm.response.json();",
+                  "    pm.collectionVariables.set('accessToken', json.access_token);",
+                  "    pm.collectionVariables.set('refreshToken', json.refresh_token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/refresh", "host": ["{{baseUrl}}"], "path": ["api", "v1", "auth", "refresh"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "Reset All Data",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/reset", "host": ["{{baseUrl}}"], "path": ["api", "v1", "admin", "reset"] }
+          }
+        },
+        {
+          "name": "Seed Database",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/seed", "host": ["{{baseUrl}}"], "path": ["api", "v1", "admin", "seed"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Database seeded successfully', function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.status).to.eql('ok');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Loan Status (Admin)",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/loans/{{loanId}}/status", "host": ["{{baseUrl}}"], "path": ["api", "v1", "admin", "loans", "{{loanId}}", "status"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Active\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Borrowers",
+      "item": [
+        {
+          "name": "List Borrowers",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/borrowers", "host": ["{{baseUrl}}"], "path": ["api", "v1", "borrowers"] }
+          }
+        },
+        {
+          "name": "Create Borrower",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/v1/borrowers", "host": ["{{baseUrl}}"], "path": ["api", "v1", "borrowers"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{$guid}}\",\n  \"firstName\": \"Test\",\n  \"lastName\": \"Borrower\",\n  \"nationalId\": \"TEST-NEWMAN-001\",\n  \"phone\": \"+639171234567\",\n  \"dateOfBirth\": \"1990-01-15\",\n  \"createdAt\": \"2026-01-01T00:00:00Z\",\n  \"status\": \"Pending\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201 || pm.response.code === 200) {",
+                  "    const json = pm.response.json();",
+                  "    pm.collectionVariables.set('borrowerId', json.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Borrower",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/borrowers/{{borrowerId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "borrowers", "{{borrowerId}}"] }
+          }
+        },
+        {
+          "name": "Update Borrower",
+          "request": {
+            "method": "PUT",
+            "url": { "raw": "{{baseUrl}}/api/v1/borrowers/{{borrowerId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "borrowers", "{{borrowerId}}"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Test Borrower Updated\",\n  \"phone\": \"+639171234567\",\n  \"address\": \"456 Updated St, Manila\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Delete Borrower",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/api/v1/borrowers/{{borrowerId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "borrowers", "{{borrowerId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Loans",
+      "item": [
+        {
+          "name": "List Loans",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/loans", "host": ["{{baseUrl}}"], "path": ["api", "v1", "loans"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const json = pm.response.json();",
+                  "    if (Array.isArray(json) && json.length > 0) {",
+                  "        const activeLoan = json.find(l => l.status === 'Active') || json[0];",
+                  "        pm.collectionVariables.set('loanId', activeLoan.id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Loan",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/loans/{{loanId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "loans", "{{loanId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Offline Sync",
+      "item": [
+        {
+          "name": "Drain Sync Queue",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/v1/sync/drain", "host": ["{{baseUrl}}"], "path": ["api", "v1", "sync", "drain"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": []\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payments",
+      "item": [
+        {
+          "name": "Preview Payment",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/v1/loans/{{loanId}}/payments/preview", "host": ["{{baseUrl}}"], "path": ["api", "v1", "loans", "{{loanId}}", "payments", "preview"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"1000.00\",\n  \"effectiveDate\": \"{{paymentDate}}\",\n  \"installmentId\": null\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const today = new Date();",
+                  "const yyyy = today.getFullYear();",
+                  "const mm = String(today.getMonth() + 1).padStart(2, '0');",
+                  "const dd = String(today.getDate()).padStart(2, '0');",
+                  "pm.collectionVariables.set('paymentDate', `${yyyy}-${mm}-${dd}`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Preview returns interest-first allocation', function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.have.property('appliedInterest');",
+                  "    pm.expect(json).to.have.property('appliedPrincipal');",
+                  "    pm.expect(json).to.have.property('principalAfter');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Confirm Payment",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/v1/loans/{{loanId}}/payments", "host": ["{{baseUrl}}"], "path": ["api", "v1", "loans", "{{loanId}}", "payments"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requestId\": \"{{$guid}}\",\n  \"amount\": \"1000.00\",\n  \"effectiveDate\": \"{{paymentDate}}\",\n  \"installmentId\": null,\n  \"note\": \"Monthly payment\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const today = new Date();",
+                  "const yyyy = today.getFullYear();",
+                  "const mm = String(today.getMonth() + 1).padStart(2, '0');",
+                  "const dd = String(today.getDate()).padStart(2, '0');",
+                  "pm.collectionVariables.set('paymentDate', `${yyyy}-${mm}-${dd}`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201 || pm.response.code === 200) {",
+                  "    const json = pm.response.json();",
+                  "    pm.collectionVariables.set('paymentId', json.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Payments",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/loans/{{loanId}}/payments", "host": ["{{baseUrl}}"], "path": ["api", "v1", "loans", "{{loanId}}", "payments"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const json = pm.response.json();",
+                  "    if (Array.isArray(json) && json.length > 0) {",
+                  "        const latest = json[json.length - 1];",
+                  "        pm.collectionVariables.set('paymentId', latest.id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reverse Payment",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/v1/loans/{{loanId}}/payments/{{paymentId}}/reversal", "host": ["{{baseUrl}}"], "path": ["api", "v1", "loans", "{{loanId}}", "payments", "{{paymentId}}", "reversal"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requestId\": \"{{$guid}}\",\n  \"effectiveDate\": \"{{paymentDate}}\",\n  \"reason\": \"Payment was made in error\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () { pm.response.to.have.status(201); });",
+                  "pm.test('Payment reversed successfully', function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.entryType).to.eql('Reversal');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,25 +1,21 @@
 $kind: http-request
-name: Reverse Payment
+url: "{{baseUrl}}/api/v1/loans/{{loanId}}/payments/{{paymentId}}/reversal"
 method: POST
-url: '{{baseUrl}}/api/v1/loans/{{loanId}}/payments/{{paymentId}}/reversal'
-order: 4000
-description: Reverse the latest payment without deleting its ledger history.
 body:
   type: json
   content: |-
     {
       "requestId": "{{$guid}}",
-      "effectiveDate": "2026-02-01",
+      "effectiveDate": "{{paymentDate}}",
       "reason": "Payment was made in error"
     }
 scripts:
   - type: afterResponse
-    language: text/javascript
     code: |-
-      pm.test("Status code is 200", function () {
-          pm.response.to.have.status(200);
-      });
-      pm.test("Payment reversed successfully", function () {
+      pm.test('Status code is 200', function () { pm.response.to.have.status(200); });
+      pm.test('Payment reversed successfully', function () {
           const json = pm.response.json();
-          pm.expect(json.status).to.eql("Reversed");
+          pm.expect(json.status).to.eql('Reversed');
       });
+    language: text/javascript
+order: 4000

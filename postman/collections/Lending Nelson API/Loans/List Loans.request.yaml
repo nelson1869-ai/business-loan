@@ -1,28 +1,15 @@
 $kind: http-request
-name: List Loans
+url: "{{baseUrl}}/api/v1/loans"
 method: GET
-url: '{{baseUrl}}/api/v1/loans'
-order: 2000
-description: List loan accounts with optional borrower and status filters.
-queryParams:
-  - key: borrowerId
-    value: '{{borrowerId}}'
-    description: Filter by borrower UUID
-    disabled: true
-  - key: status
-    value: Active
-    description: Filter by loan status
-    disabled: true
 scripts:
   - type: afterResponse
-    language: text/javascript
     code: |-
       if (pm.response.code === 200) {
           const json = pm.response.json();
           if (Array.isArray(json) && json.length > 0) {
-              // Pick first Active loan for payment tests
-              const activeLoan = json.find(l => l.status === "Active") || json[0];
-              pm.collectionVariables.set("loanId", activeLoan.id);
+              const activeLoan = json.find(l => l.status === 'Active') || json[0];
+              pm.collectionVariables.set('loanId', activeLoan.id);
           }
       }
-
+    language: text/javascript
+order: 1000

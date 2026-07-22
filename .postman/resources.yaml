@@ -2,6 +2,10 @@
 workspace:
   id: 83e380d6-ecf6-4743-87d3-98f168f3e274
 
+cloudResources:
+  collections:
+    ../postman/collections/Lending Nelson API: 60eab6c9-a19b-4293-80ed-d3abbc202543
+
 # All resources in the `postman/` folder are automatically registered in Local View.
 # Point to additional files outside the `postman/` folder to register them individually. Example:
 #localResources:

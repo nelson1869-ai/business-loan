@@ -1,23 +1,13 @@
 $kind: http-request
-name: Seed Database
+url: "{{baseUrl}}/api/v1/admin/seed"
 method: POST
-url: '{{baseUrl}}/api/v1/admin/seed'
-order: 3000
-description: Populate backend database with sample borrowers, overdue loans, due today loans, and paid loans.
-auth:
-  type: bearer
-  bearer:
-    - key: token
-      value: '{{accessToken}}'
-      type: string
 scripts:
   - type: afterResponse
-    language: text/javascript
     code: |-
-      pm.test("Status code is 200", function () {
-          pm.response.to.have.status(200);
-      });
-      pm.test("Database seeded successfully", function () {
+      pm.test('Status code is 200', function () { pm.response.to.have.status(200); });
+      pm.test('Database seeded successfully', function () {
           const json = pm.response.json();
-          pm.expect(json.status).to.eql("ok");
+          pm.expect(json.status).to.eql('ok');
       });
+    language: text/javascript
+order: 1000

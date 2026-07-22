@@ -1,29 +1,7 @@
 $kind: http-request
-name: Drain Sync Queue
+url: "{{baseUrl}}/api/v1/sync/drain"
 method: POST
-url: '{{baseUrl}}/api/v1/sync/drain'
-order: 1000
-description: Replay offline mutations in order and report per-item outcomes.
 body:
   type: json
-  content: |-
-    {
-      "items": [
-        {
-          "transactionUuid": "{{$guid}}",
-          "endpoint": "/api/v1/borrowers",
-          "method": "POST",
-          "payload": {
-            "id": "{{$guid}}",
-            "firstName": "Juan",
-            "lastName": "dela Cruz",
-            "nationalId": "1234-5678",
-            "phone": "+639171234567",
-            "dateOfBirth": "1990-01-15",
-            "status": "Active",
-            "createdAt": "{{$isoTimestamp}}"
-          },
-          "createdAt": "{{$isoTimestamp}}"
-        }
-      ]
-    }
+  content: '{ "events": [] }'
+order: 1000

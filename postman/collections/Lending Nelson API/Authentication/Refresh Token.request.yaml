@@ -1,14 +1,10 @@
 $kind: http-request
-name: Refresh Token
+url: "{{baseUrl}}/api/v1/auth/refresh"
 method: POST
-url: '{{baseUrl}}/api/v1/auth/refresh'
-order: 2000
-description: Exchange a valid refresh token for a rotated token pair.
-auth:
-  type: noauth
 body:
   type: json
   content: |-
     {
       "refresh_token": "{{refreshToken}}"
     }
+order: 2000

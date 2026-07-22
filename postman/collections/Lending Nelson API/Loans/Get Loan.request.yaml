@@ -1,6 +1,4 @@
 $kind: http-request
-name: Get Loan
+url: "{{baseUrl}}/api/v1/loans/{{loanId}}"
 method: GET
-url: '{{baseUrl}}/api/v1/loans/{{loanId}}'
-order: 3000
-description: Return one loan account and its ordered installment schedule.
+order: 2000

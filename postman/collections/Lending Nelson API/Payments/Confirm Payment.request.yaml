@@ -1,9 +1,6 @@
 $kind: http-request
-name: Confirm Payment
+url: "{{baseUrl}}/api/v1/loans/{{loanId}}/payments"
 method: POST
-url: '{{baseUrl}}/api/v1/loans/{{loanId}}/payments'
-order: 2000
-description: Record an immutable payment ledger entry with interest-first allocation.
 body:
   type: json
   content: |-
@@ -15,18 +12,19 @@ body:
       "note": "Monthly payment"
     }
 scripts:
-  - type: prerequest
-    language: text/javascript
+  - type: beforeRequest
     code: |-
       const today = new Date();
       const yyyy = today.getFullYear();
       const mm = String(today.getMonth() + 1).padStart(2, '0');
       const dd = String(today.getDate()).padStart(2, '0');
-      pm.collectionVariables.set("paymentDate", `${yyyy}-${mm}-${dd}`);
-  - type: afterResponse
+      pm.collectionVariables.set('paymentDate', `${yyyy}-${mm}-${dd}`);
     language: text/javascript
+  - type: afterResponse
     code: |-
       if (pm.response.code === 201 || pm.response.code === 200) {
           const json = pm.response.json();
-          pm.collectionVariables.set("paymentId", json.id);
+          pm.collectionVariables.set('paymentId', json.id);
       }
+    language: text/javascript
+order: 2000

@@ -1,18 +1,15 @@
 $kind: http-request
-name: List Payments
+url: "{{baseUrl}}/api/v1/loans/{{loanId}}/payments"
 method: GET
-url: '{{baseUrl}}/api/v1/loans/{{loanId}}/payments'
-order: 3000
-description: List all payment ledger entries for a loan.
 scripts:
   - type: afterResponse
-    language: text/javascript
     code: |-
-      // Fallback: capture latest paymentId for Reverse Payment if Confirm Payment missed it
       if (pm.response.code === 200) {
           const json = pm.response.json();
           if (Array.isArray(json) && json.length > 0) {
               const latest = json[json.length - 1];
-              pm.collectionVariables.set("paymentId", latest.id);
+              pm.collectionVariables.set('paymentId', latest.id);
           }
       }
+    language: text/javascript
+order: 3000

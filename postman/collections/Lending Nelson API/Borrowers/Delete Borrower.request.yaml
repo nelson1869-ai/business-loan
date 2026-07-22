@@ -1,6 +1,4 @@
 $kind: http-request
-name: Delete Borrower
+url: "{{baseUrl}}/api/v1/borrowers/{{borrowerId}}"
 method: DELETE
-url: '{{baseUrl}}/api/v1/borrowers/{{borrowerId}}'
 order: 5000
-description: Soft-delete a borrower and write a redacted audit record. Returns 204 No Content.

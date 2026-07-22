@@ -1,33 +1,22 @@
-# Architectural Layer: API Contract & Postman Definition
-# Target Endpoint: POST http://localhost:8000/api/v1/auth/token
-
 $kind: http-request
-name: Login
+url: "{{baseUrl}}/api/v1/auth/token"
 method: POST
-url: '{{baseUrl}}/api/v1/auth/token'
-order: 1000
-description: Authenticate credentials and return an access/refresh token pair.
-auth:
-  type: noauth
 body:
   type: json
   content: |-
     {
-      // Internal Detail: Default loan officer username created during database setup
       "username": "officer1",
-      // Internal Detail: Standard development password
       "password": "password123"
     }
+auth:
+  type: noauth
 scripts:
   - type: afterResponse
-    language: text/javascript
     code: |-
-      // Step 1: Check if server returned successful 200 OK HTTP status
       if (pm.response.code === 200) {
-          // Step 2: Parse JSON response body containing tokens
           const json = pm.response.json();
-          // Step 3: Store access_token in collection variable for automatic bearer authentication
-          pm.collectionVariables.set("accessToken", json.access_token);
-          // Step 4: Store refresh_token in collection variable for token rotation
-          pm.collectionVariables.set("refreshToken", json.refresh_token);
+          pm.collectionVariables.set('accessToken', json.access_token);
+          pm.collectionVariables.set('refreshToken', json.refresh_token);
       }
+    language: text/javascript
+order: 1000
