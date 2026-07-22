@@ -12,3 +12,14 @@ body:
       "effectiveDate": "2026-02-01",
       "reason": "Payment was made in error"
     }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 200", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("Payment reversed successfully", function () {
+          const json = pm.response.json();
+          pm.expect(json.status).to.eql("Reversed");
+      });

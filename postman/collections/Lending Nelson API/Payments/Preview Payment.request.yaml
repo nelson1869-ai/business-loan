@@ -12,3 +12,16 @@ body:
       "effectiveDate": "2026-02-01",
       "installmentId": null
     }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 200", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("Preview returns interest-first allocation", function () {
+          const json = pm.response.json();
+          pm.expect(json).to.have.property("appliedToInterest");
+          pm.expect(json).to.have.property("appliedToPrincipal");
+          pm.expect(json).to.have.property("outstandingPrincipalAfter");
+      });
