@@ -244,7 +244,7 @@ Future<void> main(List<String> arguments) async {
   final johnLoan = await _createLoan(
     borrowerId: john,
     originalPrincipal: '50000.00',
-    monthlyRate: '10',
+    monthlyRate: '0.10',
     termMonths: 6,
     paymentsPerMonth: 1,
     startDate: _date(fiveMonthsAgo),
@@ -255,7 +255,7 @@ Future<void> main(List<String> arguments) async {
   await _createLoan(
     borrowerId: john,
     originalPrincipal: '30000.00',
-    monthlyRate: '8',
+    monthlyRate: '0.08',
     termMonths: 3,
     paymentsPerMonth: 1,
     startDate: _date(oneMonthAgo),
@@ -266,7 +266,7 @@ Future<void> main(List<String> arguments) async {
   final robertLoan = await _createLoan(
     borrowerId: robert,
     originalPrincipal: '25000.00',
-    monthlyRate: '12',
+    monthlyRate: '0.12',
     termMonths: 4,
     paymentsPerMonth: 1,
     startDate: _date(fourMonthsAgo),
@@ -277,7 +277,7 @@ Future<void> main(List<String> arguments) async {
   final patriciaLoan = await _createLoan(
     borrowerId: patricia,
     originalPrincipal: '20000.00',
-    monthlyRate: '10',
+    monthlyRate: '0.10',
     termMonths: 3,
     paymentsPerMonth: 1,
     startDate: _date(fiveMonthsAgo),
@@ -288,7 +288,7 @@ Future<void> main(List<String> arguments) async {
   final jamesLoan = await _createLoan(
     borrowerId: james,
     originalPrincipal: '40000.00',
-    monthlyRate: '15',
+    monthlyRate: '0.15',
     termMonths: 5,
     paymentsPerMonth: 1,
     startDate: _date(fiveMonthsAgo),

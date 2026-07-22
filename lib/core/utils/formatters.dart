@@ -56,7 +56,7 @@ String percentageToDecimalRate(String percentage) {
 String formatInterestRate(String rate) {
   final value = double.tryParse(rate);
   if (value == null) return rate;
-  final percent = (value * 100).round();
+  final percent = value <= 1.0 ? (value * 100).round() : value.round();
   return '$percent%';
 }
 
