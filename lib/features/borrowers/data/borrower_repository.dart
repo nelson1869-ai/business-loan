@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -21,7 +22,11 @@ class BorrowerRepository {
     final encryptedBorrower = await _encryptBorrower(borrower);
 
     await db.transaction((txn) async {
-      await txn.insert('borrowers', encryptedBorrower.toMap());
+      await txn.insert(
+        'borrowers',
+        encryptedBorrower.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
 
       await txn.insert(
         'audit_logs',
@@ -32,6 +37,26 @@ class BorrowerRepository {
         ),
       );
     });
+  }
+
+  Future<void> syncRemoteBorrowers(List<Borrower> remote) async {
+    final db = await _dbService.database;
+    final remoteIds = remote.map((b) => b.id).toSet();
+    final localMaps = await db.query('borrowers', columns: ['id']);
+    for (final map in localMaps) {
+      final id = map['id'] as String;
+      if (!remoteIds.contains(id)) {
+        await db.delete('borrowers', where: 'id = ?', whereArgs: [id]);
+      }
+    }
+    for (final borrower in remote) {
+      final encryptedBorrower = await _encryptBorrower(borrower);
+      await db.insert(
+        'borrowers',
+        encryptedBorrower.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
   }
 
   Future<void> updateBorrower(Borrower borrower) async {

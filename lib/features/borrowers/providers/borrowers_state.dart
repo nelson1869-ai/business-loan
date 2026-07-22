@@ -18,9 +18,7 @@ class BorrowersNotifier extends AsyncNotifier<List<Borrower>> {
     if (await _isOnline()) {
       try {
         final remote = await remoteRepository.getBorrowers();
-        for (final borrower in remote) {
-          await localRepository.saveBorrower(borrower);
-        }
+        await localRepository.syncRemoteBorrowers(remote);
         return remote..sort((a, b) => b.createdAt.compareTo(a.createdAt));
       } catch (_) {}
     }
