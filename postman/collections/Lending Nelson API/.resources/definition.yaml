@@ -13,6 +13,8 @@ variables:
     value: ''
   - key: paymentId
     value: ''
+  - key: paymentDate
+    value: ''
 auth:
   type: bearer
   credentials:
