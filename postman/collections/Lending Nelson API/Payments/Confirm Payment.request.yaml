@@ -14,3 +14,11 @@ body:
       "installmentId": null,
       "note": "Monthly payment"
     }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      if (pm.response.code === 201 || pm.response.code === 200) {
+          const json = pm.response.json();
+          pm.collectionVariables.set("paymentId", json.id);
+      }

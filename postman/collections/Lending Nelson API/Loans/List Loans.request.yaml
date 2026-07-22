@@ -13,3 +13,13 @@ queryParams:
     value: Active
     description: Filter by loan status
     disabled: true
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      if (pm.response.code === 200) {
+          const json = pm.response.json();
+          if (Array.isArray(json) && json.length > 0) {
+              pm.collectionVariables.set("loanId", json[0].id);
+          }
+      }

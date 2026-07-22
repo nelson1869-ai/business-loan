@@ -18,3 +18,11 @@ body:
       "firstDueDate": "2026-02-01",
       "calculationMethod": "fixed_periodic_reducing_balance"
     }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      if (pm.response.code === 201 || pm.response.code === 200) {
+          const json = pm.response.json();
+          pm.collectionVariables.set("loanId", json.id);
+      }

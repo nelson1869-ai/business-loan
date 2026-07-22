@@ -1,6 +1,29 @@
+# Architectural Layer: Admin & Dev Tooling API Request
+# Target Endpoint: POST http://localhost:8000/api/v1/admin/seed
+
 $kind: http-request
 name: Seed Database
 method: POST
 url: '{{baseUrl}}/api/v1/admin/seed'
-order: 2000
-description: 'Reset and populate the database with sample borrowers, overdue, due today, and paid loans.'
+order: 1000
+description: Populate backend database with sample borrowers, overdue loans, due today loans, and paid loans.
+auth:
+  // Internal Detail: Inherits Authorization Bearer token from collection level
+  type: bearer
+  bearer:
+    - key: token
+      value: '{{accessToken}}'
+      type: string
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      // Step 1: Assert successful 200 OK status
+      pm.test("Status code is 200", function () {
+          pm.response.to.have.status(200);
+      });
+      // Step 2: Assert response contains confirmation message
+      pm.test("Database seeded successfully", function () {
+          const json = pm.response.json();
+          pm.expect(json.status).to.eql("ok");
+      });
