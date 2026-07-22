@@ -1,44 +1,14 @@
-// ============================================================================
-// Architectural Data Flow Diagram:
-//
-//                     +-----------------------------------+
-//                     |      borrowers_provider.dart      |
-//                     |  (Notifier triggers mutations)   |
-//                     +-----------------+-----------------+
-//                                       |
-//                                       v
-//                     +-----------------+-----------------+
-//                     |      borrower_repository.dart     |
-//                     | (Handles encryption & DB writes)  |
-//                     +--------+-----------------+--------+
-//                              |                 |
-//             (PII Cryptography) |                 | (Local SQLite DB Writes)
-//                              v                 v
-//             +----------------+-------+ +-------+----------------+
-//             |   encryption_service   | |    database_service    |
-//             |  (AES/CBC PII Shield)  | |  (borrowers/audit_logs)|
-//             +------------------------+ +------------------------+
-// ============================================================================
-
-// Dart Core & FFI Packages
 import 'dart:convert';
 
-// Third-Party Packages
 import 'package:uuid/uuid.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-// Core Services (Shared across features)
-import '../../../../core/database/database_provider.dart';
-import '../../../../core/database/database_service.dart';
-import '../../../../core/security/encryption_service.dart';
+import '../../../core/database/database_provider.dart';
+import '../../../core/database/database_service.dart';
+import '../../../core/security/encryption_service.dart';
 
-// Feature Domain Layer (Holds immutable data models)
-import '../../domain/models/borrower.dart';
+import '../domain/borrower_model.dart';
 
-/// Repository class that manages [Borrower] local data operations with SQLite.
-///
-/// It handles symmetric PII encryption before insertions/updates, PII decryption on queries,
-/// and maintains compliance by writing redacted mutation logs to the audit log table.
 class BorrowerRepository {
   final DatabaseService _dbService;
   final EncryptionService _encryption;
@@ -46,17 +16,11 @@ class BorrowerRepository {
 
   BorrowerRepository(this._dbService, this._encryption);
 
-  /// Saves a new borrower into the SQLite database.
-  ///
-  /// Encrypts PII fields ([Borrower.firstName], [Borrower.lastName], [Borrower.nationalId],
-  /// [Borrower.phone]) and writes a sanitised audit record.
   Future<void> saveBorrower(Borrower borrower) async {
     final db = await _dbService.database;
     final encryptedBorrower = await _encryptBorrower(borrower);
 
-    // Execute SQLite inserts in a single transaction for data integrity
     await db.transaction((txn) async {
-      // 1. Insert the encrypted borrower record into the borrowers table
       await txn.insert('borrowers', encryptedBorrower.toMap());
 
       await txn.insert(
@@ -70,13 +34,9 @@ class BorrowerRepository {
     });
   }
 
-  /// Updates an existing borrower's details in the local SQLite database.
-  ///
-  /// Encrypts updated PII fields and logs the mutation details (redacted of PII) to the audit table.
   Future<void> updateBorrower(Borrower borrower) async {
     final db = await _dbService.database;
 
-    // 1. Retrieve the existing record from the database to log the pre-mutation state
     final existingList = await db.query(
       'borrowers',
       where: 'id = ?',
@@ -86,9 +46,7 @@ class BorrowerRepository {
     final oldStateJson = _existingRedactedState(existingList);
     final encryptedBorrower = await _encryptBorrower(borrower);
 
-    // 3. Execute updates in a single transaction
     await db.transaction((txn) async {
-      // Update the borrowers table record
       await txn.update(
         'borrowers',
         encryptedBorrower.toMap(),
@@ -108,13 +66,9 @@ class BorrowerRepository {
     });
   }
 
-  /// Deletes a borrower's record from the local SQLite database.
-  ///
-  /// Logs the deletion details (redacted of PII) to the audit table.
   Future<void> deleteBorrower(String id) async {
     final db = await _dbService.database;
 
-    // 1. Retrieve the existing record from the database to log the pre-deletion state
     final existingList = await db.query(
       'borrowers',
       where: 'id = ?',
@@ -123,7 +77,6 @@ class BorrowerRepository {
 
     final oldStateJson = _existingRedactedState(existingList);
 
-    // 2. Perform deletion and write audit entry in a single transaction
     await db.transaction((txn) async {
       await txn.delete('borrowers', where: 'id = ?', whereArgs: [id]);
       await txn.insert(
@@ -137,24 +90,46 @@ class BorrowerRepository {
     });
   }
 
-  /// Retrieves and decrypts the list of borrowers from the SQLite database.
+  Future<Borrower?> getBorrower(String id) async {
+    final db = await _dbService.database;
+    final maps = await db.query(
+      'borrowers',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    if (maps.isEmpty) return null;
+    final borrower = Borrower.fromMap(maps.first);
+    final decFirstName = await _encryption.decrypt(borrower.firstName);
+    final decLastName = await _encryption.decrypt(borrower.lastName);
+    final decNationalId = await _encryption.decrypt(borrower.nationalId);
+    final decPhone = await _encryption.decrypt(borrower.phone);
+    return Borrower(
+      id: borrower.id,
+      firstName: decFirstName,
+      lastName: decLastName,
+      nationalId: decNationalId,
+      phone: decPhone,
+      dateOfBirth: borrower.dateOfBirth,
+      status: borrower.status,
+      createdAt: borrower.createdAt,
+    );
+  }
+
   Future<List<Borrower>> getBorrowers() async {
     final db = await _dbService.database;
 
-    // Query rows ordered by newest creation date
     final maps = await db.query('borrowers', orderBy: 'created_at DESC');
 
     final List<Borrower> decryptedList = [];
     for (final map in maps) {
       final borrower = Borrower.fromMap(map);
 
-      // Decrypt PII fields back into plain text
       final decFirstName = await _encryption.decrypt(borrower.firstName);
       final decLastName = await _encryption.decrypt(borrower.lastName);
       final decNationalId = await _encryption.decrypt(borrower.nationalId);
       final decPhone = await _encryption.decrypt(borrower.phone);
 
-      // Reconstruct model with original plain text values
       decryptedList.add(
         Borrower(
           id: borrower.id,
@@ -220,7 +195,6 @@ class BorrowerRepository {
   }
 }
 
-/// Provider exposing [BorrowerRepository].
 final borrowerRepositoryProvider = Provider<BorrowerRepository>((ref) {
   final dbService = ref.watch(databaseServiceProvider);
   final encryption = ref.watch(encryptionServiceProvider);

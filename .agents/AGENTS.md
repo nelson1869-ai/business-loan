@@ -26,6 +26,9 @@ All code modifications must conform to the following architectural design:
 - **Dart Formatter:** Always run `dart format lib test` before committing.
 - **Lint Checks:** `flutter analyze` must pass with zero warnings or errors.
 - **Test Executions:** All unit, widget, and integration tests must pass cleanly (`flutter test`).
+- **Code Reference Formatting:** When presenting code references, always state the line range and the file link in the header/description text (e.g. `Lines 6-15 in [mock_data_service.dart](...)`). Keep the code block itself clean of any line numbers so it can be easily copied and pasted without prefix cleanup.
+- **Documentation & Comments:** Use proper Dart documentation comments (`///`) for all classes, public methods, and top-level providers. Reference symbols inside square brackets (e.g., `[mockDataServiceProvider]`). Reserve double slashes (`//`) for internal step-by-step logic and inline details.
+- **Recommendation Prefixing:** When presenting a choice or a list of options to the user, always identify the best course of action by prefixing it with `(Recommended)` and placing it first in the list.
 
 ---
 
@@ -50,3 +53,17 @@ All code modifications must conform to the following architectural design:
   - `chore:` for build/dependency updates
   - `security:` for encryption/security hardening
 - **Incremental Commits:** Group commits into small, single-responsibility changes.
+
+---
+
+## 🎮 Interaction Modes
+
+- **Guide Me Mode:** When the user requests "Guide Me Mode", the agent must not modify the codebase directly. Instead, the agent must guide the user step-by-step, presenting only one step at a time. Each step must contain:
+  1. **Progress Checklist:** Print the updated task checklist at the beginning of each step so the user can easily see their progress.
+  2. **Where to add it:** Clear file link and line range in the text description (keeping the code block itself clean of line numbers for easy copy-pasting).
+  3. **How to run/use it:** Any shell commands or execution steps.
+  4. **Code with Internal Comments:** Provide the code block containing detailed, step-by-step internal comments (`//`) explaining what the code logic does.
+  5. **Visual Architectural Flow:** Present an ASCII diagram showing the file and data relationships, and include it as a comment at the top of the main file. (Ensure all files updated in a step have their individual flow diagrams added as comments at the top).
+  6. **Grouped & Layered Imports:** Group and comment Dart imports by their architectural layer (e.g. Core Services, Data Repositories, Domain Models) in code snippets.
+  7. **What, Why, and ELI5:** A clear description of what the code is, why it's needed, and a simple "Explain Like I'm 5" (ELI5) explanation.
+  8. The agent must wait for the user to confirm completion of the current step before showing the next step.

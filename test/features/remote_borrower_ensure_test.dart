@@ -3,8 +3,8 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lending_nelson/features/dashboard/data/repositories/remote_borrower_repository.dart';
-import 'package:lending_nelson/features/dashboard/domain/models/borrower.dart';
+import 'package:lending_nelson/features/borrowers/data/remote_borrower_repository.dart';
+import 'package:lending_nelson/features/borrowers/domain/borrower_model.dart';
 
 void main() {
   const borrower = Borrower(

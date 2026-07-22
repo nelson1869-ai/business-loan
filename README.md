@@ -37,6 +37,14 @@ flutter analyze
 flutter test
 ```
 
+## Data Seeding Tool
+
+Populate the database with sample borrowers, active loans, overdue loans, paid loans, and today's collection items:
+
+```powershell
+$env:SEED_USERNAME="officer1"; $env:SEED_PASSWORD="password123"; dart run tool/seed_data.dart --reset
+```
+
 ## Python backend
 
 The backend provides JWT authentication, borrower CRUD, redacted audit logging, PostgreSQL persistence, and offline mutation replay.

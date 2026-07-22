@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../dashboard/domain/models/borrower.dart';
+import '../../../core/utils/formatters.dart';
+import '../../borrowers/domain/borrower_model.dart';
 import '../domain/models/loan.dart';
 import 'providers/loans_provider.dart';
 
@@ -32,14 +33,6 @@ class BorrowerLoansSection extends ConsumerWidget {
               onPressed: () =>
                   ref.invalidate(borrowerLoansProvider(borrower.id)),
               icon: const Icon(Icons.refresh),
-            ),
-            FilledButton.icon(
-              onPressed: () => context.push(
-                '/borrowers/${borrower.id}/loans/new',
-                extra: borrower,
-              ),
-              icon: const Icon(Icons.add),
-              label: const Text('New Loan'),
             ),
           ],
         ),
@@ -81,10 +74,10 @@ class BorrowerLoansSection extends ConsumerWidget {
                     (Loan loan) => Card(
                       child: ListTile(
                         leading: const Icon(Icons.account_balance_wallet),
-                        title: Text('Principal ${loan.originalPrincipal}'),
+                        title: Text(formatCurrency(loan.originalPrincipal)),
                         subtitle: Text(
                           '${loan.status} · ${loan.numberOfPayments} payments · '
-                          'Rate ${loan.monthlyRate}/month',
+                          'Rate ${formatInterestRate(loan.monthlyRate)} / mo',
                         ),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () => context.push('/loans/${loan.id}'),

@@ -2,22 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-// Feature data layer
-import 'package:lending_nelson/features/auth/data/auth_repository.dart';
+import 'providers/login_notifier.dart';
 
-/// Authenticates an officer and opens the dashboard on success.
-///
-/// File: `lib/features/auth/presentation/login_screen.dart`
-///
-/// Data Flow Diagram:
-/// ```text
-///  +--------------------+     +-------------------+     +----------------------+
-///  | splash_screen.dart | --> | login_screen.dart | --> | auth_repository.dart |
-///  +--------------------+     +-------------------+     +----------+-----------+
-///                                                               |
-///                                                               v
-///                                                    dashboard_screen.dart
-/// ```
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -30,7 +16,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
-  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -40,36 +25,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
-    final formState = _formKey.currentState;
-    if (formState == null || !formState.validate()) return;
+    if (!(_formKey.currentState?.validate() ?? false)) return;
 
-    setState(() => _isLoading = true);
+    final error = await ref
+        .read(loginNotifierProvider.notifier)
+        .login(_usernameController.text.trim(), _passwordController.text);
 
-    try {
-      await ref
-          .read(authRepositoryProvider)
-          .login(_usernameController.text.trim(), _passwordController.text);
-
-      if (!mounted) return;
-      context.go('/dashboard');
-    } catch (error) {
-      if (!mounted) return;
+    if (!mounted) return;
+    if (error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString().replaceFirst('Exception: ', '')),
-          backgroundColor: Colors.redAccent,
-        ),
+        SnackBar(content: Text(error), backgroundColor: Colors.redAccent),
       );
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+    } else {
+      context.go('/dashboard');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isLoading = ref.watch(loginNotifierProvider).isLoading;
 
     return Scaffold(
       body: Center(
@@ -91,7 +66,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   'Welcome Back',
                   style: theme.textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.brightness == Brightness.dark
+                    color: theme.brightness == Brightness.dark
                         ? Colors.white
                         : const Color(0xFF0F172A),
                   ),
@@ -111,12 +86,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     prefixIcon: Icon(Icons.person_outline),
                     hintText: 'Enter your username',
                   ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Username is required';
-                    }
-                    return null;
-                  },
+                  validator: (v) =>
+                      v?.trim().isEmpty ?? true ? 'Username is required' : null,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
@@ -132,24 +103,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ? Icons.visibility_off
                             : Icons.visibility,
                       ),
-                      onPressed: () {
-                        setState(() {
-                          _isPasswordVisible = !_isPasswordVisible;
-                        });
-                      },
+                      onPressed: () => setState(
+                        () => _isPasswordVisible = !_isPasswordVisible,
+                      ),
                     ),
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Password is required';
-                    }
-                    return null;
-                  },
+                  validator: (v) =>
+                      v?.isEmpty ?? true ? 'Password is required' : null,
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton(
-                  onPressed: _isLoading ? null : _handleLogin,
-                  child: _isLoading
+                  onPressed: isLoading ? null : _handleLogin,
+                  child: isLoading
                       ? const SizedBox(
                           width: 20,
                           height: 20,

@@ -1,21 +1,27 @@
 // Flutter Packages
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+// Core Network Services
+import 'package:lending_nelson/core/network/offline_sync_service.dart';
 
 // Presentation Layer Screens
 import 'package:lending_nelson/features/auth/presentation/login_screen.dart';
-import 'package:lending_nelson/features/dashboard/presentation/borrower_list_screen.dart';
-import 'package:lending_nelson/features/dashboard/presentation/borrower_registration_screen.dart';
-import 'package:lending_nelson/features/dashboard/presentation/dashboard_screen.dart';
-import 'package:lending_nelson/features/dashboard/presentation/settings_screen.dart';
+import 'package:lending_nelson/features/dashboard/pages/dashboard_page.dart';
+import 'package:lending_nelson/features/dashboard/pages/settings_page.dart';
+import 'package:lending_nelson/features/dev_tools/pages/dev_tools_page.dart';
+import 'package:lending_nelson/features/borrowers/pages/borrower_list_page.dart';
+import 'package:lending_nelson/features/borrowers/pages/borrower_detail_page.dart';
+import 'package:lending_nelson/features/borrowers/pages/borrower_registration_page.dart';
+import 'package:lending_nelson/features/borrowers/domain/borrower_model.dart';
 import 'package:lending_nelson/features/splash/presentation/splash_screen.dart';
 import 'package:lending_nelson/features/loans/domain/models/loan.dart';
 import 'package:lending_nelson/features/loans/presentation/loan_create_screen.dart';
 import 'package:lending_nelson/features/loans/presentation/loan_detail_screen.dart';
+import 'package:lending_nelson/features/loans/presentation/loans_list_page.dart';
 import 'package:lending_nelson/features/loans/presentation/payment_screen.dart';
-
-// Feature Domain Layer (carries Borrower payload between routes via state.extra)
-import 'package:lending_nelson/features/dashboard/domain/models/borrower.dart';
+import 'package:lending_nelson/features/loans/presentation/todays_collections_page.dart';
 
 /// Defines the application's routes and the shared navigation shell.
 ///
@@ -41,62 +47,75 @@ final appRouter = GoRouter(
       routes: [
         GoRoute(
           path: '/dashboard',
-          builder: (context, state) => const DashboardScreen(),
+          builder: (context, state) => const DashboardPage(),
         ),
         GoRoute(
           path: '/borrowers',
-          builder: (context, state) => const BorrowerListScreen(),
-          routes: [
-            GoRoute(
-              path: 'register',
-              builder: (context, state) {
-                // Extract optional Borrower from GoRouter state.extra.
-                // null  → Add Mode (blank registration form)
-                // non-null → Edit Mode (prefilled form with existing borrower data)
-                final borrower = state.extra as Borrower?;
-
-                return BorrowerRegistrationScreen(borrower: borrower);
-              },
-            ),
-            GoRoute(
-              path: ':borrowerId/loans/new',
-              builder: (context, state) => LoanCreateScreen(
-                borrowerId: state.pathParameters['borrowerId']!,
-                borrower: state.extra as Borrower?,
-              ),
-            ),
-          ],
+          builder: (context, state) => const BorrowerListPage(),
         ),
         GoRoute(
-          path: '/loans/:loanId',
-          builder: (context, state) => LoanDetailScreen(
-            loanId: state.pathParameters['loanId']!,
-            initialLoan: state.extra as Loan?,
-          ),
-          routes: [
-            GoRoute(
-              path: 'payments',
-              builder: (context, state) =>
-                  PaymentScreen(loanId: state.pathParameters['loanId']!),
-            ),
-          ],
+          path: '/loans',
+          builder: (context, state) => const LoansListPage(),
         ),
         GoRoute(
           path: '/settings',
-          builder: (context, state) => const SettingsScreen(),
+          builder: (context, state) => const SettingsPage(),
         ),
       ],
+    ),
+    GoRoute(
+      path: '/borrowers/register',
+      builder: (context, state) {
+        final borrower = state.extra as Borrower?;
+        return BorrowerRegistrationPage(borrower: borrower);
+      },
+    ),
+    GoRoute(
+      path: '/borrowers/:borrowerId',
+      builder: (context, state) => BorrowerDetailPage(
+        borrowerId: state.pathParameters['borrowerId']!,
+        initialBorrower: state.extra as Borrower?,
+      ),
+    ),
+    GoRoute(
+      path: '/borrowers/:borrowerId/loans/new',
+      builder: (context, state) => LoanCreateScreen(
+        borrowerId: state.pathParameters['borrowerId']!,
+        borrower: state.extra as Borrower?,
+      ),
+    ),
+    GoRoute(
+      path: '/loans/:loanId',
+      builder: (context, state) => LoanDetailScreen(
+        loanId: state.pathParameters['loanId']!,
+        initialLoan: state.extra as Loan?,
+      ),
+      routes: [
+        GoRoute(
+          path: 'payments',
+          builder: (context, state) =>
+              PaymentScreen(loanId: state.pathParameters['loanId']!),
+        ),
+      ],
+    ),
+    GoRoute(
+      path: '/collections/today',
+      builder: (context, state) => const TodaysCollectionsPage(),
+    ),
+    GoRoute(
+      path: '/dev-tools',
+      builder: (context, state) => const DevToolsPage(),
     ),
   ],
 );
 
 /// Displays routed dashboard content above the shared bottom navigation bar.
-class MainShell extends StatelessWidget {
+class MainShell extends ConsumerWidget {
   final Widget child;
   const MainShell({super.key, required this.child});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final location = GoRouterState.of(context).uri.path;
     int selectedIndex = 0;
     if (location.startsWith('/borrowers')) {
@@ -105,8 +124,43 @@ class MainShell extends StatelessWidget {
       selectedIndex = 2;
     }
 
+    final isOnlineAsync = ref.watch(isOnlineProvider);
+    final isOnline = isOnlineAsync.asData?.value ?? true;
+    final pendingCountAsync = ref.watch(offlineSyncPendingCountProvider);
+    final pendingCount = pendingCountAsync.asData?.value ?? 0;
+
     return Scaffold(
-      body: child,
+      body: Column(
+        children: [
+          if (!isOnline)
+            Container(
+              width: double.infinity,
+              color: Colors.amber.shade800,
+              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+              child: SafeArea(
+                bottom: false,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.wifi_off, size: 16, color: Colors.white),
+                    const SizedBox(width: 8),
+                    Text(
+                      pendingCount > 0
+                          ? 'Working Offline — $pendingCount items queued'
+                          : 'Working Offline',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          Expanded(child: child),
+        ],
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: selectedIndex,
         onTap: (index) {

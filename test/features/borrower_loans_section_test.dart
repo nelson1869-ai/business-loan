@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
-import 'package:lending_nelson/features/dashboard/domain/models/borrower.dart';
+import 'package:lending_nelson/features/borrowers/domain/borrower_model.dart';
 import 'package:lending_nelson/features/loans/domain/models/loan.dart';
 import 'package:lending_nelson/features/loans/presentation/borrower_loans_section.dart';
 import 'package:lending_nelson/features/loans/presentation/providers/loans_provider.dart';
@@ -52,10 +52,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Loans'), findsOneWidget);
-    expect(find.text('Principal 1000.00'), findsOneWidget);
+    expect(find.text('\$1,000.00'), findsOneWidget);
     expect(find.textContaining('10 payments'), findsOneWidget);
 
-    await tester.tap(find.text('Principal 1000.00'));
+    await tester.tap(find.text('\$1,000.00'));
     await tester.pumpAndSettle();
     expect(find.text('Opened loan-1'), findsOneWidget);
   });

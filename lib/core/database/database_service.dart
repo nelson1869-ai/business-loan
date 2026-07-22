@@ -37,7 +37,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -83,11 +83,49 @@ class DatabaseService {
         created_at TEXT NOT NULL
       )
     ''');
+
+    // Create loans cache table
+    await db.execute('''
+      CREATE TABLE loans (
+        id TEXT PRIMARY KEY,
+        borrower_id TEXT NOT NULL,
+        data_json TEXT NOT NULL,
+        cached_at TEXT NOT NULL
+      )
+    ''');
+
+    // Create loan_payments cache table
+    await db.execute('''
+      CREATE TABLE loan_payments (
+        id TEXT PRIMARY KEY,
+        loan_id TEXT NOT NULL,
+        data_json TEXT NOT NULL,
+        cached_at TEXT NOT NULL
+      )
+    ''');
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 3) {
       await db.execute('DROP TABLE IF EXISTS deleted_borrowers');
+    }
+    if (oldVersion < 4) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS loans (
+          id TEXT PRIMARY KEY,
+          borrower_id TEXT NOT NULL,
+          data_json TEXT NOT NULL,
+          cached_at TEXT NOT NULL
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS loan_payments (
+          id TEXT PRIMARY KEY,
+          loan_id TEXT NOT NULL,
+          data_json TEXT NOT NULL,
+          cached_at TEXT NOT NULL
+        )
+      ''');
     }
   }
 

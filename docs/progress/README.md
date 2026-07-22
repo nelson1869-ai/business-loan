@@ -159,6 +159,31 @@ milestone is blocked, record the reason and next action in the learning log.
 - Verification: 58 backend tests, three live PostgreSQL concurrency tests,
   Flutter analysis, 32 Flutter tests, and Alembic schema checks passed.
 
+### 2026-07-20 — Senior Developer UI Audit & Backend-Aligned Enhancements
+
+- Standardized date formatting to short dates (`M/D/YYYY`) in LoanDateField and LoanCreateScreen.
+- Added quick principal preset action chips (`[$500]`, `[$1,000]`, `[$2,000]`, `[$5,000]`) in LoanCreateScreen.
+- Added manual `Sync Offline Data` action in SettingsPage invoking `OfflineSyncService.drainQueue()`.
+- Added real-time pending offline sync item counter badge (`☁️ count`) in Dashboard AppBar.
+- Added local `AuditLog` security table viewer modal in SettingsPage.
+- Integrated query parameter & client-side live search filtering (`/borrowers?query=`) into BorrowerListPage.
+- Verification: 59 backend tests, 53 Flutter tests, and zero flutter analyze warnings.
+
+### 2026-07-20 — Production Field & Risk Management Features
+
+- Added real-time offline connectivity status banner (`⚡ Working Offline — N items queued`) in top navigation shell (`MainShell`).
+- Added borrower portfolio exposure risk card (`Borrower Exposure Risk: N Active Loan(s) · $Total Balance`) on `LoanCreateScreen`.
+- Added overdue arrears collection alert banner (`Payment Overdue — Immediate Collection Recommended`) on `LoanDetailScreen`.
+- Verification: 59 backend tests, 53 Flutter tests, and zero flutter analyze warnings.
+
+### 2026-07-22 — Admin Status Tooling, Seeding Enhancements & Codebase Audit Cleanup
+
+- Added `POST /api/v1/admin/loans/{loan_id}/status` endpoint allowing dev status overrides and setting installment due dates to today.
+- Enhanced `tool/seed_data.dart` to populate Active, Overdue, Paid, and Today's Collections scenarios.
+- Audited codebase and removed unused legacy widgets (`borrower_info_section.dart`, `borrower_status_section.dart`, `financial_summary_section.dart`) and empty test directories.
+- Fixed widget test hanging issue in `navigation_test.dart` by overriding network connectivity and remote repository providers.
+- Verification: 59 backend tests, 56 Flutter unit & widget tests, 0 `flutter analyze` warnings.
+
 Copy this entry whenever you complete a study session:
 
 ```text

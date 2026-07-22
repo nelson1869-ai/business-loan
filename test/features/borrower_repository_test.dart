@@ -2,8 +2,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lending_nelson/core/database/database_service.dart';
 import 'package:lending_nelson/core/security/encryption_service.dart';
-import 'package:lending_nelson/features/dashboard/data/repositories/borrower_repository.dart';
-import 'package:lending_nelson/features/dashboard/domain/models/borrower.dart';
+import 'package:lending_nelson/features/borrowers/data/borrower_repository.dart';
+import 'package:lending_nelson/features/borrowers/domain/borrower_model.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 class _TestEncryptionService extends EncryptionService {

@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import auth, borrowers, loans, payments, sync
+from app.routers import admin, auth, borrowers, loans, payments, sync
 
 
 def create_app() -> FastAPI:
@@ -19,6 +19,7 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    application.include_router(admin.router)
     application.include_router(auth.router)
     application.include_router(borrowers.router)
     application.include_router(loans.router)

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lending_nelson/features/dashboard/domain/models/borrower.dart';
-import 'package:lending_nelson/features/dashboard/presentation/borrower_registration_screen.dart';
+import 'package:lending_nelson/features/borrowers/domain/borrower_model.dart';
+import 'package:lending_nelson/features/borrowers/pages/borrower_registration_page.dart';
 import 'package:lending_nelson/features/loans/presentation/providers/loans_provider.dart';
 
 void main() {
@@ -24,9 +24,7 @@ void main() {
           if (existing != null)
             borrowerLoansProvider(existing.id).overrideWith((ref) => const []),
         ],
-        child: MaterialApp(
-          home: BorrowerRegistrationScreen(borrower: existing),
-        ),
+        child: MaterialApp(home: BorrowerRegistrationPage(borrower: existing)),
       ),
     );
   }
@@ -46,6 +44,5 @@ void main() {
     expect(find.text('Register Borrower'), findsNothing);
     await tester.pump();
     expect(find.text('Loans'), findsOneWidget);
-    expect(find.text('New Loan'), findsOneWidget);
   });
 }

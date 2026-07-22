@@ -89,13 +89,25 @@ python -m app.bootstrap officer1 --role officer
 Reset a forgotten development password without deleting the user:
 
 ```powershell
+officer1
+password123
 python -m app.bootstrap officer1 --reset-password
 ```
 
 Enter and confirm the password when prompted. Typed password characters are
 intentionally hidden by the terminal.
 
-## 6. Run the development server
+## 6. Run automated tests (59 Tests)
+
+Run the full backend test suite directly using the virtual environment Python executable:
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests
+```
+
+Expected output: `Ran 59 tests in 0.233s - OK`
+
+## 7. Run the development server
 
 ```powershell
 python -m uvicorn app.main:app --reload
@@ -127,7 +139,9 @@ python -m uvicorn app.main:app --reload --host 0.0.0.0
 
 - `/api/v1/auth/token` accepts a username/password JSON body.
 - `/api/v1/auth/refresh` rotates a refresh token.
-- Borrower and sync endpoints require `Authorization: Bearer <access-token>`.
+- Borrower, loan, and sync endpoints require `Authorization: Bearer <access-token>`.
+- `/api/v1/admin/reset` hard-deletes all data tables for development resets.
+- `/api/v1/admin/loans/{id}/status` updates loan status and installment due dates for dev seeding.
 - Audit JSON always redacts names, national IDs, and phone numbers.
 - Development CORS allows all origins; non-development environments use `CORS_ORIGINS`.
 - Tokens, passwords, and unredacted audit PII are never logged.

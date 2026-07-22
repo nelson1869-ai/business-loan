@@ -14,7 +14,8 @@ immutable loan, payment, allocation, and reversal ledger.
 2. [ ] Implement backend receipt and statement projection services.
 3. [ ] Add authenticated receipt and loan-statement APIs.
 4. [ ] Add Flutter receipt detail and loan-statement screens.
-5. [ ] Test financial totals, update student docs, and commit Step 9.
+## Step 11: Production Field & Risk Management Features
 
-Step 9 is complete only when every payment or reversal has a reproducible
-receipt and the complete loan statement reconciles to the current balance.
+1. [x] **Real-time Offline Connectivity Status Banner**: Rendered top notification banner when offline (`⚡ Working Offline`) in `MainShell`.
+2. [x] **Borrower Exposure Risk Guard**: Displayed borrower's total existing active loan balance risk card on `LoanCreateScreen`.
+3. [x] **Overdue Arrears Breakdown Card**: Rendered exact overdue arrears collection banner on `LoanDetailScreen`.

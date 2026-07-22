@@ -125,6 +125,16 @@ class OfflineSyncService {
     }
   }
 
+  /// Returns the count of pending items in the offline queue.
+  Future<int> getPendingCount() async {
+    final database = await _databaseService.database;
+    final result = await database.rawQuery(
+      'SELECT COUNT(*) as count FROM offline_sync_queue',
+    );
+    if (result.isEmpty) return 0;
+    return (result.first['count'] as num?)?.toInt() ?? 0;
+  }
+
   bool _hasConnection(List<ConnectivityResult> results) {
     return results.any((result) => result != ConnectivityResult.none);
   }
@@ -146,4 +156,18 @@ final offlineSyncServiceProvider = Provider<OfflineSyncService>((ref) {
   service.start();
   ref.onDispose(service.dispose);
   return service;
+});
+
+/// FutureProvider returning count of pending offline sync items.
+final offlineSyncPendingCountProvider = FutureProvider<int>((ref) async {
+  final service = ref.watch(offlineSyncServiceProvider);
+  return service.getPendingCount();
+});
+
+/// StreamProvider watching network connectivity status.
+final isOnlineProvider = StreamProvider<bool>((ref) {
+  final connectivity = ref.watch(connectivityProvider);
+  return connectivity.onConnectivityChanged.map(
+    (results) => results.any((r) => r != ConnectivityResult.none),
+  );
 });

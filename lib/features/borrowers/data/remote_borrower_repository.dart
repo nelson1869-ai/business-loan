@@ -1,44 +1,31 @@
-// Third-party packages
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-// Core network
-import '../../../../core/network/api_client.dart';
-import '../../../../core/network/api_endpoints.dart';
+import '../../../core/network/api_client.dart';
+import '../../../core/network/api_endpoints.dart';
 
-// Feature domain
-import '../../domain/models/borrower.dart';
+import '../domain/borrower_model.dart';
 
-/// A meaningful remote borrower failure with retry guidance.
 class RemoteBorrowerException implements Exception {
-  /// Creates a remote repository exception.
   const RemoteBorrowerException(
     this.message, {
     this.statusCode,
     required this.isRetryable,
   });
 
-  /// Human-readable failure description.
   final String message;
-
-  /// HTTP status code when the server returned a response.
   final int? statusCode;
-
-  /// Whether storing the operation for later retry is appropriate.
   final bool isRetryable;
 
   @override
   String toString() => message;
 }
 
-/// Performs borrower CRUD operations against the FastAPI backend.
 class RemoteBorrowerRepository {
-  /// Creates a repository backed by the shared [Dio] client.
   RemoteBorrowerRepository(this._dio);
 
   final Dio _dio;
 
-  /// Ensures a legacy local borrower exists remotely before related writes.
   Future<void> ensureBorrowerExists(Borrower borrower) async {
     try {
       await _dio.get<Map<String, dynamic>>(
@@ -53,7 +40,6 @@ class RemoteBorrowerRepository {
     }
   }
 
-  /// Creates [borrower] remotely.
   Future<void> saveBorrower(Borrower borrower) async {
     try {
       await _dio.post<void>(ApiEndpoints.borrowers, data: borrower.toJson());
@@ -62,10 +48,14 @@ class RemoteBorrowerRepository {
     }
   }
 
-  /// Returns all borrowers available to the authenticated user.
-  Future<List<Borrower>> getBorrowers() async {
+  Future<List<Borrower>> getBorrowers({String? query}) async {
     try {
-      final response = await _dio.get<List<dynamic>>(ApiEndpoints.borrowers);
+      final response = await _dio.get<List<dynamic>>(
+        ApiEndpoints.borrowers,
+        queryParameters: {
+          if (query != null && query.trim().isNotEmpty) 'query': query.trim(),
+        },
+      );
       final rows = response.data ?? const <dynamic>[];
       return rows
           .map(
@@ -89,7 +79,6 @@ class RemoteBorrowerRepository {
     }
   }
 
-  /// Replaces the remote values for [borrower].
   Future<void> updateBorrower(Borrower borrower) async {
     try {
       await _dio.put<void>(
@@ -101,7 +90,6 @@ class RemoteBorrowerRepository {
     }
   }
 
-  /// Soft-deletes the remote borrower identified by [id].
   Future<void> deleteBorrower(String id) async {
     try {
       await _dio.delete<void>('${ApiEndpoints.borrowers}/$id');
@@ -140,7 +128,6 @@ class RemoteBorrowerRepository {
   }
 }
 
-/// Remote borrower repository used by application state notifiers.
 final remoteBorrowerRepositoryProvider = Provider<RemoteBorrowerRepository>((
   ref,
 ) {

@@ -35,11 +35,28 @@ flowchart TD
 | `backend/app/config.py` | Environment-based settings |
 | `backend/app/database.py` | Async SQLAlchemy sessions |
 | `backend/app/dependencies.py` | Authentication and request dependencies |
-| `backend/app/routers/` | HTTP endpoints and status codes |
-| `backend/app/schemas/` | Request and response validation |
-| `backend/app/services/` | Authentication, borrower rules, and audit logging |
-| `backend/app/models/` | PostgreSQL table mappings |
+| `backend/app/routers/` | HTTP endpoints (`auth.py`, `borrowers.py`, `loans.py`, `payments.py`, `sync.py`) |
+| `backend/app/schemas/` | Request and response validation Pydantic schemas |
+| `backend/app/services/` | Auth, borrowers, loans, authoritative payments, and pure financial calculator |
+| `backend/app/models/` | PostgreSQL table mappings (`User`, `Borrower`, `Loan`, `Installment`, `LoanPayment`, `AuditLog`) |
 | `backend/alembic/` | Database migrations |
+| `backend/tests/` | 59 Unit and integration test suites |
+
+## Financial Calculation Engine (`loan_calculator.py`)
+
+All monetary interest, principal allocation, late fees, and installment schedule calculations use exact `Decimal` math with `ROUND_HALF_UP` quantization:
+
+```python
+# Pure domain money validation & quantization
+CENT = Decimal("0.01")
+def _money(value: Decimal, field_name: str) -> Decimal:
+    return value.quantize(CENT, rounding=ROUND_HALF_UP)
+```
+
+### Allocation Hierarchy:
+1. **Accrued Interest**: Paid off first.
+2. **Principal**: Paid off second.
+3. **Unapplied Credit**: Any excess payment amount is stored as credit towards future installments.
 
 ## Recommended reading order
 
@@ -154,9 +171,13 @@ Useful addresses:
 - Swagger: `http://127.0.0.1:8000/docs`
 - OpenAPI: `http://127.0.0.1:8000/openapi.json`
 
-Useful checks:
+Useful checks and automated tests:
 
 ```powershell
+# Run full 59-test suite from backend directory:
+.\.venv\Scripts\python.exe -m unittest discover -s tests
+
+# Check migrations and compile code:
 python -m alembic check
 python -m compileall app
 ```

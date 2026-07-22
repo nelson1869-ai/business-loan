@@ -39,7 +39,8 @@ flowchart TD
 | `lib/core/network/` | API address, tokens, errors, and offline queue |
 | `lib/core/security/` | Encryption of local borrower information |
 | `lib/features/auth/` | Login UI and authentication repository |
-| `lib/features/dashboard/` | Dashboard and borrower CRUD feature |
+| `lib/features/dashboard/` | Dashboard metrics, portfolio summary, quick actions |
+| `lib/features/borrowers/` | Borrower list, detail, registration, and CRUD state |
 | `lib/features/loans/` | Loan models, API repository, Riverpod state, form, and schedule UI |
 | `test/` | Unit and widget test examples |
 
@@ -50,11 +51,11 @@ flowchart TD
 3. `lib/app/app_router.dart`
 4. `lib/features/auth/presentation/login_screen.dart`
 5. `lib/features/auth/data/auth_repository.dart`
-6. `lib/features/dashboard/domain/models/borrower.dart`
-7. `lib/features/dashboard/presentation/borrower_list_screen.dart`
-8. `lib/features/dashboard/presentation/providers/borrowers_provider.dart`
-9. `lib/features/dashboard/data/repositories/borrower_repository.dart`
-10. `lib/features/dashboard/data/repositories/remote_borrower_repository.dart`
+6. `lib/features/borrowers/domain/borrower_model.dart`
+7. `lib/features/borrowers/pages/borrower_list_page.dart`
+8. `lib/features/borrowers/providers/borrowers_state.dart`
+9. `lib/features/borrowers/data/borrower_repository.dart`
+10. `lib/features/borrowers/data/remote_borrower_repository.dart`
 11. `lib/features/loans/domain/models/loan.dart`
 12. `lib/features/loans/data/repositories/remote_loan_repository.dart`
 13. `lib/features/loans/presentation/loan_create_screen.dart`

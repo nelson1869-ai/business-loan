@@ -42,7 +42,7 @@ Local development login:
 
 ```text
 Username: officer1
-Password: <password-created-locally>
+Password: <password123-created-locally>
 ```
 
 The repository documents the development username but never stores its real

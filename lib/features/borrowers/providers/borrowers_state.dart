@@ -1,57 +1,38 @@
-// ============================================================================
-// Architectural Data Flow Diagram:
-//
-//      +-------------------------------------------------------+
-//      |                  borrower_list_screen.dart             |
-//      |      (Taps Edit/Delete -> dispatches state actions)   |
-//      +---------------------------+---------------------------+
-//                                  |
-//                                  v
-//      +---------------------------+---------------------------+
-//      |                  borrowers_provider.dart              |
-//      |                   (BorrowersNotifier)                 |
-//      |      - updateBorrower(borrower)                       |
-//      |      - deleteBorrower(id)                             |
-//      +---------------------------+---------------------------+
-//                                  |
-//                                  v (calls repository mutations)
-//      +---------------------------+---------------------------+
-//      |                 borrower_repository.dart              |
-//      +-------------------------------------------------------+
-// ============================================================================
-
-// Third-Party Packages
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-// Core Services (Shared across features)
-import '../../../../core/network/api_endpoints.dart';
-import '../../../../core/network/offline_sync_service.dart';
+import '../../../core/network/api_endpoints.dart';
+import '../../../core/network/offline_sync_service.dart';
 
-// Feature Data Layer (Handles local and remote transactions)
-import '../../data/repositories/borrower_repository.dart';
-import '../../data/repositories/remote_borrower_repository.dart';
+import '../data/borrower_repository.dart';
+import '../data/remote_borrower_repository.dart';
+import '../domain/borrower_model.dart';
 
-// Feature Domain Layer (Holds immutable data models)
-import '../../domain/models/borrower.dart';
-
-/// Notifier class that manages the list of borrowers asynchronously.
 class BorrowersNotifier extends AsyncNotifier<List<Borrower>> {
   @override
   Future<List<Borrower>> build() async {
-    final repository = ref.watch(borrowerRepositoryProvider);
+    final localRepository = ref.watch(borrowerRepositoryProvider);
+    final remoteRepository = ref.watch(remoteBorrowerRepositoryProvider);
     ref.watch(offlineSyncServiceProvider);
 
-    final borrowers = await repository.getBorrowers()
+    if (await _isOnline()) {
+      try {
+        final remote = await remoteRepository.getBorrowers();
+        for (final borrower in remote) {
+          await localRepository.saveBorrower(borrower);
+        }
+        return remote..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      } catch (_) {}
+    }
+
+    final borrowers = await localRepository.getBorrowers()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return borrowers;
   }
 
-  /// Registers a borrower remotely when online or queues the local write offline.
   Future<void> registerBorrower(Borrower borrower) async {
     final currentList = state.asData?.value ?? const <Borrower>[];
 
-    // Preserve the current data while exposing the in-progress state to the UI.
     state = const AsyncLoading<List<Borrower>>().copyWithPrevious(state);
 
     state = await AsyncValue.guard(() async {
@@ -72,11 +53,9 @@ class BorrowersNotifier extends AsyncNotifier<List<Borrower>> {
     });
   }
 
-  /// Updates a borrower remotely when online or queues the local update offline.
   Future<void> updateBorrower(Borrower borrower) async {
     final currentList = state.asData?.value ?? const <Borrower>[];
 
-    // Preserve the current data while exposing the in-progress state to the UI.
     state = const AsyncLoading<List<Borrower>>().copyWithPrevious(state);
 
     state = await AsyncValue.guard(() async {
@@ -85,9 +64,6 @@ class BorrowersNotifier extends AsyncNotifier<List<Borrower>> {
           try {
             await repository.updateBorrower(borrower);
           } on RemoteBorrowerException catch (error) {
-            // Older app versions stored borrowers only in SQLite. When one of
-            // those records is edited for the first time, migrate it to the
-            // backend while preserving its existing ID and creation date.
             if (error.statusCode != 404) rethrow;
             await repository.saveBorrower(borrower);
           }
@@ -98,7 +74,6 @@ class BorrowersNotifier extends AsyncNotifier<List<Borrower>> {
         payload: borrower.toJson(),
       );
 
-      // Reconstruct the list by replacing the old borrower instance with the updated one
       final updatedList = currentList.map((item) {
         return item.id == borrower.id ? borrower : item;
       }).toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -107,11 +82,9 @@ class BorrowersNotifier extends AsyncNotifier<List<Borrower>> {
     });
   }
 
-  /// Deletes a borrower remotely when online or queues the local delete offline.
   Future<void> deleteBorrower(String id) async {
     final currentList = state.asData?.value ?? const <Borrower>[];
 
-    // Preserve the current data while exposing the in-progress state to the UI.
     state = const AsyncLoading<List<Borrower>>().copyWithPrevious(state);
 
     state = await AsyncValue.guard(() async {
@@ -124,7 +97,6 @@ class BorrowersNotifier extends AsyncNotifier<List<Borrower>> {
         acceptNotFound: true,
       );
 
-      // Remove the deleted borrower from the local memory state
       final updatedList = currentList.where((item) => item.id != id).toList();
 
       return updatedList;
@@ -177,7 +149,6 @@ class BorrowersNotifier extends AsyncNotifier<List<Borrower>> {
   }
 }
 
-/// Provider exposing the [BorrowersNotifier] state.
 final borrowersNotifierProvider =
     AsyncNotifierProvider<BorrowersNotifier, List<Borrower>>(() {
       return BorrowersNotifier();

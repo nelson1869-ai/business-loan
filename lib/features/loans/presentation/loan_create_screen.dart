@@ -2,15 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:uuid/uuid.dart';
 
-import '../data/models/loan_create_request.dart';
-import '../data/repositories/remote_loan_repository.dart';
-import '../../dashboard/data/repositories/remote_borrower_repository.dart';
-import '../../dashboard/domain/models/borrower.dart';
+import '../../borrowers/domain/borrower_model.dart';
+import 'providers/loan_create_notifier.dart';
 import 'providers/loans_provider.dart';
+import 'widgets/loan_date_field.dart';
 
-/// Collects lender-approved terms while leaving calculations to FastAPI.
 class LoanCreateScreen extends ConsumerStatefulWidget {
   const LoanCreateScreen({super.key, required this.borrowerId, this.borrower});
 
@@ -33,9 +30,6 @@ class _LoanCreateScreenState extends ConsumerState<LoanCreateScreen> {
     _startDate.month + 1,
     _startDate.day,
   );
-  bool _isSubmitting = false;
-  String? _requestId;
-  String? _requestFingerprint;
 
   @override
   void dispose() {
@@ -95,78 +89,97 @@ class _LoanCreateScreenState extends ConsumerState<LoanCreateScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    if (!_firstDueDate.isAfter(_startDate)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('First due date must be after start date'),
-        ),
-      );
-      return;
-    }
 
-    setState(() => _isSubmitting = true);
-    try {
-      final borrower = widget.borrower;
-      if (borrower != null) {
-        await ref
-            .read(remoteBorrowerRepositoryProvider)
-            .ensureBorrowerExists(borrower);
-      }
-      final fingerprint = <Object>[
-        widget.borrowerId,
-        _principalController.text.trim(),
-        _rateController.text.trim(),
-        _termController.text.trim(),
-        _paymentsPerMonth,
-        formatDateOnly(_startDate),
-        formatDateOnly(_firstDueDate),
-      ].join('|');
-      if (_requestFingerprint != fingerprint) {
-        _requestFingerprint = fingerprint;
-        _requestId = const Uuid().v4();
-      }
+    final loan = await ref
+        .read(loanCreateNotifierProvider.notifier)
+        .submit(
+          borrowerId: widget.borrowerId,
+          borrower: widget.borrower,
+          principal: _principalController.text.trim(),
+          rate: _rateController.text.trim(),
+          termMonths: int.parse(_termController.text.trim()),
+          paymentsPerMonth: _paymentsPerMonth,
+          startDate: _startDate,
+          firstDueDate: _firstDueDate,
+        );
 
-      final loan = await ref
-          .read(remoteLoanRepositoryProvider)
-          .createLoan(
-            LoanCreateRequest(
-              borrowerId: widget.borrowerId,
-              requestId: _requestId!,
-              originalPrincipal: _principalController.text.trim(),
-              monthlyRate: percentageToDecimalRate(_rateController.text.trim()),
-              termMonths: int.parse(_termController.text.trim()),
-              paymentsPerMonth: _paymentsPerMonth,
-              startDate: formatDateOnly(_startDate),
-              firstDueDate: formatDateOnly(_firstDueDate),
-            ),
-          );
-      ref.invalidate(borrowerLoansProvider(widget.borrowerId));
-      if (!mounted) return;
+    if (!mounted) return;
+    if (loan != null) {
       context.pushReplacement('/loans/${loan.id}', extra: loan);
-    } on RemoteLoanException catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.message)));
-    } on RemoteBorrowerException catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.message)));
-    } finally {
-      if (mounted) setState(() => _isSubmitting = false);
+    } else {
+      final error = ref.read(loanCreateNotifierProvider).error;
+      if (error != null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error)));
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final isSubmitting = ref.watch(loanCreateNotifierProvider).isSubmitting;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Create Loan')),
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: <Widget>[
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          children: [
+            Consumer(
+              builder: (context, ref, child) {
+                final loansAsync = ref.watch(
+                  borrowerLoansProvider(widget.borrowerId),
+                );
+                final loans = loansAsync.asData?.value ?? const [];
+                final activeLoans = loans
+                    .where((l) => l.status.toUpperCase() == 'ACTIVE')
+                    .toList();
+                if (activeLoans.isEmpty) return const SizedBox.shrink();
+
+                final totalBalance = activeLoans.fold(
+                  0.0,
+                  (sum, l) =>
+                      sum + (double.tryParse(l.outstandingPrincipal) ?? 0.0),
+                );
+
+                return Card(
+                  color: Colors.amber.shade900.withValues(alpha: 0.15),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.shield_outlined,
+                          color: Colors.amber.shade400,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Borrower Exposure Risk',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.amber.shade300,
+                                ),
+                              ),
+                              Text(
+                                '${activeLoans.length} Active Loan(s) · \$${totalBalance.toStringAsFixed(2)} Total Outstanding',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
             TextFormField(
               controller: _principalController,
               decoration: const InputDecoration(
@@ -176,12 +189,29 @@ class _LoanCreateScreenState extends ConsumerState<LoanCreateScreen> {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
-              inputFormatters: <TextInputFormatter>[
+              inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
               ],
               validator: _validatePrincipal,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 6,
+              children: ['500', '1000', '2000', '5000'].map((preset) {
+                return ActionChip(
+                  visualDensity: VisualDensity.compact,
+                  label: Text('\$$preset'),
+                  onPressed: isSubmitting
+                      ? null
+                      : () {
+                          setState(() {
+                            _principalController.text = preset;
+                          });
+                        },
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 8),
             TextFormField(
               controller: _rateController,
               decoration: const InputDecoration(
@@ -192,12 +222,12 @@ class _LoanCreateScreenState extends ConsumerState<LoanCreateScreen> {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
-              inputFormatters: <TextInputFormatter>[
+              inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
               ],
               validator: _validateRate,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
             TextFormField(
               controller: _termController,
               decoration: const InputDecoration(
@@ -205,101 +235,50 @@ class _LoanCreateScreenState extends ConsumerState<LoanCreateScreen> {
                 prefixIcon: Icon(Icons.calendar_month_outlined),
               ),
               keyboardType: TextInputType.number,
-              inputFormatters: <TextInputFormatter>[
-                FilteringTextInputFormatter.digitsOnly,
-              ],
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               validator: _validateTerm,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
             DropdownButtonFormField<int>(
               initialValue: _paymentsPerMonth,
               decoration: const InputDecoration(
                 labelText: 'Payment Frequency',
                 prefixIcon: Icon(Icons.event_repeat),
               ),
-              items: const <DropdownMenuItem<int>>[
+              items: const [
                 DropdownMenuItem(value: 1, child: Text('Once a month')),
                 DropdownMenuItem(value: 2, child: Text('Twice a month')),
               ],
-              onChanged: (value) {
-                if (value != null) setState(() => _paymentsPerMonth = value);
+              onChanged: (v) {
+                if (v != null) setState(() => _paymentsPerMonth = v);
               },
             ),
-            const SizedBox(height: 16),
-            _DateField(
+            const SizedBox(height: 8),
+            LoanDateField(
               label: 'Start Date',
               value: _startDate,
               onTap: () => _pickDate(startDate: true),
             ),
-            const SizedBox(height: 16),
-            _DateField(
+            const SizedBox(height: 8),
+            LoanDateField(
               label: 'First Due Date',
               value: _firstDueDate,
               onTap: () => _pickDate(startDate: false),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             FilledButton.icon(
-              onPressed: _isSubmitting ? null : _submit,
-              icon: _isSubmitting
+              onPressed: isSubmitting ? null : _submit,
+              icon: isSubmitting
                   ? const SizedBox.square(
                       dimension: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.check),
-              label: Text(_isSubmitting ? 'Creating…' : 'Create Loan'),
+              label: Text(isSubmitting ? 'Creating\u2026' : 'Create Loan'),
             ),
           ],
         ),
       ),
     );
   }
-}
-
-class _DateField extends StatelessWidget {
-  const _DateField({
-    required this.label,
-    required this.value,
-    required this.onTap,
-  });
-
-  final String label;
-  final DateTime value;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: InputDecorator(
-        decoration: InputDecoration(
-          labelText: label,
-          prefixIcon: const Icon(Icons.event_outlined),
-        ),
-        child: Text(formatDateOnly(value)),
-      ),
-    );
-  }
-}
-
-/// Converts a human percentage to an exact fractional decimal without doubles.
-String percentageToDecimalRate(String percentage) {
-  final parts = percentage.split('.');
-  final fractionalDigits = parts.length == 2 ? parts[1].length : 0;
-  final digits = percentage.replaceAll('.', '');
-  final numerator = BigInt.parse(digits);
-  final scale = fractionalDigits + 2;
-  final padded = numerator.toString().padLeft(scale + 1, '0');
-  final splitAt = padded.length - scale;
-  final whole = padded.substring(0, splitAt);
-  var fraction = padded.substring(splitAt).replaceFirst(RegExp(r'0+$'), '');
-  if (fraction.isEmpty) fraction = '0';
-  return '$whole.$fraction';
-}
-
-/// Formats a local calendar selection as the backend's date-only value.
-String formatDateOnly(DateTime value) {
-  final year = value.year.toString().padLeft(4, '0');
-  final month = value.month.toString().padLeft(2, '0');
-  final day = value.day.toString().padLeft(2, '0');
-  return '$year-$month-$day';
 }
