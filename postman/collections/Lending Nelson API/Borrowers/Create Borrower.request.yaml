@@ -20,3 +20,11 @@ body:
       "status": "Active",
       "createdAt": "{{$isoTimestamp}}"
     }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      if (pm.response.code === 201 || pm.response.code === 200) {
+          const json = pm.response.json();
+          pm.collectionVariables.set("borrowerId", json.id);
+      }
