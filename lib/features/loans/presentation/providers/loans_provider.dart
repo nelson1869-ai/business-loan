@@ -85,8 +85,11 @@ final todaysCollectionsProvider = FutureProvider.autoDispose<TodaysCollectionDat
       .toList();
 
   final today = DateTime.now();
+  final todayUtc = today.toUtc();
   final todayStr =
       '${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+  final todayUtcStr =
+      '${todayUtc.year.toString().padLeft(4, '0')}-${todayUtc.month.toString().padLeft(2, '0')}-${todayUtc.day.toString().padLeft(2, '0')}';
 
   final dueItems = <DashboardDueItem>[];
   double totalDueToday = 0;
@@ -112,7 +115,7 @@ final todaysCollectionsProvider = FutureProvider.autoDispose<TodaysCollectionDat
         final dueDateStr = inst.dueDate.length >= 10
             ? inst.dueDate.substring(0, 10)
             : inst.dueDate;
-        if (dueDateStr == todayStr &&
+        if ((dueDateStr == todayStr || dueDateStr == todayUtcStr) &&
             (inst.status == 'Scheduled' ||
                 inst.status == 'Overdue' ||
                 inst.status == 'PartiallyPaid')) {

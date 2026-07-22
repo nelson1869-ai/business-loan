@@ -90,7 +90,12 @@ class RemoteLoanRepository {
             return Loan.fromJson(Map<String, dynamic>.from(row));
           })
           .toList(growable: false);
-      await _localRepo?.saveLoans(loans);
+
+      if (borrowerId == null && status == null) {
+        await _localRepo?.syncLoans(loans);
+      } else {
+        await _localRepo?.saveLoans(loans);
+      }
       return loans;
     } on DioException catch (error) {
       if (_localRepo != null) {

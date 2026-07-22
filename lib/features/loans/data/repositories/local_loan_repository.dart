@@ -32,6 +32,19 @@ class LocalLoanRepository {
     await batch.commit(noResult: true);
   }
 
+  Future<void> syncLoans(List<Loan> loans) async {
+    final db = await _dbService.database;
+    final remoteIds = loans.map((l) => l.id).toSet();
+    final localMaps = await db.query('loans', columns: ['id']);
+    for (final map in localMaps) {
+      final id = map['id'] as String;
+      if (!remoteIds.contains(id)) {
+        await db.delete('loans', where: 'id = ?', whereArgs: [id]);
+      }
+    }
+    await saveLoans(loans);
+  }
+
   Future<void> saveLoan(Loan loan) async {
     final db = await _dbService.database;
     await db.insert('loans', {
