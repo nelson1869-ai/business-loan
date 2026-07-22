@@ -1,130 +1,116 @@
-# Lending Nelson API — Postman Collection
+# Lending Nelson API Postman Collection
 
-This folder contains the **Lending Nelson API** Postman collection in Postman's
-file-based YAML format. Every request, test script, and variable is version-controlled here.
+This directory contains the automated Postman test suite for the Lending Nelson FastAPI backend. The collection is maintained against the FastAPI routes, Pydantic schemas, and OpenAPI contract in this repository.
 
----
+The canonical collection is `lending-nelson-api.json`. The file-based workspace under `collections/Lending Nelson API` remains available for interactive use, but the JSON collection is the complete regression suite.
 
-## 📋 Prerequisites
+## Prerequisites
 
-| Requirement | Details |
+- PostgreSQL configured in `backend/.env`
+- The existing virtual environment at `backend/.venv`
+- Postman Desktop, Postman CLI, or Node.js with Newman
+- Development account: `officer1` / `password123`
+
+The account above is only for local development. Never use it in production.
+
+## Start the backend
+
+From PowerShell:
+
+```powershell
+Set-Location D:\Development\lending_nelson\backend
+.\.venv\Scripts\python.exe -m alembic upgrade head
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+Verify the API at `http://127.0.0.1:8000/health`.
+
+## Import into Postman
+
+1. Open Postman Desktop.
+2. Select **Import**.
+3. Choose `postman/lending-nelson-api.json`.
+4. Open **Lending Nelson API**.
+5. Run the complete collection in its saved order.
+
+No separate environment import is required. The collection contains its own variables and captures generated IDs automatically.
+
+## Run from the command line
+
+With Postman CLI:
+
+```powershell
+postman collection run "D:\Development\lending_nelson\postman\lending-nelson-api.json"
+```
+
+With Newman:
+
+```powershell
+npx --yes newman run "D:\Development\lending_nelson\postman\lending-nelson-api.json"
+```
+
+## Collection variables
+
+| Variable | Purpose |
 |---|---|
-| **Backend running** | Run `.\start.ps1` from the project root |
-| **Postman app** | [Download Postman](https://www.postman.com/downloads/) |
-| **Postman CLI** (optional) | See install steps below |
+| `baseUrl` | API origin; defaults to `http://127.0.0.1:8000` |
+| `accessToken`, `refreshToken` | Captured and rotated by authentication requests |
+| `borrowerId`, `loanId`, `draftLoanId`, `paidLoanId` | Captured entity IDs |
+| `paymentId`, `reversalId` | Captured ledger IDs |
+| `loanRequestId`, `paymentRequestId`, `reversalRequestId` | Dynamically generated idempotency keys |
+| `transactionUuid` and `sync*` | Offline synchronization IDs |
+| `dateFrom`, `dateTo`, `asOf`, `paymentDate` | Dynamically generated test dates |
+| `startDate`, `firstDueDate` | Dynamically generated loan schedule dates |
 
----
+Reusable entity IDs are captured from API responses. They are not hardcoded.
 
-## 🖥️ Option 1 — Run from the Postman App (Recommended)
+## Execution order
 
-Best for interactive testing and debugging individual requests.
+1. `01 Health`
+2. `02 Authentication`
+3. `03 Development Setup`
+4. `04 Borrowers`
+5. `05 Active Loan Creation`
+6. `06 Draft Loan Workflow`
+7. `07 Loan Pagination`
+8. `08 Payment Preview and Confirmation`
+9. `09 Payment Pagination`
+10. `10 Receipt Projection`
+11. `11 Loan Statement`
+12. `12 Dashboard`
+13. `13 Financial Reports`
+14. `14 Offline Sync`
+15. `15 Payment Reversal`
+16. `16 Negative Tests`
+17. `99 Cleanup`
 
-### Step 1: Open the collection in Postman
-1. Open the **Postman** desktop app.
-2. Go to **File → Open** (or press `Ctrl + O`).
-3. Select the folder: `D:\Development\lending_nelson\postman\collections\Lending Nelson API`
-4. The **Lending Nelson API** collection will appear in the left sidebar.
+## Destructive-data warning
 
-### Step 2: Run individual requests
-1. Expand a folder (e.g., **Authentication**).
-2. Click a request (e.g., **Login**).
-3. Click the blue **Send** button.
-4. Collection variables (`accessToken`, `loanId`, etc.) are set automatically by test scripts.
+The collection resets and seeds development data during setup. `99 Cleanup` resets it again after verification. Run this collection only against a disposable development database.
 
-### Step 3: Run the full collection (Collection Runner)
-1. Right-click **`Lending Nelson API`** in the sidebar.
-2. Click **`Run collection`**.
-3. Click the blue **`Run Lending Nelson API`** button.
-4. All 19 requests run in order. Results show pass/fail per test.
+Do not run cleanup before receipt, statement, dashboard, report, sync, and reversal requests have completed.
 
-> ✅ **Correct run order:** Authentication → Admin (Seed) → Borrowers → Loans → Payments
+## Expected successful result
 
----
+A complete verified run executes:
 
-## ⌨️ Option 2 — Run from Terminal (Postman CLI)
+- 68 requests
+- 124 assertions
+- 0 failed requests
+- 0 failed assertions
 
-Best for CI/CD pipelines and automated regression testing.
+The suite covers authentication, borrower CRUD, loan workflows, pagination, payments, financial reconciliation, receipts, statements, dashboard projections, reports, offline synchronization, reversals, and negative cases.
 
-### Install Postman CLI (Windows — one time only)
+## Troubleshooting
 
-```powershell
-powershell.exe -NoProfile -InputFormat None -ExecutionPolicy AllSigned -Command "[System.Net.ServicePointManager]::SecurityProtocol = 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://dl-cli.pstmn.io/install/win64.ps1'))"
-```
+- `401 Unauthorized`: run Login first and confirm the development user exists.
+- `404 Not Found`: run dependent creation requests first and ensure cleanup has not reset the data.
+- `409 Conflict`: this can be expected for conflicting idempotency keys, duplicate reversals, duplicate national IDs, and invalid workflow transitions. Check the assertion name and response detail.
+- `422 Unprocessable Content`: verify camelCase field names, UUIDs, dates, enum values, and pagination bounds. Valid pagination requires `offset >= 0` and `1 <= limit <= 200`.
+- `500 Internal Server Error`: inspect the Uvicorn traceback and PostgreSQL connection. Do not weaken a correct assertion to conceal a backend defect.
 
-### Export then run (required for CLI)
+For a reproducible run, always start from `01 Health` and allow the development setup requests to create a clean dataset.
 
-The CLI requires a JSON-exported collection file. Export it from the Postman app first:
+## Known workflow limitation
 
-1. Right-click **`Lending Nelson API`** → **Export**.
-2. Choose **Collection v2.1** → Save as `postman/lending-nelson-api.json`.
-3. Run:
-
-```powershell
-postman collection run "D:/Development/lending_nelson/postman/lending-nelson-api.json"
-```
-
----
-
-## 🔑 Collection Variables
-
-These are set automatically by test scripts — you do **not** need to set them manually.
-
-| Variable | Set By | Used By |
-|---|---|---|
-| `baseUrl` | Pre-defined (`http://localhost:8000`) | All requests |
-| `accessToken` | Login → afterResponse | All protected endpoints |
-| `refreshToken` | Login → afterResponse | Refresh Token |
-| `borrowerId` | Create Borrower → afterResponse | Get/Update/Delete Borrower |
-| `loanId` | List Loans → afterResponse | Get Loan, Payments |
-| `paymentId` | Confirm Payment / List Payments | Reverse Payment |
-| `paymentDate` | Preview/Confirm Payment → prerequest | Preview/Confirm Payment body |
-
----
-
-## 📁 Folder Structure & Request Order
-
-```
-Lending Nelson API/
-├── Authentication/
-│   ├── Login              ← Captures accessToken & refreshToken
-│   └── Refresh Token
-├── Admin/
-│   ├── Seed Database      ← Seeds borrowers + loans (runs after Login)
-│   └── Reset All Data
-├── Borrowers/
-│   ├── List Borrowers
-│   ├── Create Borrower    ← Captures borrowerId
-│   ├── Get Borrower
-│   ├── Update Borrower
-│   └── Delete Borrower
-├── Health/
-│   └── Health Check
-├── Loans/
-│   ├── Create Loan
-│   ├── List Loans         ← Captures loanId (picks first Active loan)
-│   └── Get Loan
-├── Offline Sync/
-│   └── Drain Sync Queue
-└── Payments/
-    ├── Preview Payment    ← Uses today's date dynamically
-    ├── Confirm Payment    ← Captures paymentId
-    ├── List Payments      ← Fallback: captures latest paymentId
-    └── Reverse Payment
-```
-
----
-
-## ✅ Expected Test Results (All Passing)
-
-| Request | Expected Status | Tests |
-|---|---|---|
-| Login | `200 OK` | Token captured ✅ |
-| Seed Database | `200 OK` | `status == "ok"` ✅ |
-| List Borrowers | `200 OK` | — |
-| Create Borrower | `201 Created` | borrowerId captured ✅ |
-| Health Check | `200 OK` | — |
-| List Loans | `200 OK` | loanId captured ✅ |
-| Get Loan | `200 OK` | — |
-| Preview Payment | `200 OK` | Interest + Principal fields present ✅ |
-| Confirm Payment | `201 Created` | paymentId captured ✅ |
-| Reverse Payment | `200 OK` | `status == "Reversed"` ✅ |
+The collection verifies that completing a loan with an outstanding balance returns `409`. A successful `complete` transition cannot currently be produced naturally because full payoff changes the loan status directly to `Paid`.

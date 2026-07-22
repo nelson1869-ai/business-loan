@@ -1,13 +1,22 @@
 $kind: collection
 description: ""
 variables:
-  baseUrl: http://localhost:8000
+  baseUrl: http://127.0.0.1:8000
   accessToken: ""
   refreshToken: ""
   borrowerId: ""
   loanId: ""
   paymentId: ""
   paymentDate: ""
+  draftLoanId: ""
+  reversalId: ""
+  loanRequestId: ""
+  paymentRequestId: ""
+  reversalRequestId: ""
+  transactionUuid: ""
+  dateFrom: ""
+  dateTo: ""
+  asOf: ""
 auth:
   - id: 828eb65c-be6b-4149-aec9-6856e555d38f
     type: bearer
