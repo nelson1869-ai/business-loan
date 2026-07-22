@@ -18,6 +18,9 @@ InstallmentStatus = Literal[
     "Cancelled",
 ]
 CalculationMethod = Literal["fixed_periodic_reducing_balance"]
+LoanWorkflowAction = Literal[
+    "approve", "disburse", "activate", "complete", "default", "cancel", "close"
+]
 
 
 class LoanCreate(BaseModel):
@@ -118,3 +121,25 @@ class LoanDetailResponse(LoanResponse):
     """A loan account returned together with its ordered installments."""
 
     installments: list[InstallmentResponse]
+
+
+class LoanPage(BaseModel):
+    """Backward-compatible paginated loan collection envelope."""
+
+    items: list[LoanResponse]
+    total: int
+    offset: int
+    limit: int
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
+class LoanWorkflowResponse(BaseModel):
+    """Result of a validated persisted lifecycle command."""
+
+    loan_id: str
+    action: LoanWorkflowAction
+    status: LoanStatus
+    occurred_at: datetime
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)

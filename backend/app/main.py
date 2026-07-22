@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import admin, auth, borrowers, loans, payments, sync
+from app.routers import admin, auth, borrowers, loans, payments, projections, sync
 
 
 def create_app() -> FastAPI:
@@ -24,6 +24,7 @@ def create_app() -> FastAPI:
     application.include_router(borrowers.router)
     application.include_router(loans.router)
     application.include_router(payments.router)
+    application.include_router(projections.router)
     application.include_router(sync.router)
 
     @application.get("/health", tags=["Health"])

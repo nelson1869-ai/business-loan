@@ -5,7 +5,7 @@ from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -281,6 +281,24 @@ async def list_payments(db: AsyncSession, loan_id: str) -> list[Payment]:
         .order_by(Payment.created_at.desc(), Payment.id.desc())
     )
     return list(result.scalars())
+
+
+async def page_payments(
+    db: AsyncSession, loan_id: str, offset: int, limit: int
+) -> tuple[list[Payment], int]:
+    """Return a stable payment-ledger page and total count."""
+    total = await db.scalar(
+        select(func.count()).select_from(Payment).where(Payment.loan_id == loan_id)
+    ) or 0
+    result = await db.execute(
+        select(Payment)
+        .options(selectinload(Payment.allocation), selectinload(Payment.reversal_of))
+        .where(Payment.loan_id == loan_id)
+        .order_by(Payment.created_at.desc(), Payment.id.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    return list(result.scalars()), total
 
 
 def payment_matches_request(payment: Payment, loan_id: str, payload: PaymentCreate) -> bool:

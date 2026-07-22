@@ -13,7 +13,13 @@ class SyncQueueItem(BaseModel):
     """One ordered mutation captured by Flutter while offline."""
 
     transaction_uuid: str
-    endpoint: str = Field(pattern=r"^/api/v1/borrowers(?:/[0-9a-fA-F-]{36})?$")
+    endpoint: str = Field(
+        pattern=(
+            r"^/api/v1/(?:borrowers(?:/[0-9a-fA-F-]{36})?"
+            r"|loans(?:/[0-9a-fA-F-]{36}/payments"
+            r"(?:/[0-9a-fA-F-]{36}/reversal)?)?)$"
+        )
+    )
     method: Literal["POST", "PUT", "DELETE"]
     payload: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime

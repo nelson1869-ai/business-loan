@@ -8,6 +8,7 @@ from app.schemas.payment import (
     PaymentCreate,
     PaymentPreviewRequest,
     PaymentPreviewResponse,
+    PaymentPage,
     PaymentResponse,
     PaymentReversalCreate,
     PaymentReversalResponse,
@@ -69,6 +70,24 @@ async def list_loan_payments(
     if await loan_service.get_loan(db, loan_id) is None:
         raise HTTPException(status_code=404, detail="Loan not found")
     return [PaymentResponse.model_validate(item) for item in await payment_service.list_payments(db, loan_id)]
+
+
+@router.get("/page", response_model=PaymentPage)
+async def page_loan_payments(
+    loan_id: str,
+    db: DbSession,
+    current_user: CurrentUser,
+    offset: int = 0,
+    limit: int = 50,
+) -> PaymentPage:
+    """Return a stable paginated payment envelope."""
+    del current_user
+    if offset < 0 or limit < 1 or limit > 200:
+        raise HTTPException(status_code=422, detail="offset/limit outside allowed range")
+    if await loan_service.get_loan(db, loan_id) is None:
+        raise HTTPException(status_code=404, detail="Loan not found")
+    items, total = await payment_service.page_payments(db, loan_id, offset, limit)
+    return PaymentPage(items=[PaymentResponse.model_validate(item) for item in items], total=total, offset=offset, limit=limit)
 
 
 @router.post(

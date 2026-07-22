@@ -141,3 +141,14 @@ class PaymentReversalResponse(PaymentResponse):
 
     reversal_of_payment_id: str
     entry_type: Literal["Reversal"]
+
+
+class PaymentPage(BaseModel):
+    """Backward-compatible paginated payment collection envelope."""
+
+    items: list[PaymentResponse]
+    total: int
+    offset: int
+    limit: int
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)

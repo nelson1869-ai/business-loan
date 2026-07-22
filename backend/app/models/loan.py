@@ -106,6 +106,13 @@ class Loan(Base):
         nullable=False,
         server_default=func.now(),
     )
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    disbursed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    defaulted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     borrower: Mapped["Borrower"] = relationship(back_populates="loans")
     created_by: Mapped["User"] = relationship(back_populates="loans_created")
