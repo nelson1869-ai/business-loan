@@ -9,10 +9,19 @@ body:
   content: |-
     {
       "amount": "1000.00",
-      "effectiveDate": "2026-02-01",
+      "effectiveDate": "{{paymentDate}}",
       "installmentId": null
     }
 scripts:
+  - type: prerequest
+    language: text/javascript
+    code: |-
+      // Set today's date dynamically so payment is never rejected as past-due
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      pm.collectionVariables.set("paymentDate", `${yyyy}-${mm}-${dd}`);
   - type: afterResponse
     language: text/javascript
     code: |-

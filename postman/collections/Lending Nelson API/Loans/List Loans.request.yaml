@@ -20,6 +20,9 @@ scripts:
       if (pm.response.code === 200) {
           const json = pm.response.json();
           if (Array.isArray(json) && json.length > 0) {
-              pm.collectionVariables.set("loanId", json[0].id);
+              // Pick first Active loan for payment tests
+              const activeLoan = json.find(l => l.status === "Active") || json[0];
+              pm.collectionVariables.set("loanId", activeLoan.id);
           }
       }
+

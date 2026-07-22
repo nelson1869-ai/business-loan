@@ -2,13 +2,14 @@ $kind: http-request
 name: Seed Database
 method: POST
 url: '{{baseUrl}}/api/v1/admin/seed'
-order: 1000
+order: 3000
 description: Populate backend database with sample borrowers, overdue loans, due today loans, and paid loans.
 auth:
   type: bearer
-  credentials:
+  bearer:
     - key: token
       value: '{{accessToken}}'
+      type: string
 scripts:
   - type: afterResponse
     language: text/javascript
