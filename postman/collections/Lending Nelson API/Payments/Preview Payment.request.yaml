@@ -1,0 +1,14 @@
+$kind: http-request
+name: Preview Payment
+method: POST
+url: '{{baseUrl}}/api/v1/loans/{{loanId}}/payments/preview'
+order: 1000
+description: Preview how a payment will be allocated before confirming it.
+body:
+  type: json
+  content: |-
+    {
+      "amount": "1000.00",
+      "effectiveDate": "2026-02-01",
+      "installmentId": null
+    }

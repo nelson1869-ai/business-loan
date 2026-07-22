@@ -1,0 +1,14 @@
+$kind: http-request
+name: Reverse Payment
+method: POST
+url: '{{baseUrl}}/api/v1/loans/{{loanId}}/payments/{{paymentId}}/reversal'
+order: 4000
+description: Reverse the latest payment without deleting its ledger history.
+body:
+  type: json
+  content: |-
+    {
+      "requestId": "{{$guid}}",
+      "effectiveDate": "2026-02-01",
+      "reason": "Payment was made in error"
+    }

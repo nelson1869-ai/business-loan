@@ -214,8 +214,11 @@ void main() {
 
         // 8. Test Logout Action
         final logoutBtn = find.widgetWithText(ElevatedButton, 'Logout');
-        await tester.ensureVisible(logoutBtn);
-        await tester.pumpAndSettle();
+        await tester.scrollUntilVisible(
+          logoutBtn,
+          200,
+          scrollable: find.byType(Scrollable).last,
+        );
         await tester.tap(logoutBtn);
         await tester.pumpAndSettle();
 

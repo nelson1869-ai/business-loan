@@ -1,0 +1,6 @@
+$kind: http-request
+name: Seed Database
+method: POST
+url: '{{baseUrl}}/api/v1/admin/seed'
+order: 2000
+description: 'Reset and populate the database with sample borrowers, overdue, due today, and paid loans.'

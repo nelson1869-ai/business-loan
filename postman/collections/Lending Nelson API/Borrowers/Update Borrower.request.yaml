@@ -1,0 +1,17 @@
+$kind: http-request
+name: Update Borrower
+method: PUT
+url: '{{baseUrl}}/api/v1/borrowers/{{borrowerId}}'
+order: 4000
+description: Update a borrower and write a redacted audit record.
+body:
+  type: json
+  content: |-
+    {
+      "firstName": "Juan",
+      "lastName": "dela Cruz",
+      "nationalId": "1234-5678",
+      "phone": "+639171234567",
+      "dateOfBirth": "1990-01-15",
+      "status": "Active"
+    }

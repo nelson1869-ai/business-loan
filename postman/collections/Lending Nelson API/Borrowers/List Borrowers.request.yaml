@@ -1,0 +1,19 @@
+$kind: http-request
+name: List Borrowers
+method: GET
+url: '{{baseUrl}}/api/v1/borrowers'
+order: 1000
+description: 'List a filtered, paginated borrower page. Response includes `X-Total-Count` header.'
+queryParams:
+  - key: status
+    value: Active
+    description: Filter by borrower status
+    disabled: true
+  - key: offset
+    value: '0'
+    description: Pagination offset
+    disabled: true
+  - key: limit
+    value: '50'
+    description: Pagination limit
+    disabled: true

@@ -171,6 +171,19 @@ class SettingsPage extends ConsumerWidget {
                   endIndent: 16,
                   color: Theme.of(context).dividerTheme.color,
                 ),
+                ListTile(
+                  leading: const Icon(Icons.developer_mode_outlined),
+                  title: const Text('Dev Tools'),
+                  subtitle: const Text('Reset or seed development data'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/dev-tools'),
+                ),
+                Divider(
+                  height: 1,
+                  indent: 16,
+                  endIndent: 16,
+                  color: Theme.of(context).dividerTheme.color,
+                ),
                 const ListTile(
                   leading: Icon(Icons.phone_android_outlined),
                   title: Text('App Version'),

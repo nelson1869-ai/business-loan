@@ -1,0 +1,22 @@
+$kind: http-request
+name: Create Borrower
+method: POST
+url: '{{baseUrl}}/api/v1/borrowers'
+order: 2000
+description: Register one borrower and write a redacted audit record.
+headers:
+  - key: X-Transaction-UUID
+    value: '{{$guid}}'
+body:
+  type: json
+  content: |-
+    {
+      "id": "{{$guid}}",
+      "firstName": "Juan",
+      "lastName": "dela Cruz",
+      "nationalId": "1234-5678",
+      "phone": "+639171234567",
+      "dateOfBirth": "1990-01-15",
+      "status": "Active",
+      "createdAt": "{{$isoTimestamp}}"
+    }

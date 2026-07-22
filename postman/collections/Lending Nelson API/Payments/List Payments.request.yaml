@@ -1,0 +1,6 @@
+$kind: http-request
+name: List Payments
+method: GET
+url: '{{baseUrl}}/api/v1/loans/{{loanId}}/payments'
+order: 3000
+description: List all payment ledger entries for a loan.

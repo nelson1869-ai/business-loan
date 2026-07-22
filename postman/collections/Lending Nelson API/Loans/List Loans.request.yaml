@@ -1,0 +1,15 @@
+$kind: http-request
+name: List Loans
+method: GET
+url: '{{baseUrl}}/api/v1/loans'
+order: 2000
+description: List loan accounts with optional borrower and status filters.
+queryParams:
+  - key: borrowerId
+    value: '{{borrowerId}}'
+    description: Filter by borrower UUID
+    disabled: true
+  - key: status
+    value: Active
+    description: Filter by loan status
+    disabled: true

@@ -1,0 +1,6 @@
+$kind: http-request
+name: Get Borrower
+method: GET
+url: '{{baseUrl}}/api/v1/borrowers/{{borrowerId}}'
+order: 3000
+description: Return one non-deleted borrower by UUID.

@@ -1,0 +1,16 @@
+$kind: http-request
+name: Confirm Payment
+method: POST
+url: '{{baseUrl}}/api/v1/loans/{{loanId}}/payments'
+order: 2000
+description: Record an immutable payment ledger entry with interest-first allocation.
+body:
+  type: json
+  content: |-
+    {
+      "requestId": "{{$guid}}",
+      "amount": "1000.00",
+      "effectiveDate": "2026-02-01",
+      "installmentId": null,
+      "note": "Monthly payment"
+    }

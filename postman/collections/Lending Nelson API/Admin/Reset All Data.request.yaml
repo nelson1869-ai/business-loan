@@ -1,0 +1,6 @@
+$kind: http-request
+name: Reset All Data
+method: POST
+url: '{{baseUrl}}/api/v1/admin/reset'
+order: 1000
+description: 'Hard-delete all borrowers, loans, payments, and audit logs. Intended for Dev Tools.'

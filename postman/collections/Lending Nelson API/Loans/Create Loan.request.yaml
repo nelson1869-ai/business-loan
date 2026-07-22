@@ -1,0 +1,20 @@
+$kind: http-request
+name: Create Loan
+method: POST
+url: '{{baseUrl}}/api/v1/loans'
+order: 1000
+description: Create an active loan and persist its complete installment schedule.
+body:
+  type: json
+  content: |-
+    {
+      "borrowerId": "{{borrowerId}}",
+      "requestId": "{{$guid}}",
+      "originalPrincipal": "10000.00",
+      "monthlyRate": "0.02500000",
+      "termMonths": 12,
+      "paymentsPerMonth": 1,
+      "startDate": "2026-01-01",
+      "firstDueDate": "2026-02-01",
+      "calculationMethod": "fixed_periodic_reducing_balance"
+    }

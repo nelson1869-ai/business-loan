@@ -45,10 +45,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: GestureDetector(
-          onLongPress: () => context.push('/dev-tools'),
-          child: const Text('Dashboard'),
-        ),
+        title: const Text('Dashboard'),
         actions: [
           Consumer(
             builder: (context, ref, child) {
