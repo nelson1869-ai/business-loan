@@ -1,112 +1,90 @@
-# Personal Lending Delivery Milestones
+# Delivery Milestones
 
-Build the financial ledger in small phases so calculations can be tested before
-more features depend on them.
+Status reflects the current repository. A checked item is implemented and verified; unchecked items remain product or engineering work.
 
-## Phase 0: Confirm version-one business rules
+## Phase 0: Business rules
 
-- [ ] Confirm fixed scheduled rates and daily off-schedule proration with examples.
-- [ ] Confirm outstanding principal as the interest basis.
-- [ ] Confirm interest-first payment allocation.
-- [ ] Define allowed lender-selected rate ranges and supported rate periods.
-- [ ] Define rounding and currency rules.
-- [ ] Define multiple-active-loan and exposure rules.
-- [ ] Confirm supported terms, frequencies, and equal-payment calculation.
-- [ ] Review applicable lending, privacy, tax, and collection requirements.
+- [x] Use exact Decimal arithmetic for money and rates.
+- [x] Use outstanding principal as the reducing-balance basis.
+- [x] Allocate payment to interest, then principal, then unapplied credit.
+- [x] Preserve original payments and correct through reversals.
+- [ ] Approve supported currencies and rounding boundaries.
+- [ ] Approve rate ranges, penalty rules, grace periods, and disclosures.
+- [ ] Complete jurisdiction-specific legal and compliance review.
 
-Deliverable: approved examples with hand-calculated expected results.
+## Phase 1: Loan accounts and schedules
 
-## Phase 1: Loan accounts
+- [x] Persist borrowers, loans, installments, and audit records.
+- [x] Support multiple independent loans per borrower.
+- [x] Generate and persist installment schedules.
+- [x] Provide active and draft creation with request-ID idempotency.
+- [x] Provide stable list filtering and pagination.
+- [x] Support approve, disburse, activate, default, cancel, and close transitions.
+- [ ] Resolve the natural successful `complete` transition after payoff changes status directly to `Paid`.
+- [ ] Add formal schedule rescheduling and its audit trail.
 
-- [ ] Add loan, loan status, and loan event models.
-- [ ] Create PostgreSQL and SQLite migrations.
-- [ ] Add loan creation and listing APIs.
-- [ ] Add rate entry, calculation preview, and confirmation to loan creation.
-- [ ] Show all loans grouped by borrower.
-- [ ] Show total borrower exposure before a new loan.
-- [ ] Require confirmation for a second active loan.
+## Phase 2: Payments and corrections
 
-Deliverable: one borrower can hold several independent active loans.
-
-## Phase 2: Interest engine
-
-- [x] Implement a pure decimal interest-calculation service.
-- [x] Support mid-cycle date calculations.
-- [x] Keep accrued interest separate from principal in calculations.
-- [ ] Add boundary tests for February, leap years, and 31-day cycles.
-- [x] Add current examples from `LOAN_RULES.md` as automated tests.
-- [x] Verify a 600 payment on 1,100 due leaves 500 principal and 50 next interest.
-
-Deliverable: calculations match approved hand-worked examples exactly.
-
-## Phase 3: Flexible payments
-
-- [x] Add payment and payment-allocation models.
-- [x] Preview allocation before confirmation.
-- [x] Support interest-only payments.
-- [x] Support partial payments.
-- [x] Support early principal reduction.
-- [x] Stop future interest when an early payment fully settles principal.
-- [x] Continue remaining-cycle interest after interest-only or partial payment.
-- [x] Record explicit unapplied credit after a full overpayment.
-
-Deliverable: every payment produces balanced, understandable allocations.
-
-## Phase 4: Schedules and arrears
-
-- [ ] Generate expected payment-cycle entries.
-- [ ] Support borrower-requested terms approved by the lender.
-- [ ] Generate 10 installments for a 5-month twice-monthly schedule.
-- [ ] Calculate regular installments with a final-payment adjustment.
-- [ ] Recalculate only the final installment to produce a zero balance.
-- [ ] Store exact due dates and installment statuses.
-- [ ] Count calendar days between due date and effective payment date.
-- [ ] Show days overdue and grace-period status separately.
-- [ ] Accrue ordinary interest through a late payment date.
-- [ ] Keep the regular due day unless a formal reschedule is recorded.
-- [ ] Track unpaid and partially paid interest.
-- [ ] Mark overdue schedules without changing historical amounts.
-- [ ] Add borrower and portfolio arrears views.
-- [ ] Add configurable reminders without automatic collection actions.
-
-Deliverable: the lender can distinguish principal, current interest, and arrears.
-
-## Phase 5: Corrections, receipts, and audit
-
-- [x] Add payment reversal instead of destructive deletion.
-- [ ] Generate receipts with allocation details.
-- [ ] Record actor, timestamps, device, and reason for overrides.
-- [ ] Redact borrower PII from operational logs.
-- [ ] Add statement export for one loan and all borrower loans.
-
-Deliverable: every balance can be reconstructed from immutable events.
-
-## Phase 6: Offline synchronization
-
-- [ ] Assign stable UUIDs on the device.
+- [x] Preview backend allocation before confirmation.
+- [x] Support full, partial, early, interest-only, and excess payments.
 - [x] Make payment creation idempotent.
-- [ ] Detect version conflicts before overwriting financial records.
-- [ ] Require user resolution for conflicting payment changes.
-- [ ] Test interrupted and repeated synchronization.
+- [x] Preserve immutable allocations and ledger history.
+- [x] Reverse the latest eligible payment idempotently.
+- [x] Reconstruct balances and statuses after reversal.
+- [ ] Define product behavior for applying or refunding unapplied credit.
+- [ ] Add older-payment reconstruction if non-latest reversal becomes a requirement.
 
-Deliverable: reconnecting never duplicates a loan, accrual, or payment.
+## Phase 3: Projections and reporting
 
-## Phase 7: Security and release readiness
+- [x] Generate receipt projections with allocation details.
+- [x] Generate reconciled loan-statement projections.
+- [x] Generate dashboard portfolio and collection metrics.
+- [x] Generate financial reports for collections, interest, risk, aging, and collectors.
+- [ ] Add downloadable receipt and statement formats.
+- [ ] Add downloadable portfolio reports.
 
-- [ ] Add role-based permissions for payment overrides and reversals.
-- [ ] Replace development credentials and secrets.
+## Phase 4: Offline synchronization
+
+- [x] Use transaction UUID, endpoint, method, payload, and creation time.
+- [x] Synchronize borrower creation.
+- [x] Synchronize loan creation.
+- [x] Synchronize payment creation.
+- [x] Synchronize payment reversal.
+- [x] Preserve prior successes when a later queue item fails.
+- [x] Use financial request IDs to prevent duplicate entries.
+- [ ] Add complete user-facing conflict-resolution and retry management.
+
+## Phase 5: Client completeness
+
+- [x] Display backend-generated loan schedules and payment allocations.
+- [x] Provide All, Active, Overdue, and Paid portfolio filters.
+- [x] Provide development seed/reset access through Settings tooling.
+- [ ] Complete and verify all receipt, statement, dashboard, report, and workflow screens against projections.
+- [ ] Add accessibility and localization review.
+- [ ] Ensure development-only controls are excluded or protected in release builds.
+
+## Phase 6: Verification
+
+- [x] Backend compilation passes.
+- [x] Backend tests pass: 63 executed, 60 passed, 3 skipped.
+- [x] Alembic reports no pending upgrade operations.
+- [x] Postman passes 68 requests and 124 assertions with zero failures.
+- [ ] Add continuous integration only when it becomes an explicit project priority.
+
+## Phase 7: Release readiness
+
+- [ ] Add role-based authorization for sensitive actions.
+- [ ] Replace all development accounts and secrets.
 - [ ] Complete backup and restore testing.
-- [ ] Add backend API tests and end-to-end financial scenarios.
-- [ ] Complete security, privacy, and jurisdictional review.
-- [ ] Create a production deployment and monitoring plan.
+- [ ] Complete privacy, security, and legal review.
+- [ ] Define production deployment, monitoring, retention, and incident response.
 
-Deliverable: documented approval for controlled production use.
+## Definition of done
 
-## Definition of done for every phase
-
-- Business rules are documented.
-- Database migrations are reversible and reviewed.
-- Calculation and failure-path tests pass.
-- Flutter analysis and tests pass.
-- API validation and authorization are tested.
-- Student documentation and progress tracker are updated.
+- Business behavior is documented and marked implemented or proposed.
+- Financial logic remains centralized in backend services.
+- Schema changes have reviewed Alembic migrations.
+- Success, validation, conflict, idempotency, and reconciliation tests pass.
+- Flutter analysis and tests pass for client changes.
+- Backend and Postman suites pass for API changes.
+- Documentation and OpenAPI remain consistent with implementation.

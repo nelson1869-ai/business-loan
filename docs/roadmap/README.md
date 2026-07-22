@@ -1,149 +1,61 @@
-# Personal Lending App Roadmap
+# Lending Nelson Product Roadmap
 
-## Product vision
+The application already supports core borrower, loan, installment, payment, reversal, projection, reporting, and offline-sync workflows. This roadmap lists remaining work rather than describing implemented features as future plans.
 
-Lending Nelson will help a private lender record money lent to borrowers,
-calculate agreed interest, accept flexible payments, and preserve a clear
-history of every balance change.
+This is software planning, not legal or financial advice. Interest, disclosure, licensing, privacy, collections, tax, retention, and reporting requirements need jurisdiction-specific review before production use.
 
-The planned app supports situations where:
+## Implemented foundation
 
-- a lender charges an agreed rate such as 10% per month;
-- the lender selects a different agreed rate for each loan;
-- the borrower requests a term and payment frequency for lender approval;
-- one borrower has more than one active loan;
-- a borrower pays only the interest for a period;
-- a borrower makes a partial payment;
-- a borrower pays early or in the middle of a monthly cycle;
-- a borrower pays several days after the due date; and
-- an existing loan remains unpaid when a new loan is issued.
+- Independent loans per borrower
+- Exact Decimal schedule and payment calculations
+- Draft and active loan creation with request-ID idempotency
+- Loan lifecycle actions and persisted timestamps
+- Partial, early, interest-only, payoff, and excess-credit allocations
+- Immutable payment reversals
+- Receipt and loan-statement JSON projections
+- Dashboard and financial-report projections
+- Stable loan and payment pagination
+- Offline borrower, loan, payment, and reversal processing
+- Automated backend and Postman regression coverage
 
-This roadmap describes software behavior, not legal or financial advice.
-Interest limits, disclosures, licensing, privacy, collections, and tax rules
-must be reviewed for the jurisdiction where the app will be used.
+## Remaining product work
 
-## Recommended product flow
+### Product decisions
 
-```mermaid
-flowchart TD
-    Borrower[Create or select borrower] --> Exposure[Review all active loans]
-    Exposure --> NewLoan{Issue another loan?}
-    NewLoan -->|Yes| Terms[Record principal, rate, cycle, and due date]
-    Terms --> Agreement[Confirm terms before disbursement]
-    Agreement --> Active[Activate independent loan account]
-    Active --> Accrual[Accrue simple interest]
-    Accrual --> Payment[Record payment]
-    Payment --> Allocation{Allocate payment}
-    Allocation --> Interest[Accrued interest]
-    Allocation --> Principal[Outstanding principal]
-    Allocation --> Credit[Excess credit or refund]
-    Interest --> Balance[Recalculate balances]
-    Principal --> Balance
-    Credit --> Balance
-    Balance --> Receipt[Create receipt and audit entry]
-```
+- Confirm supported currencies and rounding boundaries.
+- Confirm rate ranges, supported periods, and disclosure language.
+- Decide grace-period, penalty, fee, and rescheduling policies.
+- Define borrower exposure limits and override permissions.
+- Decide how unapplied credit may be refunded or applied later.
 
-## Roadmap documents
+### Financial capabilities
 
-Recommended reading order:
+- Formal interest-accrual ledger if daily persisted accrual is required.
+- Formal schedule-rescheduling workflow with before/after audit history.
+- Statement and receipt export formats such as PDF or CSV.
+- Portfolio report export and configurable report dimensions.
+- Explicit reconciliation and repair tooling for operational support.
 
-1. [Roadmap Overview](README.md) explains the product direction and domain model.
-2. [Loan and Payment Rules](LOAN_RULES.md) defines calculation behavior and examples.
-3. [Delivery Milestones](MILESTONES.md) breaks implementation into safe phases.
+### Client capabilities
 
-Keep business decisions in `LOAN_RULES.md`, implementation order in
-`MILESTONES.md`, and completed learning evidence in the
-[Student Progress Tracker](../progress/README.md).
+- Full UI coverage for backend statements, receipts, reports, and lifecycle actions.
+- Visible offline conflict-resolution and retry management.
+- Better accessibility, localization, and currency formatting.
+- Clear separation or removal of development-only tools in release builds.
 
-## Core design principles
+### Release readiness
 
-1. Every loan is independent, even when loans share a borrower.
-2. Never overwrite financial history; corrections use reversal entries.
-3. Store money in the smallest currency unit or an exact decimal type.
-4. Store rates and calculation methods used at the time of agreement.
-5. Let the lender choose each loan's rate and preview the resulting interest.
-6. Show the lender a calculation preview before saving a payment.
-7. Keep unpaid interest separate from principal by default.
-8. Require explicit confirmation before issuing another active loan.
-9. Record who performed each financial action and when.
+- Role-based permissions for sensitive actions and reversals.
+- Backup and restore exercises.
+- Production environment and secret-management design.
+- Privacy, security, and jurisdictional review.
+- Deployment, monitoring, incident-response, and data-retention plans.
 
-## Proposed domain model
+## Related documents
 
-```mermaid
-erDiagram
-    BORROWER ||--o{ LOAN : has
-    LOAN ||--o{ INTEREST_ACCRUAL : generates
-    LOAN ||--o{ PAYMENT : receives
-    LOAN ||--o{ INSTALLMENT : schedules
-    PAYMENT ||--|{ PAYMENT_ALLOCATION : contains
-    LOAN ||--o{ LOAN_EVENT : records
+- [Loan and Payment Rules](../domain/LOAN_AND_PAYMENT_RULES.md)
+- [Delivery Milestones](MILESTONES.md)
+- [System Overview](../architecture/SYSTEM_OVERVIEW.md)
+- [Development Log](../history/DEVELOPMENT_LOG.md)
 
-    BORROWER {
-        uuid id
-        string name
-        string status
-    }
-    LOAN {
-        uuid id
-        uuid borrower_id
-        decimal original_principal
-        decimal outstanding_principal
-        decimal monthly_rate
-        string calculation_method
-        date start_date
-        date next_due_date
-        string status
-    }
-    INTEREST_ACCRUAL {
-        uuid id
-        uuid loan_id
-        date from_date
-        date to_date
-        decimal principal_basis
-        decimal amount
-    }
-    PAYMENT {
-        uuid id
-        uuid loan_id
-        decimal amount
-        datetime paid_at
-        string reference
-        string status
-    }
-    PAYMENT_ALLOCATION {
-        uuid id
-        uuid payment_id
-        string allocation_type
-        decimal amount
-    }
-    INSTALLMENT {
-        uuid id
-        uuid loan_id
-        int installment_number
-        date due_date
-        decimal expected_amount
-        string status
-    }
-    LOAN_EVENT {
-        uuid id
-        uuid loan_id
-        string event_type
-        datetime occurred_at
-    }
-```
-
-## Version-one decisions and production review
-
-The version-one examples use daily-prorated, non-compounding interest on
-outstanding principal with interest-first payment allocation. Before production,
-the lender must confirm and disclose these rules rather than letting the code
-silently change them:
-
-- fixed monthly interest versus daily prorated monthly interest;
-- interest based on original principal versus outstanding principal;
-- payment allocation order;
-- grace periods and late fees;
-- whether unpaid interest may ever be added to principal;
-- maximum total exposure per borrower;
-- treatment of excess or advance payments; and
-- currency and rounding policy.
+Keep current behavior in architecture and domain documents, remaining work here, and dated completed work in the development log.

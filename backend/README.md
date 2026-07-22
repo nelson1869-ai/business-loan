@@ -1,147 +1,244 @@
-# Lending Nelson FastAPI backend
+# Lending Nelson FastAPI Backend
 
-Async FastAPI, SQLAlchemy, and PostgreSQL backend for the Lending Nelson Flutter app. Run all commands below from the `backend` directory in PowerShell.
+Async financial backend for the Lending Nelson Flutter application. It uses FastAPI, SQLAlchemy 2, PostgreSQL, Alembic, and Pydantic v2.
 
-## 1. Bootstrap pip once
+The backend is the source of truth for loan schedules, payment allocation, balances, receipts, statements, dashboard totals, and financial reports. Flutter clients should display these results rather than recalculate them.
 
-Use the Windows `py.exe` launcher to bootstrap pip before creating the virtual
-environment:
+Run the commands below from `D:\Development\lending_nelson\backend` in PowerShell.
 
-```powershell
-py -m ensurepip --upgrade
-py -m pip install --upgrade pip
-```
+## Requirements
 
-## 2. Create a virtual environment and install dependencies
+- Python 3.12 or newer
+- PostgreSQL
+- PowerShell on Windows
+- A PostgreSQL database named `lending_nelson`, or another database configured through `DATABASE_URL`
 
-Create the virtual environment **inside the `backend` directory**. From any
-PowerShell location, run:
+## 1. Create the virtual environment
 
 ```powershell
 Set-Location D:\Development\lending_nelson\backend
 py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-This creates the environment at:
-
-```text
-D:\Development\lending_nelson\backend\.venv
-```
-
-After activation, the PowerShell prompt should begin with `(.venv)`. You can
-confirm which Python executable is active with:
+Verify the interpreter:
 
 ```powershell
-python -c "import sys; print(sys.executable)"
+.\.venv\Scripts\python.exe -c "import sys; print(sys.executable)"
 ```
 
-The printed path should end with `backend\.venv\Scripts\python.exe`.
+It should resolve to `backend\.venv\Scripts\python.exe`.
 
-After activation, use `python -m` so every command is guaranteed to run inside
-`.venv`. If PowerShell blocks activation, replace `python -m` with
-`.\.venv\Scripts\python.exe -m`.
+`bcrypt` is pinned to 4.3.0 because Passlib 1.7.4 is incompatible with bcrypt 5.0's password-length backend probe.
 
-`bcrypt` is intentionally pinned to 4.3.0 because the required Passlib 1.7.4 release is incompatible with bcrypt 5.0's password-length backend probe. The bcrypt wheel uses Python's stable ABI and installs on CPython 3.14.
+## 2. Configure PostgreSQL
 
-## 3. Create PostgreSQL database
-
-Install PostgreSQL, start its Windows service, and create an empty database:
+Create the development database if it does not already exist:
 
 ```powershell
 psql -U postgres -c "CREATE DATABASE lending_nelson;"
 ```
 
-Copy the environment template and replace the database password and JWT secret:
+Create the local environment file:
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-Generate a strong secret without printing application credentials:
+Configure at least:
+
+```dotenv
+APP_ENV=development
+DATABASE_URL=postgresql+asyncpg://postgres:your-password@localhost:5432/lending_nelson
+JWT_SECRET_KEY=replace-with-a-random-secret-of-at-least-32-characters
+```
+
+Generate a development JWT secret:
 
 ```powershell
 py -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
-Put that value in `JWT_SECRET_KEY`. Never commit `.env`.
+Never commit `.env`, database passwords, JWT secrets, or generated tokens.
 
-## 4. Run migrations
-
-```powershell
-python -m alembic upgrade head
-```
-
-The migrations create `users`, `borrowers`, `audit_logs`, `loans`, and
-`installments`. The offline queue remains in Flutter's device-local SQLite
-database.
-
-## 5. Create the first officer
-
-Use a password of 8-72 UTF-8 bytes. The helper prompts for it securely, hashes it with bcrypt, and never places it in shell history or process arguments:
+## 3. Run database migrations
 
 ```powershell
-python -m app.bootstrap officer1 --role officer
+.\.venv\Scripts\python.exe -m alembic upgrade head
 ```
 
-Reset a forgotten development password without deleting the user:
+The migrations create the authentication, borrower, audit, loan, installment, lifecycle, payment, and payment-allocation structures required by the API.
+
+Check that the ORM metadata and migration head agree:
 
 ```powershell
-officer1
-password123
-python -m app.bootstrap officer1 --reset-password
+.\.venv\Scripts\python.exe -m alembic check
 ```
 
-Enter and confirm the password when prompted. Typed password characters are
-intentionally hidden by the terminal.
+## 4. Create a development user
 
-## 6. Run automated tests (59 Tests)
+Create an officer account:
 
-Run the full backend test suite directly using the virtual environment Python executable:
+```powershell
+.\.venv\Scripts\python.exe -m app.bootstrap officer1 --role officer
+```
+
+The command prompts for the password and confirmation without displaying them. Passwords must contain 8–72 UTF-8 bytes.
+
+Reset an existing user's password:
+
+```powershell
+.\.venv\Scripts\python.exe -m app.bootstrap officer1 --reset-password
+```
+
+Enter the new password only at the secure prompt. Do not place it directly in a PowerShell command.
+
+The documented local Postman account uses:
+
+```text
+username: officer1
+password: password123
+```
+
+This credential is for disposable development environments only. Never use it in production.
+
+Optional sample data can be created from the command line:
+
+```powershell
+.\.venv\Scripts\python.exe -m app.bootstrap officer1 --seed
+```
+
+## 5. Start the API
+
+Local development:
+
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+Useful URLs:
+
+- Health: `http://127.0.0.1:8000/health`
+- Swagger UI: `http://127.0.0.1:8000/docs`
+- ReDoc: `http://127.0.0.1:8000/redoc`
+- OpenAPI: `http://127.0.0.1:8000/openapi.json`
+
+## 6. API capabilities
+
+All protected endpoints require `Authorization: Bearer <access-token>`.
+
+| Area | Endpoints and behavior |
+| --- | --- |
+| Authentication | `POST /api/v1/auth/token`, `POST /api/v1/auth/refresh` |
+| Borrowers | Create, list, retrieve, update, and soft-delete under `/api/v1/borrowers` |
+| Loans | Active creation, draft creation, list, detail, filtering, and paginated results under `/api/v1/loans` |
+| Workflow | `POST /api/v1/loans/{loanId}/workflow/{action}` for approve, disburse, activate, complete, default, cancel, and close |
+| Payments | Preview, confirm, list, paginate, and reverse under `/api/v1/loans/{loanId}/payments` |
+| Receipt | `GET /api/v1/payments/{paymentId}/receipt` |
+| Statement | `GET /api/v1/loans/{loanId}/statement` |
+| Dashboard | `GET /api/v1/dashboard?asOf=YYYY-MM-DD` |
+| Financial report | `GET /api/v1/reports/financial?dateFrom=YYYY-MM-DD&dateTo=YYYY-MM-DD` |
+| Offline sync | `POST /api/v1/sync/drain` |
+| Development tools | Reset, seed, and controlled loan-status helpers under `/api/v1/admin` |
+
+The OpenAPI document is the authoritative contract for request fields, response fields, enums, aliases, and status codes.
+
+## 7. Financial rules
+
+- Financial values use `Decimal`; avoid binary floating-point arithmetic for currency.
+- Payment allocations and running balances are calculated in backend services.
+- Receipts and statements are projections of persisted ledger data.
+- Request IDs provide idempotency for loan creation, payment creation, and payment reversal.
+- Reusing a request ID with conflicting data returns `409 Conflict`.
+- Reversals append ledger history; they do not delete the original payment.
+- Paginated endpoints use stable ordering and return `items`, `total`, `offset`, and `limit`.
+- Valid pagination requires `offset >= 0` and `1 <= limit <= 200`.
+
+## 8. Run backend checks
+
+Compile the application:
+
+```powershell
+.\.venv\Scripts\python.exe -m compileall app
+```
+
+Run the complete unit suite:
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests
 ```
 
-Expected output: `Ran 59 tests in 0.233s - OK`
-
-## 7. Run the development server
+Run the migration consistency check:
 
 ```powershell
-python -m uvicorn app.main:app --reload
+.\.venv\Scripts\python.exe -m alembic check
 ```
 
-Open `http://localhost:8000/docs` for Swagger UI or `http://localhost:8000/health` for the health endpoint.
+Last verified result:
 
-## 7. Run Flutter against the backend
+```text
+Compile: passed
+Backend tests: 63 executed, 60 passed, 3 skipped, 0 failed
+Alembic: no new upgrade operations detected
+```
 
-For desktop/web or a directly reachable local target:
+If an embedded Windows Python distribution does not add the current backend directory to `sys.path`, use a standard `py -m venv .venv` environment. Do not change application imports merely to hide an incorrectly constructed virtual environment.
+
+## 9. Run the Postman regression suite
+
+See [`../postman/README.md`](../postman/README.md) for import, variables, execution order, cleanup warnings, and troubleshooting.
+
+From the repository root:
 
 ```powershell
-flutter run --dart-define=API_BASE_URL=http://localhost:8000
+npx --yes newman run postman\lending-nelson-api.json
 ```
 
-An Android emulator treats `localhost` as the emulator itself. Use the host alias instead:
+Last verified result:
+
+```text
+Requests: 68 passed, 0 failed
+Assertions: 124 passed, 0 failed
+```
+
+The collection resets and seeds the development database. Run it only against disposable development data.
+
+## 10. Connect Flutter
+
+Windows desktop or web on the development computer:
+
+```powershell
+flutter run --dart-define=API_BASE_URL=http://127.0.0.1:8000
+```
+
+Android emulator:
 
 ```powershell
 flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8000
 ```
 
-For a physical Android device, use the development computer's LAN IP and allow port 8000 through Windows Firewall. Bind Uvicorn to the LAN when needed:
+For a physical Android device, bind Uvicorn to the LAN and use the computer's LAN IP:
 
 ```powershell
-python -m uvicorn app.main:app --reload --host 0.0.0.0
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-## API security
+Allow port 8000 through Windows Firewall only on trusted development networks.
 
-- `/api/v1/auth/token` accepts a username/password JSON body.
-- `/api/v1/auth/refresh` rotates a refresh token.
-- Borrower, loan, and sync endpoints require `Authorization: Bearer <access-token>`.
-- `/api/v1/admin/reset` hard-deletes all data tables for development resets.
-- `/api/v1/admin/loans/{id}/status` updates loan status and installment due dates for dev seeding.
-- Audit JSON always redacts names, national IDs, and phone numbers.
-- Development CORS allows all origins; non-development environments use `CORS_ORIGINS`.
-- Tokens, passwords, and unredacted audit PII are never logged.
+## 11. Development endpoint warning
+
+`POST /api/v1/admin/reset` permanently deletes development records. `POST /api/v1/admin/seed` creates sample borrowers and loans. These endpoints require authentication but must not be exposed as general production administration tools.
+
+Development CORS allows all origins. Non-development environments use the configured `CORS_ORIGINS` list.
+
+## 12. Troubleshooting
+
+- `401 Unauthorized`: log in again and use the returned access token.
+- `404 Not Found`: confirm the resource ID and verify development cleanup has not removed it.
+- `409 Conflict`: inspect idempotency-key reuse, workflow state, duplicate national IDs, or reversal state.
+- `422 Unprocessable Content`: check the OpenAPI schema, camelCase aliases, UUIDs, date formats, enum values, and pagination bounds.
+- `500 Internal Server Error`: inspect the Uvicorn traceback and PostgreSQL connection; do not suppress the error by weakening validation.
+- PostgreSQL connection failure: verify the service, database name, port, user, password, and `DATABASE_URL` driver (`postgresql+asyncpg`).
+
+One current workflow limitation is that a successful `complete` transition cannot naturally be produced after payoff because full payoff changes the loan directly to `Paid`. Completing a loan that still has a balance correctly returns `409 Conflict`.

@@ -1,5 +1,31 @@
 # Loan and Payment Rules
 
+This document records product and financial policy. It is not itself proof that every described behavior exists in code. Backend services and tests determine current implementation behavior.
+
+## Implementation status
+
+| Area | Status | Notes |
+| --- | --- | --- |
+| Exact Decimal calculations | Implemented | Backend calculator and allocation services |
+| Independent loans per borrower | Implemented | Multiple loan records are supported |
+| Installment schedule generation | Implemented | Persisted during loan creation |
+| Interest-first payment allocation | Implemented | Previewed and recalculated on confirmation |
+| Partial, early, interest-only, and excess payments | Implemented | Excess is represented as unapplied credit |
+| Immutable payment reversal | Implemented | Latest eligible payment only; original is preserved |
+| Receipt and loan-statement projections | Implemented | Derived from backend ledger data |
+| Dashboard and financial reporting | Implemented | Current projection endpoints provide aggregate metrics |
+| Offline loan, payment, and reversal replay | Implemented | Uses transaction UUID and request-ID idempotency |
+| Penalty and late-fee policy | Proposed | No fee should be invented without an agreed policy |
+| Grace periods and formal rescheduling | Proposed | Requires product and legal decisions |
+| Statement file/PDF export | Proposed | JSON statement projection exists; file export does not |
+| Production legal and compliance approval | Required before production | Jurisdiction-specific review remains outside this document |
+
+Labels used below:
+
+- **Implemented** means current backend behavior is covered by code and tests.
+- **Proposed** means a recommended rule that may require future implementation.
+- **Policy decision required** means the lender and applicable legal review must decide before implementation.
+
 These are recommended default rules for the first implementation. Store the
 chosen rule on each loan so later configuration changes do not rewrite history.
 

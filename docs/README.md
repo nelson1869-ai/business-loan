@@ -1,28 +1,33 @@
-# Student Documentation
+# Lending Nelson Documentation
 
-Choose a study path based on the part of the project you want to learn.
+This directory contains project architecture, learning guides, financial rules, the remaining roadmap, and historical development notes.
 
-## Study paths
+Operational setup belongs in the component README files:
 
-| Path | Start here | Main topics |
+- [Backend setup and API operations](../backend/README.md)
+- [Postman regression collection](../postman/README.md)
+- [Project overview](../README.md)
+
+## Documentation map
+
+| Area | Document | Purpose |
 | --- | --- | --- |
-| Flutter frontend | [Frontend Study Guide](frontend/README.md) | UI, Riverpod, SQLite, networking, offline sync |
-| Python backend | [Backend Study Guide](backend/README.md) | FastAPI, authentication, validation, PostgreSQL, Alembic |
-| Student progress | [Progress Tracker](progress/README.md) | Checklists, milestones, evidence, learning log |
-| Product roadmap | [Personal Lending Roadmap](roadmap/README.md) | Multiple loans, interest, flexible payments, delivery phases |
+| Quick start | [QUICK_START.md](QUICK_START.md) | Essential local commands and URLs |
+| Architecture | [System overview](architecture/SYSTEM_OVERVIEW.md) | Components, ownership, and sources of truth |
+| Architecture | [Data flows](architecture/DATA_FLOWS.md) | Login, loan, payment, projection, and sync flows |
+| Learning | [Student guide](guides/STUDENT_GUIDE.md) | Recommended end-to-end study path |
+| Learning | [Backend study guide](guides/BACKEND_STUDY_GUIDE.md) | FastAPI, services, ledger, and projections |
+| Learning | [Flutter study guide](guides/FLUTTER_STUDY_GUIDE.md) | UI, Riverpod, repositories, and offline behavior |
+| Domain | [Loan and payment rules](domain/LOAN_AND_PAYMENT_RULES.md) | Financial policy and calculation examples |
+| Roadmap | [Roadmap overview](roadmap/README.md) | Remaining product work |
+| Roadmap | [Milestones](roadmap/MILESTONES.md) | Implemented and outstanding capabilities |
+| History | [Development log](history/DEVELOPMENT_LOG.md) | Dated engineering record; not current setup guidance |
 
-## Shared resources
+## Documentation rules
 
-- [Complete Student Guide](STUDENT_GUIDE.md) explains the full project.
-- [Cheat Sheet](CHEAT_SHEET.md) contains common commands and quick fixes.
-- [Visual Flow](VISUAL_FLOW.md) shows how frontend and backend communicate.
-- [Project TODO](../TODO.md) tracks actionable engineering work.
-
-Recommended order for a new student:
-
-1. Read the complete Student Guide.
-2. Choose either the frontend or backend study path.
-3. Use the Visual Flow while reading source files.
-4. Run the application and trace one feature end to end.
-5. Record completed topics in the Progress Tracker.
-6. Complete the exercises in the chosen study guide.
+- FastAPI code and `/openapi.json` are authoritative for API contracts.
+- Backend services and persisted ledger data are authoritative for financial results.
+- `backend/README.md` and `postman/README.md` are authoritative for setup and test commands.
+- Roadmap documents must distinguish implemented behavior from proposed work.
+- Historical test counts belong only in the dated development log.
+- Never place real passwords, tokens, `.env` values, or private keys in documentation.

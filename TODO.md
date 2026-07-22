@@ -1,21 +1,21 @@
-# Lending Nelson TODO
+# Lending Nelson Current TODO
 
-Only the current step is shown here. Complete and verify it before adding the
-next step.
+Completed history belongs in [Development Log](docs/history/DEVELOPMENT_LOG.md). The full remaining plan is in [Delivery Milestones](docs/roadmap/MILESTONES.md).
 
-Long-term work remains in the [Product Roadmap](docs/roadmap/README.md).
+## Current priority: complete Flutter projection workflows
 
-## Step 9: Generate receipts and loan statements
+The backend already provides receipt, statement, dashboard, financial-report, workflow, pagination, and offline-sync APIs. The next focused step is to complete and verify their Flutter presentation.
 
-Goal: give the lender and borrower an understandable record derived from the
-immutable loan, payment, allocation, and reversal ledger.
+- [ ] Verify receipt detail uses `GET /api/v1/payments/{paymentId}/receipt` without recalculating totals.
+- [ ] Verify loan statement uses `GET /api/v1/loans/{loanId}/statement` and displays reversal history and reconciliation.
+- [ ] Verify dashboard cards use `GET /api/v1/dashboard` as their financial source of truth.
+- [ ] Add or verify financial-report UI using `GET /api/v1/reports/financial`.
+- [ ] Expose appropriate loan workflow actions without permitting invalid transitions.
+- [ ] Add widget tests for loading, success, empty, validation, conflict, and offline states.
+- [ ] Run `flutter analyze`, `flutter test`, backend checks, and the complete Postman collection.
 
-1. [ ] Define receipt and statement contents with response schemas.
-2. [ ] Implement backend receipt and statement projection services.
-3. [ ] Add authenticated receipt and loan-statement APIs.
-4. [ ] Add Flutter receipt detail and loan-statement screens.
-## Step 11: Production Field & Risk Management Features
+## Known workflow issue
 
-1. [x] **Real-time Offline Connectivity Status Banner**: Rendered top notification banner when offline (`⚡ Working Offline`) in `MainShell`.
-2. [x] **Borrower Exposure Risk Guard**: Displayed borrower's total existing active loan balance risk card on `LoanCreateScreen`.
-3. [x] **Overdue Arrears Breakdown Card**: Rendered exact overdue arrears collection banner on `LoanDetailScreen`.
+- [ ] Resolve the successful `complete` transition design. Full payoff currently changes a loan directly to `Paid`, while `complete` requires an Active or Overdue zero-balance loan.
+
+Do not add production-hardening work here unless it becomes an explicit project priority.

@@ -1,12 +1,12 @@
 # Lending Nelson
 
 Student resources: [Documentation Index](docs/README.md) |
-[Student Guide](docs/STUDENT_GUIDE.md) |
-[Progress Tracker](docs/progress/README.md) |
+[Student Guide](docs/guides/STUDENT_GUIDE.md) |
+[Development Log](docs/history/DEVELOPMENT_LOG.md) |
 [Product Roadmap](docs/roadmap/README.md) |
 [Project TODO](TODO.md) |
-[Cheat Sheet](docs/CHEAT_SHEET.md) |
-[Visual Flow](docs/VISUAL_FLOW.md)
+[Quick Start](docs/QUICK_START.md) |
+[Data Flows](docs/architecture/DATA_FLOWS.md)
 
 Lending Nelson is an offline-capable microfinance application built with Flutter and a FastAPI/PostgreSQL backend.
 
@@ -15,8 +15,29 @@ Lending Nelson is an offline-capable microfinance application built with Flutter
 ```text
 lib/       Flutter application
 backend/   FastAPI backend and Alembic migrations
+postman/   Complete API regression collection
+docs/      Architecture, guides, domain rules, roadmap, and history
+tool/      Development data utilities
 test/      Flutter unit and widget tests
 ```
+
+## Start local development
+
+The root launcher starts FastAPI, checks backend health, and runs Flutter with the selected target URL:
+
+```powershell
+.\start.ps1 -Target android
+```
+
+Other examples:
+
+```powershell
+.\start.ps1 -Target localhost
+.\start.ps1 -Target 192.168.1.50
+.\start.ps1 -Target android -Port 8001
+```
+
+The launcher force-stops an existing process using the selected port. Use a different port when that process must remain running. See [Quick Start](docs/QUICK_START.md) for manual startup and target details.
 
 ## Flutter app
 
@@ -47,24 +68,27 @@ $env:SEED_USERNAME="officer1"; $env:SEED_PASSWORD="password123"; dart run tool/s
 
 ## Python backend
 
-The backend provides JWT authentication, borrower CRUD, redacted audit logging, PostgreSQL persistence, and offline mutation replay.
+The backend provides JWT authentication, borrower CRUD, loan workflows, exact payment allocation, immutable reversals, receipt and statement projections, dashboard and financial reports, PostgreSQL persistence, and offline mutation replay.
 
 See [backend/README.md](backend/README.md) for PostgreSQL setup, migrations, first-user creation, and server commands.
 
-The Flutter client expects these endpoints:
+Major API areas include:
 
 ```text
 POST   /api/v1/auth/token
 POST   /api/v1/auth/refresh
-GET    /api/v1/borrowers
-POST   /api/v1/borrowers
-GET    /api/v1/borrowers/{id}
-PUT    /api/v1/borrowers/{id}
-DELETE /api/v1/borrowers/{id}
+*      /api/v1/borrowers
+*      /api/v1/loans
+*      /api/v1/loans/{loanId}/workflow/{action}
+*      /api/v1/loans/{loanId}/payments
+GET    /api/v1/payments/{paymentId}/receipt
+GET    /api/v1/loans/{loanId}/statement
+GET    /api/v1/dashboard
+GET    /api/v1/reports/financial
 POST   /api/v1/sync/drain
 ```
 
-Do not point Flutter at a different API that exposes `/api/v1/auth/login`; it does not match this app's access/refresh-token contract.
+Use Swagger or `/openapi.json` for the exact methods, fields, aliases, enums, and status codes. Do not point Flutter at an API exposing `/api/v1/auth/login`; this application uses the access/refresh-token contract above.
 
 ## Security
 
