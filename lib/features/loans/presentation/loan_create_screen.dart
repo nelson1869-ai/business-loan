@@ -116,12 +116,41 @@ class _LoanCreateScreenState extends ConsumerState<LoanCreateScreen> {
     }
   }
 
+  Future<void> _calculateQuote() async {
+    if (!_formKey.currentState!.validate()) return;
+    await ref.read(loanCreateNotifierProvider.notifier).calculateQuote(
+      principal: _principalController.text.trim(),
+      rate: _rateController.text.trim(),
+      termMonths: int.parse(_termController.text.trim()),
+      paymentsPerMonth: _paymentsPerMonth,
+      firstDueDate: _firstDueDate,
+    );
+    if (!mounted) return;
+    final error = ref.read(loanCreateNotifierProvider).error;
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isSubmitting = ref.watch(loanCreateNotifierProvider).isSubmitting;
+    final quoteState = ref.watch(loanCreateNotifierProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Create Loan')),
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/borrowers');
+            }
+          },
+        ),
+        title: const Text('Create Loan'),
+      ),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -266,6 +295,49 @@ class _LoanCreateScreenState extends ConsumerState<LoanCreateScreen> {
               onTap: () => _pickDate(startDate: false),
             ),
             const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: quoteState.isCalculating ? null : _calculateQuote,
+              icon: quoteState.isCalculating
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.calculate_outlined),
+              label: Text(
+                quoteState.isCalculating ? 'Calculating…' : 'Calculate Quote',
+              ),
+            ),
+            if (quoteState.quote case final quote?) ...[
+              const SizedBox(height: 12),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Loan Quote',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text('Payment: \$${quote.regularPaymentAmount}'),
+                      Text('Total interest: \$${quote.totalInterest}'),
+                      Text('Total repayment: \$${quote.totalRepayment}'),
+                      Text('Payments: ${quote.numberOfPayments}'),
+                      Text('Estimated final due date: ${quote.finalDueDate}'),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Estimate only. No loan has been created.',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
             FilledButton.icon(
               onPressed: isSubmitting ? null : _submit,
               icon: isSubmitting

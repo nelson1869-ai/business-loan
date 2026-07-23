@@ -6,10 +6,20 @@ from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy.exc import IntegrityError
 
 from app.dependencies import CurrentUser, DbSession
-from app.schemas.loan import LoanCreate, LoanDetailResponse, LoanPage, LoanResponse, LoanStatus, LoanWorkflowAction, LoanWorkflowResponse
+from app.schemas.loan import LoanCreate, LoanDetailResponse, LoanPage, LoanQuoteRequest, LoanQuoteResponse, LoanResponse, LoanStatus, LoanWorkflowAction, LoanWorkflowResponse
 from app.services import borrower_service, loan_service
 
 router = APIRouter(prefix="/api/v1/loans", tags=["Loans"])
+
+
+@router.post("/quote", response_model=LoanQuoteResponse)
+async def quote_loan(
+    payload: LoanQuoteRequest,
+    current_user: CurrentUser,
+) -> LoanQuoteResponse:
+    """Return an authenticated, non-persistent loan quote."""
+    del current_user
+    return loan_service.build_quote(payload)
 
 
 @router.post("/drafts", response_model=LoanDetailResponse, status_code=status.HTTP_201_CREATED)

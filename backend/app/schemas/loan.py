@@ -67,6 +67,63 @@ class LoanCreate(BaseModel):
         return self.term_months * self.payments_per_month
 
 
+class LoanQuoteRequest(BaseModel):
+    """Non-persistent loan terms submitted for an indicative quote."""
+
+    original_principal: Decimal = Field(gt=0, max_digits=18, decimal_places=2)
+    monthly_rate: Decimal = Field(ge=0, max_digits=10, decimal_places=8)
+    term_months: int = Field(gt=0, le=600)
+    payments_per_month: int = Field(gt=0, le=31)
+    first_due_date: date
+    calculation_method: CalculationMethod = "fixed_periodic_reducing_balance"
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    @field_validator("original_principal", "monthly_rate", mode="before")
+    @classmethod
+    def reject_float_money_and_rates(cls, value: Any) -> Any:
+        """Require exact decimal JSON values rather than binary floats."""
+        if isinstance(value, float):
+            raise ValueError("must be sent as an exact decimal string")
+        return value
+
+    @property
+    def number_of_payments(self) -> int:
+        """Return the quoted number of installments."""
+        return self.term_months * self.payments_per_month
+
+
+class LoanQuoteInstallment(BaseModel):
+    """One calculated installment in a non-persistent quote."""
+
+    installment_number: int
+    due_date: date
+    payment_amount: Decimal
+    interest_amount: Decimal
+    principal_amount: Decimal
+    remaining_principal: Decimal
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
+class LoanQuoteResponse(BaseModel):
+    """Calculated totals and schedule that do not create database records."""
+
+    original_principal: Decimal
+    monthly_rate: Decimal
+    term_months: int
+    payments_per_month: int
+    number_of_payments: int
+    regular_payment_amount: Decimal
+    total_interest: Decimal
+    total_repayment: Decimal
+    final_due_date: date
+    calculation_method: CalculationMethod
+    installments: list[LoanQuoteInstallment]
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
 class InstallmentResponse(BaseModel):
     """One persisted expected installment returned to Flutter."""
 

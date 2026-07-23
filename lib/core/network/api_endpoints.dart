@@ -14,6 +14,9 @@ class ApiEndpoints {
   /// Loan collection endpoint.
   static const String loans = '/api/v1/loans';
 
+  /// Non-persistent loan quote calculator endpoint.
+  static const String loanQuote = '$loans/quote';
+
   /// Payment collection for one loan.
   static String loanPayments(String loanId) => '$loans/$loanId/payments';
 

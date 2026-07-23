@@ -3,6 +3,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/utils/formatters.dart';
 import '../../data/models/loan_create_request.dart';
+import '../../data/models/loan_quote.dart';
 import '../../data/repositories/remote_loan_repository.dart';
 import '../../domain/models/loan.dart';
 import '../../../borrowers/data/remote_borrower_repository.dart';
@@ -13,11 +14,15 @@ class LoanCreateState {
   final bool isSubmitting;
   final String? error;
   final Loan? createdLoan;
+  final LoanQuote? quote;
+  final bool isCalculating;
 
   const LoanCreateState({
     this.isSubmitting = false,
     this.error,
     this.createdLoan,
+    this.quote,
+    this.isCalculating = false,
   });
 }
 
@@ -33,6 +38,30 @@ class LoanCreateNotifier extends StateNotifier<LoanCreateState> {
   final Ref ref;
   String? _requestId;
   String? _requestFingerprint;
+
+  Future<LoanQuote?> calculateQuote({
+    required String principal,
+    required String rate,
+    required int termMonths,
+    required int paymentsPerMonth,
+    required DateTime firstDueDate,
+  }) async {
+    state = const LoanCreateState(isCalculating: true);
+    try {
+      final quote = await _loanRepository.calculateQuote(
+        principal: principal,
+        monthlyRate: percentageToDecimalRate(rate),
+        termMonths: termMonths,
+        paymentsPerMonth: paymentsPerMonth,
+        firstDueDate: formatDateOnly(firstDueDate),
+      );
+      state = LoanCreateState(quote: quote);
+      return quote;
+    } on RemoteLoanException catch (error) {
+      state = LoanCreateState(error: error.message);
+      return null;
+    }
+  }
 
   Future<Loan?> submit({
     required String borrowerId,

@@ -30,6 +30,15 @@ class LoanApiContractTests(unittest.TestCase):
         )
         self.assertTrue(operation["security"])
 
+    def test_quote_is_authenticated_and_non_persistent_contract(self) -> None:
+        operation = self.paths["/api/v1/loans/quote"]["post"]
+
+        self.assertTrue(operation["security"])
+        self.assertEqual(
+            operation["responses"]["200"]["content"]["application/json"]["schema"]["$ref"],
+            "#/components/schemas/LoanQuoteResponse",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -6,6 +6,7 @@ import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/network/offline_sync_service.dart';
 import '../../domain/models/loan.dart';
 import '../models/loan_create_request.dart';
+import '../models/loan_quote.dart';
 import 'local_loan_repository.dart';
 
 /// A readable loan API failure with retry guidance for future offline support.
@@ -33,6 +34,35 @@ class RemoteLoanRepository {
   final Dio _dio;
   final LocalLoanRepository? _localRepo;
   final OfflineSyncService? _syncService;
+
+  /// Calculates a quote without creating a loan or writing local data.
+  Future<LoanQuote> calculateQuote({
+    required String principal,
+    required String monthlyRate,
+    required int termMonths,
+    required int paymentsPerMonth,
+    required String firstDueDate,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        ApiEndpoints.loanQuote,
+        data: <String, dynamic>{
+          'originalPrincipal': principal,
+          'monthlyRate': monthlyRate,
+          'termMonths': termMonths,
+          'paymentsPerMonth': paymentsPerMonth,
+          'firstDueDate': firstDueDate,
+        },
+      );
+      final json = response.data;
+      if (json == null) throw const FormatException('Empty quote response');
+      return LoanQuote.fromJson(json);
+    } on DioException catch (error) {
+      throw _mapError(error, 'Unable to calculate loan quote');
+    } on FormatException catch (error) {
+      throw RemoteLoanException(error.message, isRetryable: false);
+    }
+  }
 
   /// Creates a loan.  On success the result is cached locally.  On a retryable
   /// network failure the loan is saved to the local cache and enqueued for

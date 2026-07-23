@@ -13,7 +13,12 @@ from sqlalchemy.orm import selectinload
 from app.models.audit_log import AuditLog
 from app.models.loan import Installment, Loan
 from app.models.user import User
-from app.schemas.loan import LoanCreate
+from app.schemas.loan import (
+    LoanCreate,
+    LoanQuoteInstallment,
+    LoanQuoteRequest,
+    LoanQuoteResponse,
+)
 from app.services.loan_calculator import build_installment_schedule
 
 
@@ -35,6 +40,56 @@ def build_due_dates(payload: LoanCreate) -> tuple[date, ...]:
             day_offset = (30 * payment_index) // payload.payments_per_month
             dates.append(anchor + timedelta(days=day_offset))
     return tuple(dates)
+
+
+def build_quote(payload: LoanQuoteRequest) -> LoanQuoteResponse:
+    """Calculate an indicative schedule without reading or writing the database."""
+    periodic_rate = payload.monthly_rate / Decimal(payload.payments_per_month)
+    calculations = build_installment_schedule(
+        payload.original_principal,
+        periodic_rate,
+        payload.number_of_payments,
+    )
+    date_terms = LoanCreate(
+        borrower_id="00000000-0000-0000-0000-000000000000",
+        original_principal=payload.original_principal,
+        monthly_rate=payload.monthly_rate,
+        term_months=payload.term_months,
+        payments_per_month=payload.payments_per_month,
+        start_date=payload.first_due_date - timedelta(days=1),
+        first_due_date=payload.first_due_date,
+        calculation_method=payload.calculation_method,
+    )
+    due_dates = build_due_dates(date_terms)
+    total_interest = sum(
+        (item.interest_amount for item in calculations), Decimal("0.00")
+    )
+    total_repayment = sum(
+        (item.payment_amount for item in calculations), Decimal("0.00")
+    )
+    return LoanQuoteResponse(
+        original_principal=payload.original_principal,
+        monthly_rate=payload.monthly_rate,
+        term_months=payload.term_months,
+        payments_per_month=payload.payments_per_month,
+        number_of_payments=payload.number_of_payments,
+        regular_payment_amount=calculations[0].payment_amount,
+        total_interest=total_interest,
+        total_repayment=total_repayment,
+        final_due_date=due_dates[-1],
+        calculation_method=payload.calculation_method,
+        installments=[
+            LoanQuoteInstallment(
+                installment_number=item.number,
+                due_date=due_date,
+                payment_amount=item.payment_amount,
+                interest_amount=item.interest_amount,
+                principal_amount=item.principal_amount,
+                remaining_principal=item.remaining_principal,
+            )
+            for item, due_date in zip(calculations, due_dates, strict=True)
+        ],
+    )
 
 
 async def create_loan(
