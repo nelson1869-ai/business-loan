@@ -1,15 +1,14 @@
 <#
 .SYNOPSIS
-    Professional Local Development Environment Launcher for Lending Nelson.
+    Starts the Lending Nelson backend and Flutter client for local development only.
 .DESCRIPTION
-    Launches the FastAPI backend and Flutter mobile client with automatic process cleanup,
-    health checks, and target platform configuration.
+    Uses HTTP only for trusted local testing. This script is not a production server launcher.
 .EXAMPLE
     .\start.ps1 -Target android
 .EXAMPLE
-    .\start.ps1 -Target ios
+    .\start.ps1 -Target 192.168.254.110
 .EXAMPLE
-    .\start.ps1 -Target 192.168.1.50
+    .\start.ps1 -Target https://api.example.com
 #>
 [CmdletBinding()]
 param (
@@ -18,105 +17,77 @@ param (
     [string]$Target = "android",
 
     [Parameter()]
+    [ValidateRange(1, 65535)]
     [int]$Port = 8000
 )
 
 $ErrorActionPreference = "Stop"
-
-# Base Directory Resolution
 $ProjectRoot = $PSScriptRoot
-$BackendDir  = Join-Path $ProjectRoot "backend"
-$VenvPython  = Join-Path $BackendDir ".venv\Scripts\python.exe"
+$BackendDir = Join-Path $ProjectRoot "backend"
+$VenvPython = Join-Path $BackendDir ".venv\Scripts\python.exe"
 
-# Resolve API URL based on Target
 $ApiUrl = switch -Regex ($Target) {
-    "(?i)^android$"   { "http://10.0.2.2:$Port" }
-    "(?i)^ios$"       { "http://localhost:$Port" }
-    "(?i)^localhost$" { "http://localhost:$Port" }
-    default           {
-        if ($Target -match "^http://") { $Target } else { "http://${Target}:$Port" }
-    }
+    "(?i)^android$" { "http://10.0.2.2:$Port"; break }
+    "(?i)^ios$" { "http://localhost:$Port"; break }
+    "(?i)^localhost$" { "http://localhost:$Port"; break }
+    "(?i)^https?://" { $Target.TrimEnd("/"); break }
+    default { "http://${Target}:$Port" }
 }
 
-Write-Host "==================================================" -ForegroundColor Cyan
-Write-Host "  [INIT] Launching Lending Nelson Dev Environment" -ForegroundColor Cyan
-Write-Host "==================================================" -ForegroundColor Cyan
-Write-Host " Target API URL : $ApiUrl" -ForegroundColor Yellow
-Write-Host " Backend Port   : $Port" -ForegroundColor Yellow
-Write-Host " Project Root   : $ProjectRoot" -ForegroundColor Gray
-Write-Host ""
+$LocalBackendRequired = $ApiUrl -match "^http://(localhost|127\.0\.0\.1|10\.0\.2\.2|\[?::1\]?)(:|/)" -or ($ApiUrl -eq "http://${Target}:$Port")
+$BindHost = if ($Target -match "(?i)^(android|ios|localhost)$") { "127.0.0.1" } else { "0.0.0.0" }
 
-# ------------------------------------------------------------------
-# Helper Function: Stop process using specified port
-# ------------------------------------------------------------------
-function Stop-PortProcess {
+function Stop-OwnedPortProcess {
     param ([int]$PortNumber)
-    $connections = Get-NetTCPConnection -LocalPort $PortNumber -ErrorAction SilentlyContinue
-    if ($connections) {
-        $pidsToKill = $connections | Select-Object -ExpandProperty OwningProcess -Unique
-        foreach ($procId in $pidsToKill) {
-            try {
-                $procName = (Get-Process -Id $procId -ErrorAction SilentlyContinue).ProcessName
-                Write-Host "[STOP] Terminating existing process on port ${PortNumber} (PID: ${procId} - ${procName})..." -ForegroundColor Yellow
-                Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
-            } catch {
-                # Ignore cleanup errors
+
+    $connections = Get-NetTCPConnection -State Listen -LocalPort $PortNumber -ErrorAction SilentlyContinue
+    foreach ($processId in @($connections | Select-Object -ExpandProperty OwningProcess -Unique)) {
+        $process = Get-CimInstance Win32_Process -Filter "ProcessId = $processId" -ErrorAction SilentlyContinue
+        $isOwnedBackend = $process -and $process.CommandLine -match [regex]::Escape($ProjectRoot) -and $process.CommandLine -match "(?i)uvicorn"
+        if (-not $isOwnedBackend) {
+            throw "Port $PortNumber is already owned by another process (PID $processId). Stop it manually or select another port."
+        }
+        Write-Host "[STOP] Stopping existing Lending Nelson backend PID $processId..." -ForegroundColor Yellow
+        Stop-Process -Id $processId -Force
+    }
+}
+
+if (-not (Test-Path -LiteralPath $VenvPython -PathType Leaf)) {
+    throw "Backend virtual-environment Python was not found at $VenvPython"
+}
+
+Write-Host "[INIT] Lending Nelson local development launcher" -ForegroundColor Cyan
+Write-Host "API URL: $ApiUrl" -ForegroundColor Yellow
+
+$backendProcess = $null
+if ($LocalBackendRequired) {
+    Stop-OwnedPortProcess -PortNumber $Port
+    $backendArguments = @("-NoExit", "-Command", "Set-Location '$BackendDir'; & '$VenvPython' -m uvicorn app.main:app --host $BindHost --port $Port")
+    $backendProcess = Start-Process powershell -ArgumentList $backendArguments -PassThru
+
+    $healthy = $false
+    for ($attempt = 1; $attempt -le 15; $attempt++) {
+        Start-Sleep -Milliseconds 800
+        try {
+            $response = Invoke-RestMethod -Uri "http://127.0.0.1:${Port}/health" -TimeoutSec 2
+            if ($response.status -eq "ok") {
+                $healthy = $true
+                break
             }
+        } catch {
+            Write-Host "." -NoNewline -ForegroundColor Gray
         }
-        Start-Sleep -Seconds 1
     }
-}
+    Write-Host ""
 
-# ------------------------------------------------------------------
-# 1. Clean up stale processes on port
-# ------------------------------------------------------------------
-Stop-PortProcess -PortNumber $Port
-
-# ------------------------------------------------------------------
-# 2. Validate Environment Setup
-# ------------------------------------------------------------------
-if (-not (Test-Path $VenvPython)) {
-    Write-Error "Virtual environment Python executable not found at: $VenvPython`nPlease initialize .venv in the backend directory first."
-    exit 1
-}
-
-# ------------------------------------------------------------------
-# 3. Launch Backend Service
-# ------------------------------------------------------------------
-Write-Host "[BACKEND] Launching FastAPI Backend Server..." -ForegroundColor Green
-$backendCmd = "Set-Location '$BackendDir'; & '$VenvPython' -m uvicorn app.main:app --reload --host 0.0.0.0 --port $Port"
-Start-Process powershell -ArgumentList "-NoExit", "-Command", $backendCmd
-
-# ------------------------------------------------------------------
-# 4. Backend Health Check Verification
-# ------------------------------------------------------------------
-Write-Host "[CHECK] Waiting for Backend Health Check..." -NoNewline -ForegroundColor Gray
-$maxRetries = 10
-$healthy = $false
-for ($i = 1; $i -le $maxRetries; $i++) {
-    Start-Sleep -Milliseconds 800
-    try {
-        $response = Invoke-RestMethod -Uri "http://localhost:${Port}/health" -TimeoutSec 2 -ErrorAction SilentlyContinue
-        if ($response.status -eq "ok" -or $response) {
-            $healthy = $true
-            break
+    if (-not $healthy) {
+        if ($backendProcess -and -not $backendProcess.HasExited) {
+            Stop-Process -Id $backendProcess.Id -Force -ErrorAction SilentlyContinue
         }
-    } catch {
-        Write-Host "." -NoNewline -ForegroundColor Gray
+        throw "Backend health check failed; Flutter was not started."
     }
+    Write-Host "[OK] Backend health check passed." -ForegroundColor Green
 }
 
-Write-Host ""
-if ($healthy) {
-    Write-Host "[OK] Backend is UP and Healthy!" -ForegroundColor Green
-} else {
-    Write-Host "[WARN] Backend health check timed out, continuing..." -ForegroundColor Yellow
-}
-
-# ------------------------------------------------------------------
-# 5. Launch Frontend (Flutter)
-# ------------------------------------------------------------------
-Write-Host ""
-Write-Host "[FRONTEND] Starting Flutter App targeting [$Target]..." -ForegroundColor Cyan
-Set-Location -Path $ProjectRoot
-flutter run --dart-define=API_BASE_URL=$ApiUrl
+Set-Location -LiteralPath $ProjectRoot
+flutter run --dart-define="API_BASE_URL=$ApiUrl"

@@ -1,76 +1,94 @@
 <#
 .SYNOPSIS
-    Automated Phone Launcher for Lending Nelson.
-.DESCRIPTION
-    Connects to physical Android phone via ADB wireless debugging, verifies the backend health,
-    and runs the Flutter app targeting the phone.
-.EXAMPLE
-    .\start-phone.ps1
+    Runs Lending Nelson on a physical Android phone for trusted local Wi-Fi testing only.
 .EXAMPLE
     .\start-phone.ps1 -PhoneAddress 192.168.254.112:40423 -ServerIp 192.168.254.110
 #>
 [CmdletBinding()]
 param (
-    [Parameter()]
-    [string]$PhoneAddress = "192.168.254.112:40423",
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern('^\d{1,3}(\.\d{1,3}){3}:\d{1,5}$')]
+    [string]$PhoneAddress,
+
+    [Parameter(Mandatory = $true)]
+    [ValidateScript({ $parsedAddress = $null; [ipaddress]::TryParse($_, [ref]$parsedAddress) })]
+    [string]$ServerIp,
 
     [Parameter()]
-    [string]$ServerIp = "192.168.254.110",
-
-    [Parameter()]
+    [ValidateRange(1, 65535)]
     [int]$Port = 8000
 )
 
 $ErrorActionPreference = "Stop"
-
 $ProjectRoot = $PSScriptRoot
-$BackendDir  = Join-Path $ProjectRoot "backend"
-$VenvPython  = Join-Path $BackendDir ".venv\Scripts\python.exe"
-$AdbExe      = "D:\Development\Android\platform-tools\adb.exe"
-
-if (-not (Test-Path $AdbExe)) {
-    $AdbExe = "adb"
+$BackendDir = Join-Path $ProjectRoot "backend"
+$VenvPython = Join-Path $BackendDir ".venv\Scripts\python.exe"
+$LocalProperties = Join-Path $ProjectRoot "android\local.properties"
+$SdkRoots = @()
+if (Test-Path -LiteralPath $LocalProperties -PathType Leaf) {
+    $sdkLine = Get-Content -LiteralPath $LocalProperties | Where-Object { $_ -match '^sdk\.dir=' } | Select-Object -First 1
+    if ($sdkLine) {
+        $SdkRoots += (($sdkLine -replace '^sdk\.dir=', '') -replace '\\\\', '\')
+    }
 }
-
-Write-Host "==================================================" -ForegroundColor Cyan
-Write-Host "  [INIT] Wireless Phone Launcher - Lending Nelson" -ForegroundColor Cyan
-Write-Host "==================================================" -ForegroundColor Cyan
-Write-Host " Target Phone  : $PhoneAddress" -ForegroundColor Yellow
-Write-Host " Server Base   : http://${ServerIp}:${Port}" -ForegroundColor Yellow
-Write-Host ""
-
-# 1. Connect ADB Wireless
-Write-Host "[ADB] Connecting to wireless device at $PhoneAddress..." -ForegroundColor Green
-& $AdbExe connect $PhoneAddress
-
-# 2. Check Backend Health
+$SdkRoots += @($env:ANDROID_SDK_ROOT, $env:ANDROID_HOME, (Join-Path $env:LOCALAPPDATA "Android\Sdk")) | Where-Object { $_ }
+$AdbExe = $null
+foreach ($sdkRoot in $SdkRoots) {
+    $candidate = Join-Path $sdkRoot "platform-tools\adb.exe"
+    if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+        $AdbExe = $candidate
+        break
+    }
+}
+if (-not $AdbExe) {
+    $adbCommand = Get-Command adb -ErrorAction SilentlyContinue
+    if ($adbCommand) { $AdbExe = $adbCommand.Source }
+}
+if (-not $AdbExe) {
+    throw "adb was not found. Install Android platform-tools or set sdk.dir in android/local.properties."
+}
 $ApiUrl = "http://${ServerIp}:${Port}"
-Write-Host "[CHECK] Checking Backend server at $ApiUrl..." -NoNewline -ForegroundColor Gray
-$healthy = $false
-try {
-    $response = Invoke-RestMethod -Uri "${ApiUrl}/health" -TimeoutSec 2 -ErrorAction SilentlyContinue
-    if ($response.status -eq "ok" -or $response) {
-        $healthy = $true
-    }
-} catch {
-    # Backend not responding
+
+Write-Host "[DEV ONLY] Trusted local Wi-Fi launcher" -ForegroundColor Yellow
+Write-Host "Phone: $PhoneAddress"
+Write-Host "Backend: $ApiUrl"
+
+& $AdbExe connect $PhoneAddress
+if ($LASTEXITCODE -ne 0) {
+    throw "ADB could not connect to $PhoneAddress"
 }
 
-if ($healthy) {
-    Write-Host " UP!" -ForegroundColor Green
-} else {
-    Write-Host " DOWN! (Launching FastAPI backend process...)" -ForegroundColor Yellow
-    if (Test-Path $VenvPython) {
-        $backendCmd = "Set-Location '$BackendDir'; & '$VenvPython' -m uvicorn app.main:app --host 0.0.0.0 --port $Port"
-        Start-Process powershell -ArgumentList "-NoExit", "-Command", $backendCmd
-        Start-Sleep -Seconds 2
-    } else {
-        Write-Host "[WARN] Backend Python venv not found at $VenvPython. Proceeding with app launch..." -ForegroundColor Yellow
+function Test-BackendHealth {
+    try {
+        $response = Invoke-RestMethod -Uri "${ApiUrl}/health" -TimeoutSec 2
+        return $response.status -eq "ok"
+    } catch {
+        return $false
     }
 }
 
-# 3. Launch Flutter on Phone
-Write-Host ""
-Write-Host "[FLUTTER] Launching app on phone [$PhoneAddress]..." -ForegroundColor Cyan
-Set-Location -Path $ProjectRoot
-flutter run -d $PhoneAddress --dart-define=API_BASE_URL=$ApiUrl
+if (-not (Test-BackendHealth)) {
+    if (-not (Test-Path -LiteralPath $VenvPython -PathType Leaf)) {
+        throw "Backend is unavailable and virtual-environment Python was not found at $VenvPython"
+    }
+    $backendArguments = @("-NoExit", "-Command", "Set-Location '$BackendDir'; & '$VenvPython' -m uvicorn app.main:app --host 0.0.0.0 --port $Port")
+    $backendProcess = Start-Process powershell -ArgumentList $backendArguments -PassThru
+
+    $healthy = $false
+    for ($attempt = 1; $attempt -le 15; $attempt++) {
+        Start-Sleep -Milliseconds 800
+        if (Test-BackendHealth) {
+            $healthy = $true
+            break
+        }
+    }
+    if (-not $healthy) {
+        if ($backendProcess -and -not $backendProcess.HasExited) {
+            Stop-Process -Id $backendProcess.Id -Force -ErrorAction SilentlyContinue
+        }
+        throw "Backend health check failed; Flutter was not started."
+    }
+}
+
+Set-Location -LiteralPath $ProjectRoot
+flutter run -d $PhoneAddress --dart-define="API_BASE_URL=$ApiUrl"

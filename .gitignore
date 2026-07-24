@@ -55,3 +55,24 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+# Secrets, credentials, local databases, and release artifacts
+.env
+.env.*
+!.env.example
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-shm
+*.db-wal
+*.pem
+*.key
+*.p12
+*.jks
+*.keystore
+key.properties
+service-account.json
+coverage/
+dist/
+release/
+build/

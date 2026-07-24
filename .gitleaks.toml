@@ -1,0 +1,14 @@
+title = "Lending Nelson Gitleaks configuration"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Verified non-secret test value and Postman workspace identifier"
+regexTarget = "match"
+regexes = [
+  'strong-random-value-0123456789-ABCDEFGHIJ',
+  '0123456789abcdef0123456789abcdef',
+  '83e380d6-ecf6-4743-87d3-98f168f3e274',
+  '60eab6c9-a19b-4293-80ed-d3abbc202543',
+]

@@ -39,39 +39,83 @@ class PostgreSqlPaymentIdempotencyTests(unittest.IsolatedAsyncioTestCase):
         self.installment_id = str(uuid4())
         self.request_id = str(uuid4())
         async with AsyncSessionFactory() as db:
-            db.add(User(id=self.user_id, username=f"payment-{suffix}", hashed_password="test", role="officer"))
-            db.add(Borrower(
-                id=self.borrower_id, first_name="Payment", last_name="Test",
-                national_id=f"payment-{suffix}", phone="0000000",
-                date_of_birth=date(1990, 1, 1), status="Active",
-            ))
-            db.add(Loan(
-                id=self.loan_id, request_id=str(uuid4()), borrower_id=self.borrower_id,
-                created_by_user_id=self.user_id, original_principal=Decimal("1000.00"),
-                outstanding_principal=Decimal("1000.00"), monthly_rate=Decimal("0.10"),
-                term_months=1, payments_per_month=1, number_of_payments=1,
-                regular_payment_amount=Decimal("1100.00"),
-                calculation_method="fixed_periodic_reducing_balance",
-                start_date=date(2026, 8, 1), first_due_date=date(2026, 8, 31),
-                final_due_date=date(2026, 8, 31), status="Active",
-            ))
-            db.add(Installment(
-                id=self.installment_id, loan_id=self.loan_id, installment_number=1,
-                due_date=date(2026, 8, 31), expected_payment=Decimal("1100.00"),
-                expected_interest=Decimal("100.00"), expected_principal=Decimal("1000.00"),
-                expected_remaining_principal=Decimal("0.00"), paid_amount=Decimal("0.00"),
-                status="Scheduled",
-            ))
+            db.add(
+                User(
+                    id=self.user_id,
+                    username=f"payment-{suffix}",
+                    hashed_password="test",
+                    role="officer",
+                )
+            )
+            db.add(
+                Borrower(
+                    id=self.borrower_id,
+                    first_name="Payment",
+                    last_name="Test",
+                    national_id=f"payment-{suffix}",
+                    phone="0000000",
+                    date_of_birth=date(1990, 1, 1),
+                    status="Active",
+                )
+            )
+            db.add(
+                Loan(
+                    id=self.loan_id,
+                    request_id=str(uuid4()),
+                    borrower_id=self.borrower_id,
+                    created_by_user_id=self.user_id,
+                    original_principal=Decimal("1000.00"),
+                    outstanding_principal=Decimal("1000.00"),
+                    monthly_rate=Decimal("0.10"),
+                    term_months=1,
+                    payments_per_month=1,
+                    number_of_payments=1,
+                    regular_payment_amount=Decimal("1100.00"),
+                    calculation_method="fixed_periodic_reducing_balance",
+                    start_date=date(2026, 8, 1),
+                    first_due_date=date(2026, 8, 31),
+                    final_due_date=date(2026, 8, 31),
+                    status="Active",
+                )
+            )
+            db.add(
+                Installment(
+                    id=self.installment_id,
+                    loan_id=self.loan_id,
+                    installment_number=1,
+                    due_date=date(2026, 8, 31),
+                    expected_payment=Decimal("1100.00"),
+                    expected_interest=Decimal("100.00"),
+                    expected_principal=Decimal("1000.00"),
+                    expected_remaining_principal=Decimal("0.00"),
+                    paid_amount=Decimal("0.00"),
+                    status="Scheduled",
+                )
+            )
             await db.commit()
 
     async def asyncTearDown(self) -> None:
         async with AsyncSessionFactory() as db:
-            payment_ids = list((await db.execute(select(Payment.id).where(Payment.loan_id == self.loan_id))).scalars())
+            payment_ids = list(
+                (
+                    await db.execute(
+                        select(Payment.id).where(Payment.loan_id == self.loan_id)
+                    )
+                ).scalars()
+            )
             if payment_ids:
-                await db.execute(delete(PaymentAllocation).where(PaymentAllocation.payment_id.in_(payment_ids)))
-            await db.execute(delete(AuditLog).where(AuditLog.entity_id.in_(payment_ids)))
+                await db.execute(
+                    delete(PaymentAllocation).where(
+                        PaymentAllocation.payment_id.in_(payment_ids)
+                    )
+                )
+            await db.execute(
+                delete(AuditLog).where(AuditLog.entity_id.in_(payment_ids))
+            )
             await db.execute(delete(Payment).where(Payment.loan_id == self.loan_id))
-            await db.execute(delete(Installment).where(Installment.loan_id == self.loan_id))
+            await db.execute(
+                delete(Installment).where(Installment.loan_id == self.loan_id)
+            )
             await db.execute(delete(Loan).where(Loan.id == self.loan_id))
             await db.execute(delete(Borrower).where(Borrower.id == self.borrower_id))
             await db.execute(delete(User).where(User.id == self.user_id))
@@ -79,13 +123,23 @@ class PostgreSqlPaymentIdempotencyTests(unittest.IsolatedAsyncioTestCase):
         await engine.dispose()
 
     async def test_concurrent_retry_records_and_allocates_once(self) -> None:
-        payload = PaymentCreate.model_validate({
-            "requestId": self.request_id, "amount": "200.00", "effectiveDate": "2026-08-31",
-        })
-        first, second = await asyncio.gather(self._submit(payload), self._submit(payload))
+        payload = PaymentCreate.model_validate(
+            {
+                "requestId": self.request_id,
+                "amount": "200.00",
+                "effectiveDate": "2026-08-31",
+            }
+        )
+        first, second = await asyncio.gather(
+            self._submit(payload), self._submit(payload)
+        )
         self.assertEqual(first.id, second.id)
         async with AsyncSessionFactory() as db:
-            count = await db.scalar(select(func.count()).select_from(Payment).where(Payment.request_id == self.request_id))
+            count = await db.scalar(
+                select(func.count())
+                .select_from(Payment)
+                .where(Payment.request_id == self.request_id)
+            )
             loan = await db.get(Loan, self.loan_id)
         self.assertEqual(count, 1)
         self.assertIsNotNone(loan)

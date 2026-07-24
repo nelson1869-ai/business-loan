@@ -9,7 +9,6 @@ from sqlalchemy import select
 
 from app.database import AsyncSessionFactory
 from app.models.user import User
-from app.services import admin_service
 from app.services.auth_service import hash_password
 
 
@@ -40,21 +39,10 @@ async def reset_password(username: str, password: str) -> None:
         await db.commit()
 
 
-async def seed_data_for_user(username: str) -> None:
-    """Seed sample borrowers, overdue, due today, and paid loans directly in SQL."""
-    async with AsyncSessionFactory() as db:
-        user = await db.scalar(select(User).where(User.username == username))
-        if user is None:
-            raise ValueError(f"User {username} does not exist")
-        res = await admin_service.seed_database(db, user)
-        await db.commit()
-        print(res["detail"])
-
-
 def main() -> None:
-    """Prompt securely and create a user, reset a password, or seed database."""
+    """Prompt securely to create a user or reset a password."""
     parser = argparse.ArgumentParser(
-        description="Create a Lending Nelson API user, reset password, or seed data"
+        description="Create a Lending Nelson API user or reset a password"
     )
     parser.add_argument("username")
     parser.add_argument("--role", choices=["officer", "admin"], default="officer")
@@ -63,16 +51,7 @@ def main() -> None:
         action="store_true",
         help="reset the password of an existing user",
     )
-    parser.add_argument(
-        "--seed",
-        action="store_true",
-        help="seed SQL database with sample borrowers, overdue, due today, and paid loans",
-    )
     arguments = parser.parse_args()
-
-    if arguments.seed:
-        asyncio.run(seed_data_for_user(arguments.username))
-        return
 
     password = getpass("Password: ")
     confirmation = getpass("Confirm password: ")
@@ -80,7 +59,7 @@ def main() -> None:
         raise ValueError("Passwords do not match")
     if arguments.reset_password:
         asyncio.run(reset_password(arguments.username, password))
-        print(f"Reset password for user: {arguments.username}")
+        print("Password reset completed")
     else:
         asyncio.run(create_user(arguments.username, password, arguments.role))
         print(f"Created {arguments.role} user: {arguments.username}")

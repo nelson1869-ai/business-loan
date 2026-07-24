@@ -12,7 +12,6 @@ import 'package:lending_nelson/core/network/server_health_service.dart';
 import 'package:lending_nelson/features/auth/presentation/login_screen.dart';
 import 'package:lending_nelson/features/dashboard/pages/dashboard_page.dart';
 import 'package:lending_nelson/features/dashboard/pages/settings_page.dart';
-import 'package:lending_nelson/features/dev_tools/pages/dev_tools_page.dart';
 import 'package:lending_nelson/features/borrowers/pages/borrower_list_page.dart';
 import 'package:lending_nelson/features/borrowers/pages/borrower_detail_page.dart';
 import 'package:lending_nelson/features/borrowers/pages/borrower_registration_page.dart';
@@ -103,10 +102,6 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/collections/today',
       builder: (context, state) => const TodaysCollectionsPage(),
-    ),
-    GoRoute(
-      path: '/dev-tools',
-      builder: (context, state) => const DevToolsPage(),
     ),
   ],
 );
@@ -240,26 +235,26 @@ class _MainShellState extends ConsumerState<MainShell> {
           backgroundColor: Colors.amber.shade900,
           icon: Icons.wifi_off,
           message: pendingCount > 0
-              ? 'Working Offline — $pendingCount items queued'
+              ? 'Working Offline ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â $pendingCount items queued'
               : 'Working Offline',
         );
       case ServerStatus.networkAvailable:
         return _BannerData(
           backgroundColor: Colors.blue.shade800,
           icon: Icons.sync,
-          message: 'Server Connecting…',
+          message: 'Server ConnectingÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦',
         );
       case ServerStatus.serverUnavailable:
         return _BannerData(
           backgroundColor: Colors.deepOrange.shade800,
           icon: Icons.cloud_off,
-          message: 'Network Available — Server Unreachable',
+          message: 'Network Available ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Server Unreachable',
         );
       case ServerStatus.serverReady:
         return _BannerData(
           backgroundColor: Colors.teal.shade800,
           icon: Icons.cloud_done,
-          message: 'Online — Syncing $pendingCount items',
+          message: 'Online ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Syncing $pendingCount items',
         );
     }
   }

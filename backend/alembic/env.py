@@ -3,13 +3,13 @@
 import asyncio
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+from alembic import context
+from app import models  # noqa: F401
 from app.config import get_settings
 from app.database import Base
-from app import models  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:
@@ -34,7 +34,9 @@ def run_migrations_offline() -> None:
 
 def do_run_migrations(connection) -> None:
     """Configure and execute migrations using a synchronous proxy connection."""
-    context.configure(connection=connection, target_metadata=target_metadata, compare_type=True)
+    context.configure(
+        connection=connection, target_metadata=target_metadata, compare_type=True
+    )
     with context.begin_transaction():
         context.run_migrations()
 

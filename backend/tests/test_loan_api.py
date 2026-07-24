@@ -18,11 +18,15 @@ class LoanApiContractTests(unittest.TestCase):
         self.assertIn("post", operations)
         self.assertIn("get", operations)
         self.assertTrue(operations["post"]["security"])
-        self.assertEqual(operations["post"]["responses"]["201"]["description"], "Successful Response")
+        self.assertEqual(
+            operations["post"]["responses"]["201"]["description"], "Successful Response"
+        )
 
     def test_detail_route_returns_the_installment_response_contract(self) -> None:
         operation = self.paths["/api/v1/loans/{loan_id}"]["get"]
-        response_schema = operation["responses"]["200"]["content"]["application/json"]["schema"]
+        response_schema = operation["responses"]["200"]["content"]["application/json"][
+            "schema"
+        ]
 
         self.assertEqual(
             response_schema["$ref"],
@@ -35,7 +39,9 @@ class LoanApiContractTests(unittest.TestCase):
 
         self.assertTrue(operation["security"])
         self.assertEqual(
-            operation["responses"]["200"]["content"]["application/json"]["schema"]["$ref"],
+            operation["responses"]["200"]["content"]["application/json"]["schema"][
+                "$ref"
+            ],
             "#/components/schemas/LoanQuoteResponse",
         )
 

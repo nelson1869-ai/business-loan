@@ -245,53 +245,6 @@
       ]
     },
     {
-      "name": "03 Development Setup",
-      "item": [
-        {
-          "name": "Reset Development Data",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
-                  "const json = pm.response.json();",
-                  "pm.test('Reset succeeded', () => pm.expect(json.status).to.eql('ok'));"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": "{{baseUrl}}/api/v1/admin/reset"
-          }
-        },
-        {
-          "name": "Seed Database",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
-                  "const json = pm.response.json();",
-                  "pm.test('Seed succeeded', () => pm.expect(json.status).to.eql('ok'));"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": "{{baseUrl}}/api/v1/admin/seed"
-          }
-        }
-      ]
-    },
-    {
       "name": "04 Borrowers",
       "item": [
         {
@@ -2092,27 +2045,6 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/v1/borrowers/{{borrowerId}}"
-          }
-        },
-        {
-          "name": "Reset All Development Data",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
-                  "const json = pm.response.json();",
-                  "pm.test('Cleanup reset succeeded', () => pm.expect(json.status).to.eql('ok'));"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": "{{baseUrl}}/api/v1/admin/reset"
           }
         }
       ]

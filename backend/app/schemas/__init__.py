@@ -28,12 +28,3 @@ __all__ = [
     "SyncQueueItem",
     "TokenResponse",
 ]
-from app.schemas.payment import (
-    PaymentAllocationResponse,
-    PaymentCreate,
-    PaymentPreviewRequest,
-    PaymentPreviewResponse,
-    PaymentReversalCreate,
-    PaymentReversalResponse,
-    PaymentResponse,
-)

@@ -10,6 +10,7 @@ from app.schemas.common import to_camel
 
 BorrowerStatus = Literal["Pending", "Active", "Synced", "Defaulted", "Deleted"]
 
+
 class BorrowerBase(BaseModel):
     """Fields shared by borrower payloads."""
 

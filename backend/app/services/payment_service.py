@@ -2,7 +2,7 @@
 
 import json
 from datetime import date
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 from uuid import uuid4
 
 from sqlalchemy import func, select
@@ -44,7 +44,9 @@ def build_payment_preview(
         raise LoanCalculationError("effective_date must not precede the period start")
     accrual_start = accrual_start_date or period_start_date
     if accrual_start < period_start_date:
-        raise LoanCalculationError("accrual_start_date must not precede the period start")
+        raise LoanCalculationError(
+            "accrual_start_date must not precede the period start"
+        )
     if effective_date < accrual_start:
         raise LoanCalculationError("effective_date must not precede the accrual start")
     scheduled_period_days = (installment.due_date - period_start_date).days
@@ -116,7 +118,9 @@ def build_payment_preview(
 
 async def get_payment(db: AsyncSession, payment_id: str) -> Payment | None:
     result = await db.execute(
-        select(Payment).options(selectinload(Payment.allocation)).where(Payment.id == payment_id)
+        select(Payment)
+        .options(selectinload(Payment.allocation))
+        .where(Payment.id == payment_id)
     )
     return result.scalar_one_or_none()
 
@@ -242,7 +246,10 @@ async def reverse_latest_payment(
             entity_name="payments",
             entity_id=reversal.id,
             old_state_json=json.dumps(
-                {"paymentId": original.id, "principalAfter": str(allocation.principal_after)}
+                {
+                    "paymentId": original.id,
+                    "principalAfter": str(allocation.principal_after),
+                }
             ),
             new_state_json=json.dumps(
                 {
@@ -258,7 +265,9 @@ async def reverse_latest_payment(
     return reversal
 
 
-async def get_payment_by_request_id(db: AsyncSession, request_id: str) -> Payment | None:
+async def get_payment_by_request_id(
+    db: AsyncSession, request_id: str
+) -> Payment | None:
     result = await db.execute(
         select(Payment)
         .options(
@@ -287,9 +296,12 @@ async def page_payments(
     db: AsyncSession, loan_id: str, offset: int, limit: int
 ) -> tuple[list[Payment], int]:
     """Return a stable payment-ledger page and total count."""
-    total = await db.scalar(
-        select(func.count()).select_from(Payment).where(Payment.loan_id == loan_id)
-    ) or 0
+    total = (
+        await db.scalar(
+            select(func.count()).select_from(Payment).where(Payment.loan_id == loan_id)
+        )
+        or 0
+    )
     result = await db.execute(
         select(Payment)
         .options(selectinload(Payment.allocation), selectinload(Payment.reversal_of))
@@ -301,7 +313,9 @@ async def page_payments(
     return list(result.scalars()), total
 
 
-def payment_matches_request(payment: Payment, loan_id: str, payload: PaymentCreate) -> bool:
+def payment_matches_request(
+    payment: Payment, loan_id: str, payload: PaymentCreate
+) -> bool:
     """Ensure a retry UUID cannot silently represent different money or terms."""
     return (
         payment.loan_id == loan_id
@@ -350,16 +364,24 @@ async def _locked_context(
     if loan.status not in {"Active", "Overdue"}:
         raise LoanCalculationError("loan does not accept payments")
 
-    candidates = [item for item in loan.installments if item.status not in {"Paid", "Cancelled"}]
+    candidates = [
+        item for item in loan.installments if item.status not in {"Paid", "Cancelled"}
+    ]
     if payload.installment_id is None:
         installment = candidates[0] if candidates else None
     else:
-        installment = next((item for item in candidates if item.id == payload.installment_id), None)
+        installment = next(
+            (item for item in candidates if item.id == payload.installment_id), None
+        )
     if installment is None:
         raise LoanCalculationError("installment not found or already closed")
 
     previous = next(
-        (item for item in loan.installments if item.installment_number == installment.installment_number - 1),
+        (
+            item
+            for item in loan.installments
+            if item.installment_number == installment.installment_number - 1
+        ),
         None,
     )
     period_start = previous.due_date if previous is not None else loan.start_date
@@ -381,11 +403,11 @@ async def _locked_context(
         if latest is not None
         and latest.entry_type == "Reversal"
         and latest.reversal_of is not None
-        else latest.effective_date
-        if latest is not None
-        else period_start
+        else latest.effective_date if latest is not None else period_start
     )
-    carried_interest = latest.allocation.interest_after if latest is not None else Decimal("0.00")
+    carried_interest = (
+        latest.allocation.interest_after if latest is not None else Decimal("0.00")
+    )
     return loan, installment, period_start, accrual_start, carried_interest
 
 
@@ -419,17 +441,28 @@ async def record_payment(
         db, loan_id, payload
     )
     preview = build_payment_preview(
-        loan, installment, payload.amount, payload.effective_date,
-        period_start, carried, accrual_start,
+        loan,
+        installment,
+        payload.amount,
+        payload.effective_date,
+        period_start,
+        carried,
+        accrual_start,
     )
     payment = Payment(
-        id=str(uuid4()), request_id=payload.request_id, loan_id=loan.id,
-        installment_id=installment.id, recorded_by_user_id=user.id,
-        entry_type="Payment", amount=preview.payment_amount,
-        effective_date=payload.effective_date, note=payload.note,
+        id=str(uuid4()),
+        request_id=payload.request_id,
+        loan_id=loan.id,
+        installment_id=installment.id,
+        recorded_by_user_id=user.id,
+        entry_type="Payment",
+        amount=preview.payment_amount,
+        effective_date=payload.effective_date,
+        note=payload.note,
     )
     payment.allocation = PaymentAllocation(
-        id=str(uuid4()), interest_before=preview.total_interest_before,
+        id=str(uuid4()),
+        interest_before=preview.total_interest_before,
         principal_before=preview.principal_before,
         applied_interest=preview.applied_interest,
         applied_principal=preview.applied_principal,
@@ -456,14 +489,24 @@ async def record_payment(
             if future.installment_number > installment.installment_number:
                 future.status = "Cancelled"
     db.add(payment)
-    db.add(AuditLog(
-        id=str(uuid4()), user_id=user.id, action="CREATE_PAYMENT",
-        entity_name="payments", entity_id=payment.id, old_state_json=None,
-        new_state_json=json.dumps({
-            "loanId": loan.id, "installmentId": installment.id,
-            "amount": str(payment.amount), "principalAfter": str(preview.principal_after),
-            "interestAfter": str(preview.interest_after),
-        }),
-    ))
+    db.add(
+        AuditLog(
+            id=str(uuid4()),
+            user_id=user.id,
+            action="CREATE_PAYMENT",
+            entity_name="payments",
+            entity_id=payment.id,
+            old_state_json=None,
+            new_state_json=json.dumps(
+                {
+                    "loanId": loan.id,
+                    "installmentId": installment.id,
+                    "amount": str(payment.amount),
+                    "principalAfter": str(preview.principal_after),
+                    "interestAfter": str(preview.interest_after),
+                }
+            ),
+        )
+    )
     await db.flush()
     return payment

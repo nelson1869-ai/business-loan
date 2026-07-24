@@ -243,8 +243,8 @@ void main() {
         await tester.pumpAndSettle();
 
         // Verify Settings Screen renders
-        expect(find.text('Officer Profile'), findsOneWidget);
-        expect(find.text('Assigned Branch'), findsOneWidget);
+        expect(find.text('Sync Offline Data'), findsOneWidget);
+        expect(find.text('View Audit Logs'), findsOneWidget);
 
         // 9. Test Logout Action
         final logoutBtn = find.widgetWithText(ElevatedButton, 'Logout');

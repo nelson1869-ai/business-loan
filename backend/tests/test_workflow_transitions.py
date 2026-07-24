@@ -44,11 +44,14 @@ class TestLoanWorkflowTransitions(unittest.IsolatedAsyncioTestCase):
         """Verify approving a draft loan sets approved_at timestamp."""
         loan = self._build_test_loan("Draft")
         db = AsyncMock()
+        db.add = MagicMock()
         mock_res = MagicMock()
         mock_res.scalar_one_or_none.return_value = loan
         db.execute.return_value = mock_res
 
-        updated_loan, timestamp = await loan_service.transition_loan(db, loan.id, "approve", self.user)
+        updated_loan, timestamp = await loan_service.transition_loan(
+            db, loan.id, "approve", self.user
+        )
 
         self.assertIsNotNone(updated_loan.approved_at)
         self.assertEqual(updated_loan.approved_at, timestamp)
@@ -58,11 +61,14 @@ class TestLoanWorkflowTransitions(unittest.IsolatedAsyncioTestCase):
         loan = self._build_test_loan("Draft")
         loan.approved_at = datetime.now(UTC)
         db = AsyncMock()
+        db.add = MagicMock()
         mock_res = MagicMock()
         mock_res.scalar_one_or_none.return_value = loan
         db.execute.return_value = mock_res
 
-        updated_loan, timestamp = await loan_service.transition_loan(db, loan.id, "disburse", self.user)
+        updated_loan, timestamp = await loan_service.transition_loan(
+            db, loan.id, "disburse", self.user
+        )
 
         self.assertIsNotNone(updated_loan.disbursed_at)
         self.assertEqual(updated_loan.disbursed_at, timestamp)
@@ -73,11 +79,14 @@ class TestLoanWorkflowTransitions(unittest.IsolatedAsyncioTestCase):
         loan.approved_at = datetime.now(UTC)
         loan.disbursed_at = datetime.now(UTC)
         db = AsyncMock()
+        db.add = MagicMock()
         mock_res = MagicMock()
         mock_res.scalar_one_or_none.return_value = loan
         db.execute.return_value = mock_res
 
-        updated_loan, _ = await loan_service.transition_loan(db, loan.id, "activate", self.user)
+        updated_loan, _ = await loan_service.transition_loan(
+            db, loan.id, "activate", self.user
+        )
 
         self.assertEqual(updated_loan.status, "Active")
         self.assertIsNotNone(updated_loan.activated_at)
@@ -86,6 +95,7 @@ class TestLoanWorkflowTransitions(unittest.IsolatedAsyncioTestCase):
         """Verify disbursing an unapproved draft raises ValueError."""
         loan = self._build_test_loan("Draft")
         db = AsyncMock()
+        db.add = MagicMock()
         mock_res = MagicMock()
         mock_res.scalar_one_or_none.return_value = loan
         db.execute.return_value = mock_res
@@ -98,6 +108,7 @@ class TestLoanWorkflowTransitions(unittest.IsolatedAsyncioTestCase):
         loan = self._build_test_loan("Active")
         loan.outstanding_principal = Decimal("500.00")
         db = AsyncMock()
+        db.add = MagicMock()
         mock_res = MagicMock()
         mock_res.scalar_one_or_none.return_value = loan
         db.execute.return_value = mock_res
@@ -109,11 +120,14 @@ class TestLoanWorkflowTransitions(unittest.IsolatedAsyncioTestCase):
         """Verify cancelling an unpaid draft loan sets status to Cancelled."""
         loan = self._build_test_loan("Draft")
         db = AsyncMock()
+        db.add = MagicMock()
         mock_res = MagicMock()
         mock_res.scalar_one_or_none.return_value = loan
         db.execute.return_value = mock_res
 
-        updated_loan, _ = await loan_service.transition_loan(db, loan.id, "cancel", self.user)
+        updated_loan, _ = await loan_service.transition_loan(
+            db, loan.id, "cancel", self.user
+        )
 
         self.assertEqual(updated_loan.status, "Cancelled")
         self.assertIsNotNone(updated_loan.cancelled_at)

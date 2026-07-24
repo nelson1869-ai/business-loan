@@ -81,40 +81,33 @@ Check that the ORM metadata and migration head agree:
 Create an officer account:
 
 ```powershell
-.\.venv\Scripts\python.exe -m app.bootstrap officer1 --role officer
+.\.venv\Scripts\python.exe -m app.bootstrap <your-username> --role officer
 ```
 
-The command prompts for the password and confirmation without displaying them. Passwords must contain 8–72 UTF-8 bytes.
+The command prompts for the password and confirmation without displaying them. Passwords must contain 8ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ72 UTF-8 bytes.
 
 Reset an existing user's password:
 
 ```powershell
-.\.venv\Scripts\python.exe -m app.bootstrap officer1 --reset-password
+.\.venv\Scripts\python.exe -m app.bootstrap <your-username> --reset-password
 ```
 
 Enter the new password only at the secure prompt. Do not place it directly in a PowerShell command.
 
-The documented local Postman account uses:
 
 ```text
-username: officer1
-password: password123
+username: <your-username>
+password: <set-a-strong-password>
 ```
 
 This credential is for disposable development environments only. Never use it in production.
-
-Optional sample data can be created from the command line:
-
-```powershell
-.\.venv\Scripts\python.exe -m app.bootstrap officer1 --seed
-```
 
 ## 5. Start the API
 
 Local development:
 
 ```powershell
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
 Useful URLs:
@@ -140,7 +133,6 @@ All protected endpoints require `Authorization: Bearer <access-token>`.
 | Dashboard | `GET /api/v1/dashboard?asOf=YYYY-MM-DD` |
 | Financial report | `GET /api/v1/reports/financial?dateFrom=YYYY-MM-DD&dateTo=YYYY-MM-DD` |
 | Offline sync | `POST /api/v1/sync/drain` |
-| Development tools | Reset, seed, and controlled loan-status helpers under `/api/v1/admin` |
 
 The OpenAPI document is the authoritative contract for request fields, response fields, enums, aliases, and status codes.
 
@@ -185,24 +177,7 @@ Alembic: no new upgrade operations detected
 
 If an embedded Windows Python distribution does not add the current backend directory to `sys.path`, use a standard `py -m venv .venv` environment. Do not change application imports merely to hide an incorrectly constructed virtual environment.
 
-## 9. Run the Postman regression suite
 
-See [`../postman/README.md`](../postman/README.md) for import, variables, execution order, cleanup warnings, and troubleshooting.
-
-From the repository root:
-
-```powershell
-npx --yes newman run postman\lending-nelson-api.json
-```
-
-Last verified result:
-
-```text
-Requests: 68 passed, 0 failed
-Assertions: 124 passed, 0 failed
-```
-
-The collection resets and seeds the development database. Run it only against disposable development data.
 
 ## 10. Connect Flutter
 
@@ -221,16 +196,10 @@ flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8000
 For a physical Android device, bind Uvicorn to the LAN and use the computer's LAN IP:
 
 ```powershell
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
 Allow port 8000 through Windows Firewall only on trusted development networks.
-
-## 11. Development endpoint warning
-
-`POST /api/v1/admin/reset` permanently deletes development records. `POST /api/v1/admin/seed` creates sample borrowers and loans. These endpoints require authentication but must not be exposed as general production administration tools.
-
-Development CORS allows all origins. Non-development environments use the configured `CORS_ORIGINS` list.
 
 ## 12. Troubleshooting
 

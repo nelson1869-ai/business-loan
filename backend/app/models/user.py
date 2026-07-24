@@ -14,7 +14,9 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    username: Mapped[str] = mapped_column(String(100), nullable=False, unique=True, index=True)
+    username: Mapped[str] = mapped_column(
+        String(100), nullable=False, unique=True, index=True
+    )
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[str] = mapped_column(String(20), nullable=False, default="officer")
     created_at: Mapped[datetime] = mapped_column(

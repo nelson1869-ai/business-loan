@@ -16,7 +16,9 @@ class Borrower(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     first_name: Mapped[str] = mapped_column(String(100), nullable=False)
     last_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    national_id: Mapped[str] = mapped_column(String(100), nullable=False, unique=True, index=True)
+    national_id: Mapped[str] = mapped_column(
+        String(100), nullable=False, unique=True, index=True
+    )
     phone: Mapped[str] = mapped_column(String(32), nullable=False)
     date_of_birth: Mapped[date] = mapped_column(Date, nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, index=True)

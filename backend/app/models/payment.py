@@ -110,7 +110,9 @@ class PaymentAllocation(Base):
             "AND principal_after >= 0",
             name="ck_payment_allocations_non_negative",
         ),
-        CheckConstraint("overdue_days >= 0", name="ck_payment_allocations_overdue_days"),
+        CheckConstraint(
+            "overdue_days >= 0", name="ck_payment_allocations_overdue_days"
+        ),
         CheckConstraint(
             "scheduled_period_days > 0",
             name="ck_payment_allocations_period_days",

@@ -17,11 +17,32 @@ class TestConfigSafety(unittest.TestCase):
         settings = Settings(
             app_env="development",
             database_url="postgresql+asyncpg://user:pass@localhost:5432/db",
-            jwt_secret_key="0123456789abcdef0123456789abcdef",
+            jwt_secret_key="strong-random-value-0123456789-ABCDEFGHIJ",
             cors_origins="*",
         )
         self.assertEqual(settings.app_env, "development")
         self.assertEqual(settings.cors_origin_list, ["*"])
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_missing_app_env_fails_closed(self) -> None:
+        """Verify APP_ENV is mandatory instead of defaulting to development."""
+        with self.assertRaises(ValidationError):
+            Settings(
+                _env_file=None,
+                database_url="postgresql+asyncpg://user:pass@localhost:5432/db",
+                jwt_secret_key="strong-random-value-0123456789-ABCDEFGHIJ",
+                cors_origins="https://example.test",
+            )
+
+    def test_weak_secret_rejected_in_development(self) -> None:
+        """Verify placeholder JWT secrets are rejected in every environment."""
+        with self.assertRaises(ValidationError):
+            Settings(
+                app_env="development",
+                database_url="postgresql+asyncpg://user:pass@localhost:5432/db",
+                jwt_secret_key="0123456789abcdef0123456789abcdef",
+                cors_origins="*",
+            )
 
     def test_invalid_app_env_rejected(self) -> None:
         """Verify invalid APP_ENV raises ValidationError."""
@@ -29,7 +50,7 @@ class TestConfigSafety(unittest.TestCase):
             Settings(
                 app_env="invalid_environment",
                 database_url="postgresql+asyncpg://user:pass@localhost:5432/db",
-                jwt_secret_key="0123456789abcdef0123456789abcdef",
+                jwt_secret_key="strong-random-value-0123456789-ABCDEFGHIJ",
             )
 
     def test_production_weak_secret_rejected(self) -> None:
@@ -63,28 +84,6 @@ class TestConfigSafety(unittest.TestCase):
             settings.cors_origin_list,
             ["https://lending.nelson.com", "https://admin.nelson.com"],
         )
-
-    @patch.dict(
-        os.environ,
-        {
-            "APP_ENV": "production",
-            "CORS_ORIGINS": "https://lending.nelson.com",
-            "JWT_SECRET_KEY": "a_very_strong_random_production_jwt_secret_key_32_bytes",
-        },
-    )
-    def test_admin_routes_disabled_in_production(self) -> None:
-        """Verify admin routes are excluded from OpenAPI schema when APP_ENV=production."""
-        from app.config import get_settings
-        get_settings.cache_clear()
-
-        from app.main import create_app
-        prod_app = create_app()
-        paths = prod_app.openapi()["paths"]
-
-        self.assertNotIn("/api/v1/admin/reset", paths)
-        self.assertNotIn("/api/v1/admin/seed", paths)
-
-        get_settings.cache_clear()
 
 
 if __name__ == "__main__":

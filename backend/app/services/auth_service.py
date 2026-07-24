@@ -3,7 +3,8 @@
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
-from jose import JWTError, jwt
+import jwt
+from jwt.exceptions import PyJWTError
 from passlib.context import CryptContext
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,7 +33,9 @@ def verify_password(password: str, hashed_password: str) -> bool:
     return password_context.verify(password, hashed_password)
 
 
-async def authenticate_user(db: AsyncSession, username: str, password: str) -> User | None:
+async def authenticate_user(
+    db: AsyncSession, username: str, password: str
+) -> User | None:
     """Return the matching user only when the password is valid."""
     result = await db.execute(select(User).where(User.username == username))
     user = result.scalar_one_or_none()
@@ -82,7 +85,7 @@ def verify_token(
             current_settings.jwt_secret_key,
             algorithms=[current_settings.jwt_algorithm],
         )
-    except JWTError as error:
+    except PyJWTError as error:
         raise TokenValidationError("Invalid or expired token") from error
     if payload.get("type") != expected_type or not payload.get("sub"):
         raise TokenValidationError("Invalid token type")

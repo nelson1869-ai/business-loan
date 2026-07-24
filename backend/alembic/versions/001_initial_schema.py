@@ -6,8 +6,9 @@ Revises: None
 
 from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision: str = "001_initial_schema"
 down_revision: str | None = None
@@ -53,7 +54,9 @@ def upgrade() -> None:
             name="ck_borrowers_status",
         ),
     )
-    op.create_index("ix_borrowers_national_id", "borrowers", ["national_id"], unique=True)
+    op.create_index(
+        "ix_borrowers_national_id", "borrowers", ["national_id"], unique=True
+    )
     op.create_index("ix_borrowers_status", "borrowers", ["status"], unique=False)
 
     op.create_table(
@@ -74,7 +77,9 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="RESTRICT"),
     )
     op.create_index("ix_audit_logs_user_id", "audit_logs", ["user_id"], unique=False)
-    op.create_index("ix_audit_logs_entity_id", "audit_logs", ["entity_id"], unique=False)
+    op.create_index(
+        "ix_audit_logs_entity_id", "audit_logs", ["entity_id"], unique=False
+    )
 
 
 def downgrade() -> None:

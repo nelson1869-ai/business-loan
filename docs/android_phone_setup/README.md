@@ -220,6 +220,8 @@ If `adb pair` returns `error: protocol fault (couldn't read status message)`:
    & "D:\Development\Android\platform-tools\adb.exe" connect 192.168.254.112:40423
 
    flutter run -d "192.168.254.112:40423" --dart-define=API_BASE_URL=http://192.168.254.110:8000
+
+   .\start-phone.ps1 -PhoneAddress 192.168.254.112:40423 -ServerIp 192.168.254.110
    ```
 
 3. **USB One-Time Authorization Fallback:**

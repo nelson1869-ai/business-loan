@@ -1,9 +1,29 @@
 import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'offline_sync_service.dart';
+
+String _apiBaseUrl() {
+  const configured = String.fromEnvironment('API_BASE_URL');
+  if (configured.isEmpty) {
+    if (kReleaseMode) {
+      throw StateError('API_BASE_URL is required for release builds');
+    }
+    return 'http://localhost:8000';
+  }
+  final uri = Uri.tryParse(configured);
+  if (uri == null ||
+      !uri.hasAuthority ||
+      (kReleaseMode && uri.scheme != 'https')) {
+    throw StateError(
+      'API_BASE_URL must be a valid HTTPS URL in release builds',
+    );
+  }
+  return configured;
+}
 
 /// Explicit status representing device network and backend reachability.
 enum ServerStatus { offline, networkAvailable, serverUnavailable, serverReady }
@@ -51,10 +71,7 @@ class ServerHealthService {
 
     final dio = Dio(
       BaseOptions(
-        baseUrl: const String.fromEnvironment(
-          'API_BASE_URL',
-          defaultValue: 'http://localhost:8000',
-        ),
+        baseUrl: _apiBaseUrl(),
         connectTimeout: const Duration(milliseconds: 2000),
         receiveTimeout: const Duration(milliseconds: 2000),
       ),

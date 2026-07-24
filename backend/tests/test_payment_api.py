@@ -15,9 +15,7 @@ class PaymentApiContractTests(unittest.TestCase):
         self.assertIn("get", paths["/api/v1/loans/{loan_id}/payments"])
         self.assertIn(
             "post",
-            paths[
-                "/api/v1/loans/{loan_id}/payments/{payment_id}/reversal"
-            ],
+            paths["/api/v1/loans/{loan_id}/payments/{payment_id}/reversal"],
         )
 
     def test_confirmation_recalculates_before_persisting(self) -> None:

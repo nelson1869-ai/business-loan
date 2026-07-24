@@ -20,11 +20,15 @@ class ProjectionApiContractTests(unittest.TestCase):
         self.assertTrue(receipt["security"])
         self.assertTrue(statement["security"])
         self.assertEqual(
-            receipt["responses"]["200"]["content"]["application/json"]["schema"]["$ref"],
+            receipt["responses"]["200"]["content"]["application/json"]["schema"][
+                "$ref"
+            ],
             "#/components/schemas/ReceiptProjection",
         )
         self.assertEqual(
-            statement["responses"]["200"]["content"]["application/json"]["schema"]["$ref"],
+            statement["responses"]["200"]["content"]["application/json"]["schema"][
+                "$ref"
+            ],
             "#/components/schemas/LoanStatementProjection",
         )
 
@@ -39,9 +43,9 @@ class ProjectionApiContractTests(unittest.TestCase):
             self.assertTrue(self.paths[path]["get"]["security"])
 
     def test_legacy_collection_contracts_are_unchanged(self) -> None:
-        loan_schema = self.paths["/api/v1/loans"]["get"]["responses"]["200"][
-            "content"
-        ]["application/json"]["schema"]
+        loan_schema = self.paths["/api/v1/loans"]["get"]["responses"]["200"]["content"][
+            "application/json"
+        ]["schema"]
         payment_schema = self.paths["/api/v1/loans/{loan_id}/payments"]["get"][
             "responses"
         ]["200"]["content"]["application/json"]["schema"]
@@ -69,7 +73,9 @@ class ExpandedSyncSchemaTests(unittest.TestCase):
         payment_id = "33333333-3333-4333-8333-333333333333"
 
         self.assertEqual(self._item("/api/v1/loans").endpoint, "/api/v1/loans")
-        self.assertIn("/payments", self._item(f"/api/v1/loans/{loan_id}/payments").endpoint)
+        self.assertIn(
+            "/payments", self._item(f"/api/v1/loans/{loan_id}/payments").endpoint
+        )
         self.assertTrue(
             self._item(
                 f"/api/v1/loans/{loan_id}/payments/{payment_id}/reversal"

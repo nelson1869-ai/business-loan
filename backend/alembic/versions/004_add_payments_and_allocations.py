@@ -6,8 +6,9 @@ Revises: 003_add_loan_request_id
 
 from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision: str = "004_add_payments_and_allocations"
 down_revision: str | None = "003_add_loan_request_id"

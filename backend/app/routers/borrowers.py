@@ -62,7 +62,9 @@ async def get_one_borrower(
     del current_user
     borrower = await borrower_service.get_borrower(db, borrower_id)
     if borrower is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Borrower not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Borrower not found"
+        )
     return BorrowerResponse.model_validate(borrower)
 
 
@@ -76,9 +78,13 @@ async def replace_borrower(
     """Update a borrower and write a redacted audit record."""
     borrower = await borrower_service.get_borrower(db, borrower_id)
     if borrower is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Borrower not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Borrower not found"
+        )
     try:
-        borrower = await borrower_service.update_borrower(db, borrower, payload, current_user)
+        borrower = await borrower_service.update_borrower(
+            db, borrower, payload, current_user
+        )
         await db.commit()
     except IntegrityError as error:
         await db.rollback()
@@ -99,7 +105,9 @@ async def remove_borrower(
     """Soft-delete a borrower and write a redacted audit record."""
     borrower = await borrower_service.get_borrower(db, borrower_id)
     if borrower is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Borrower not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Borrower not found"
+        )
     await borrower_service.delete_borrower(db, borrower, current_user)
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

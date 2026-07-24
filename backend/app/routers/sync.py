@@ -38,14 +38,28 @@ async def _replay_item(
     if item.endpoint == "/api/v1/loans" and item.method == "POST":
         payload = LoanCreate.model_validate(item.payload)
         if payload.request_id is None:
-            raise SyncReplayError("INVALID_PAYLOAD", "Offline loan creation requires requestId", retryable=False)
+            raise SyncReplayError(
+                "INVALID_PAYLOAD",
+                "Offline loan creation requires requestId",
+                retryable=False,
+            )
         existing = await loan_service.get_loan_by_request_id(db, payload.request_id)
         if existing is not None:
-            if not loan_service.loan_matches_request(existing, payload, current_user.id):
-                raise SyncReplayError("IDEMPOTENCY_CONFLICT", "Loan request ID conflicts with existing data", retryable=False)
+            if not loan_service.loan_matches_request(
+                existing, payload, current_user.id
+            ):
+                raise SyncReplayError(
+                    "IDEMPOTENCY_CONFLICT",
+                    "Loan request ID conflicts with existing data",
+                    retryable=False,
+                )
             return
         if await borrower_service.get_borrower(db, payload.borrower_id) is None:
-            raise SyncReplayError("RESOURCE_NOT_FOUND", "Borrower for loan does not exist", retryable=False)
+            raise SyncReplayError(
+                "RESOURCE_NOT_FOUND",
+                "Borrower for loan does not exist",
+                retryable=False,
+            )
         await loan_service.create_loan(db, payload, current_user)
         return
 
@@ -55,18 +69,34 @@ async def _replay_item(
         if item.endpoint.endswith("/reversal"):
             payment_id = parts[6]
             payload = PaymentReversalCreate.model_validate(item.payload)
-            existing = await payment_service.get_payment_by_request_id(db, payload.request_id)
+            existing = await payment_service.get_payment_by_request_id(
+                db, payload.request_id
+            )
             if existing is not None:
-                if not payment_service.reversal_matches_request(existing, loan_id, payment_id, payload):
-                    raise SyncReplayError("IDEMPOTENCY_CONFLICT", "Reversal request ID conflicts with existing data", retryable=False)
+                if not payment_service.reversal_matches_request(
+                    existing, loan_id, payment_id, payload
+                ):
+                    raise SyncReplayError(
+                        "IDEMPOTENCY_CONFLICT",
+                        "Reversal request ID conflicts with existing data",
+                        retryable=False,
+                    )
                 return
-            await payment_service.reverse_latest_payment(db, loan_id, payment_id, payload, current_user)
+            await payment_service.reverse_latest_payment(
+                db, loan_id, payment_id, payload, current_user
+            )
             return
         payload = PaymentCreate.model_validate(item.payload)
-        existing = await payment_service.get_payment_by_request_id(db, payload.request_id)
+        existing = await payment_service.get_payment_by_request_id(
+            db, payload.request_id
+        )
         if existing is not None:
             if not payment_service.payment_matches_request(existing, loan_id, payload):
-                raise SyncReplayError("IDEMPOTENCY_CONFLICT", "Payment request ID conflicts with existing data", retryable=False)
+                raise SyncReplayError(
+                    "IDEMPOTENCY_CONFLICT",
+                    "Payment request ID conflicts with existing data",
+                    retryable=False,
+                )
             return
         await payment_service.record_payment(db, loan_id, payload, current_user)
         return
@@ -86,7 +116,9 @@ async def _replay_item(
         return
 
     if borrower is None:
-        raise SyncReplayError("RESOURCE_NOT_FOUND", "Borrower does not exist", retryable=False)
+        raise SyncReplayError(
+            "RESOURCE_NOT_FOUND", "Borrower does not exist", retryable=False
+        )
     payload = BorrowerUpdate.model_validate(item.payload)
     await borrower_service.update_borrower(db, borrower, payload, current_user)
 

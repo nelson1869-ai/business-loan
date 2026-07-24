@@ -1,7 +1,7 @@
 """Exact decimal calculations for loan interest and payment allocation."""
 
 from dataclasses import dataclass
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
 CENT = Decimal("0.01")
 
@@ -127,9 +127,7 @@ def build_installment_schedule(
     rate = _rate(periodic_rate)
     if principal <= 0:
         raise LoanCalculationError("original_principal must be positive")
-    if not isinstance(number_of_payments, int) or isinstance(
-        number_of_payments, bool
-    ):
+    if not isinstance(number_of_payments, int) or isinstance(number_of_payments, bool):
         raise LoanCalculationError("number_of_payments must be an integer")
     if number_of_payments <= 0:
         raise LoanCalculationError("number_of_payments must be positive")
@@ -138,9 +136,7 @@ def build_installment_schedule(
     if rate == 0:
         exact_regular_payment = principal / payment_count
     else:
-        discount_factor = Decimal(1) - (Decimal(1) + rate) ** (
-            -number_of_payments
-        )
+        discount_factor = Decimal(1) - (Decimal(1) + rate) ** (-number_of_payments)
         exact_regular_payment = principal * rate / discount_factor
     regular_payment = exact_regular_payment.quantize(CENT, rounding=ROUND_HALF_UP)
 

@@ -49,14 +49,18 @@ class PaymentModelMetadataTests(unittest.TestCase):
             next(iter(allocation_table.c.payment_id.foreign_keys)),
         ]
 
-        self.assertTrue(all(foreign_key.ondelete == "RESTRICT" for foreign_key in foreign_keys))
+        self.assertTrue(
+            all(foreign_key.ondelete == "RESTRICT" for foreign_key in foreign_keys)
+        )
 
     def test_relationships_are_bidirectional_and_allocation_is_one_to_one(self) -> None:
         self.assertEqual(Payment.loan.property.back_populates, "payments")
         self.assertEqual(Loan.payments.property.back_populates, "loan")
         self.assertEqual(Payment.installment.property.back_populates, "payments")
         self.assertEqual(Installment.payments.property.back_populates, "installment")
-        self.assertEqual(Payment.recorded_by.property.back_populates, "payments_recorded")
+        self.assertEqual(
+            Payment.recorded_by.property.back_populates, "payments_recorded"
+        )
         self.assertEqual(User.payments_recorded.property.back_populates, "recorded_by")
         self.assertFalse(Payment.allocation.property.uselist)
         self.assertFalse(Payment.reversal.property.uselist)

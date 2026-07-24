@@ -25,7 +25,4 @@ class ApiEndpoints {
 
   /// Health check endpoint for server reachability verification.
   static const String health = '/health';
-
-  /// Hard‑delete all borrower/loan/payment data (Dev Tools).
-  static const String adminReset = '/api/v1/admin/reset';
 }

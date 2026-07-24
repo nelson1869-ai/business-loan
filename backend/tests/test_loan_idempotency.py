@@ -47,12 +47,8 @@ class LoanIdempotencyTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("different loan terms", raised.exception.detail)
 
     def test_term_comparison_includes_officer_and_financial_terms(self) -> None:
-        self.assertTrue(
-            loan_matches_request(_loan(), _payload(), "user-1")
-        )
-        self.assertFalse(
-            loan_matches_request(_loan(), _payload(), "user-2")
-        )
+        self.assertTrue(loan_matches_request(_loan(), _payload(), "user-1"))
+        self.assertFalse(loan_matches_request(_loan(), _payload(), "user-2"))
 
 
 def _payload(**overrides: object) -> LoanCreate:

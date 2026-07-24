@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.audit_log import AuditLog
 from app.models.loan import Installment, Loan
-from app.models.payment import Payment, PaymentAllocation
+from app.models.payment import Payment
 from app.models.user import User
 from app.schemas.loan import (
     LoanCreate,
@@ -261,7 +261,11 @@ async def transition_loan(
             raise ValueError("Only an unapproved draft may be approved")
         loan.approved_at = now
     elif action == "disburse":
-        if loan.status != "Draft" or loan.approved_at is None or loan.disbursed_at is not None:
+        if (
+            loan.status != "Draft"
+            or loan.approved_at is None
+            or loan.disbursed_at is not None
+        ):
             raise ValueError("An approved draft is required before disbursement")
         loan.disbursed_at = now
     elif action == "activate":
@@ -269,7 +273,10 @@ async def transition_loan(
             raise ValueError("A disbursed draft is required before activation")
         loan.status, loan.activated_at = "Active", now
     elif action == "complete":
-        if loan.status not in {"Active", "Overdue"} or loan.outstanding_principal != Decimal("0.00"):
+        if loan.status not in {
+            "Active",
+            "Overdue",
+        } or loan.outstanding_principal != Decimal("0.00"):
             raise ValueError("Only a fully repaid active loan may be completed")
         loan.status, loan.completed_at = "Paid", now
     elif action == "default":
@@ -288,10 +295,18 @@ async def transition_loan(
         loan.closed_at = now
     else:
         raise ValueError("Unsupported workflow action")
-    db.add(AuditLog(
-        id=str(uuid4()), user_id=user.id, action=f"LOAN_{action.upper()}",
-        entity_name="loans", entity_id=loan.id, old_state_json=None,
-        new_state_json=json.dumps({"status": loan.status, "occurredAt": now.isoformat()}),
-    ))
+    db.add(
+        AuditLog(
+            id=str(uuid4()),
+            user_id=user.id,
+            action=f"LOAN_{action.upper()}",
+            entity_name="loans",
+            entity_id=loan.id,
+            old_state_json=None,
+            new_state_json=json.dumps(
+                {"status": loan.status, "occurredAt": now.isoformat()}
+            ),
+        )
+    )
     await db.flush()
     return loan, now

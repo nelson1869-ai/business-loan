@@ -85,9 +85,12 @@ async def create_borrower(
     """Create a borrower and its redacted audit entry atomically."""
     borrower = Borrower(**payload.model_dump(by_alias=False))
     db.add(borrower)
-    _add_audit_log(db, user, "CREATE_BORROWER", borrower.id, None, _audit_state(borrower))
+    _add_audit_log(
+        db, user, "CREATE_BORROWER", borrower.id, None, _audit_state(borrower)
+    )
     await db.flush()
     return borrower
+
 
 async def update_borrower(
     db: AsyncSession,

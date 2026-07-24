@@ -96,7 +96,9 @@ async def refresh(payload: RefreshTokenRequest, db: DbSession) -> TokenResponse:
     result = await db.execute(select(User).where(User.id == claims["sub"]))
     user = result.scalar_one_or_none()
     if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
+        )
 
     # Step 3 — Rotate: issue a brand-new token pair (old tokens are now obsolete).
     #          Flutter's JwtInterceptor stores both and retries the failed request.
@@ -104,4 +106,3 @@ async def refresh(payload: RefreshTokenRequest, db: DbSession) -> TokenResponse:
         access_token=create_token(user, "access"),
         refresh_token=create_token(user, "refresh"),
     )
-

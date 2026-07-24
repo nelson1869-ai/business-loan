@@ -6,8 +6,9 @@ Revises: 001_initial_schema
 
 from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision: str = "002_add_loans_and_installments"
 down_revision: str | None = "001_initial_schema"

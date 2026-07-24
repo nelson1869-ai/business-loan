@@ -189,5 +189,5 @@ class Installment(Base):
 
 
 from app.models.borrower import Borrower  # noqa: E402
-from app.models.user import User  # noqa: E402
 from app.models.payment import Payment  # noqa: E402
+from app.models.user import User  # noqa: E402

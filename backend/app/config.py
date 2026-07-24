@@ -22,13 +22,13 @@ class Settings(BaseSettings):
     """Validated settings loaded from environment variables and `.env`."""
 
     app_name: str = "Lending Nelson API"
-    app_env: str = "development"
+    app_env: str
     database_url: str
     jwt_secret_key: str = Field(min_length=32)
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = Field(default=15, gt=0)
     refresh_token_expire_days: int = Field(default=7, gt=0)
-    cors_origins: str = "*"
+    cors_origins: str
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -51,22 +51,23 @@ class Settings(BaseSettings):
     @field_validator("jwt_secret_key")
     @classmethod
     def validate_jwt_secret_key(cls, value: str, info) -> str:
-        """Reject obvious placeholder secrets in production."""
-        env = info.data.get("app_env", "development").lower().strip()
+        """Reject obvious placeholder or low-quality JWT secrets."""
         val_lower = value.lower().strip()
-        if env in ("production", "prod"):
-            if val_lower in WEAK_SECRETS or val_lower == "secret" or val_lower.startswith("change-me"):
-                raise ValueError(
-                    "Production environment requires a strong, random JWT secret key. "
-                    "Placeholder or weak secrets are strictly rejected."
-                )
+        if (
+            val_lower in WEAK_SECRETS
+            or val_lower.startswith(("change-me", "replace-with", "your-"))
+            or len(set(value)) < 12
+        ):
+            raise ValueError(
+                "JWT_SECRET_KEY must be a strong, random value and cannot be a placeholder."
+            )
         return value
 
     @field_validator("cors_origins")
     @classmethod
     def validate_cors_origins(cls, value: str, info) -> str:
         """Reject wildcard CORS in production environments."""
-        env = info.data.get("app_env", "development").lower().strip()
+        env = info.data.get("app_env", "").lower().strip()
         if env in ("production", "prod") and value.strip() == "*":
             raise ValueError(
                 "Production environment does not allow wildcard CORS ('*'). "
@@ -77,7 +78,9 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         """Return the configured comma-separated origins as a clean list."""
-        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+        return [
+            origin.strip() for origin in self.cors_origins.split(",") if origin.strip()
+        ]
 
 
 @lru_cache

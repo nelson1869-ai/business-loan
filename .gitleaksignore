@@ -1,0 +1,6 @@
+# Verified false positives: synthetic JWT-strength test values.
+2d9f2ad6d9a4cf01c99dab46b9d1b6882b458e0a:backend/tests/test_config_safety.py:generic-api-key:20
+2d9f2ad6d9a4cf01c99dab46b9d1b6882b458e0a:backend/tests/test_config_safety.py:generic-api-key:32
+
+# Verified false positive: historical Postman workspace UUID, not a credential.
+0df6470b4f72ced586a10b655d5823b389f92fca:.postman/resources.yaml:generic-api-key:7
