@@ -15,6 +15,18 @@ class AuthRepository {
   final Dio _dio;
   final FlutterSecureStorage _secureStorage;
 
+  /// Returns whether this device has a refresh token for session restoration.
+  Future<bool> hasStoredSession() async {
+    try {
+      final refreshToken = await _secureStorage.read(
+        key: TokenStorageKeys.refreshToken,
+      );
+      return refreshToken != null && refreshToken.isNotEmpty;
+    } on Exception {
+      return false;
+    }
+  }
+
   /// Authenticates a user and stores the returned token pair securely.
   Future<void> login(String username, String password) async {
     try {

@@ -1,37 +1,41 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../app/app_theme.dart';
 
-/// Displays application branding briefly before opening the login screen.
+import '../../../app/app_theme.dart';
+import '../../auth/data/auth_repository.dart';
+
+/// Displays application branding while restoring any securely saved session.
 ///
 /// File: `lib/features/splash/presentation/splash_screen.dart`
 ///
 /// Data Flow Diagram:
 /// ```text
 ///  +-----------+     +--------------------+     +-------------------+
-///  | main.dart | --> | splash_screen.dart | --> | login_screen.dart |
+///  | main.dart | --> | splash_screen.dart | --> | dashboard / login |
 ///  +-----------+     +--------------------+     +-------------------+
 /// ```
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   void initState() {
     super.initState();
     _navigateToNext();
   }
 
-  void _navigateToNext() {
-    Future.delayed(const Duration(milliseconds: 1500), () {
-      if (mounted) {
-        context.go('/login');
-      }
-    });
+  Future<void> _navigateToNext() async {
+    final sessionCheck = ref.read(authRepositoryProvider).hasStoredSession();
+    await Future<void>.delayed(const Duration(milliseconds: 1500));
+    final hasStoredSession = await sessionCheck;
+    if (!mounted) return;
+
+    context.go(hasStoredSession ? '/dashboard' : '/login');
   }
 
   @override

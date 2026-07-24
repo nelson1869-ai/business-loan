@@ -3,5 +3,8 @@ url: "{{baseUrl}}/api/v1/sync/drain"
 method: POST
 body:
   type: json
-  content: '{ "events": [] }'
+  content: |-
+    {
+      "items": []
+    }
 order: 1000

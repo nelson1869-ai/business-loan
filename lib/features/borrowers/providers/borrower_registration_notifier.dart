@@ -44,7 +44,7 @@ class BorrowerRegistrationNotifier
       nationalId: nationalId.trim(),
       phone: phone.trim(),
       dateOfBirth: dateOfBirth,
-      status: existing?.status ?? 'Pending',
+      status: existing?.status ?? 'Active',
       createdAt:
           existing?.createdAt ?? DateTime.now().toUtc().toIso8601String(),
     );

@@ -5,12 +5,14 @@ body:
   type: json
   content: |-
     {
-      "full_name": "Test Borrower",
+      "id": "{{$guid}}",
+      "createdAt": "{{$isoTimestamp}}",
+      "firstName": "Test",
+      "lastName": "Borrower",
+      "nationalId": "TEST-ID-001",
       "phone": "+639171234567",
-      "national_id": "TEST-ID-001",
-      "address": "123 Test St, Manila",
-      "emergency_contact_name": "Emergency Contact",
-      "emergency_contact_phone": "+639179876543"
+      "dateOfBirth": "1990-01-15",
+      "status": "Pending"
     }
 scripts:
   - type: afterResponse

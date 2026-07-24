@@ -118,17 +118,21 @@ class _LoanCreateScreenState extends ConsumerState<LoanCreateScreen> {
 
   Future<void> _calculateQuote() async {
     if (!_formKey.currentState!.validate()) return;
-    await ref.read(loanCreateNotifierProvider.notifier).calculateQuote(
-      principal: _principalController.text.trim(),
-      rate: _rateController.text.trim(),
-      termMonths: int.parse(_termController.text.trim()),
-      paymentsPerMonth: _paymentsPerMonth,
-      firstDueDate: _firstDueDate,
-    );
+    await ref
+        .read(loanCreateNotifierProvider.notifier)
+        .calculateQuote(
+          principal: _principalController.text.trim(),
+          rate: _rateController.text.trim(),
+          termMonths: int.parse(_termController.text.trim()),
+          paymentsPerMonth: _paymentsPerMonth,
+          firstDueDate: _firstDueDate,
+        );
     if (!mounted) return;
     final error = ref.read(loanCreateNotifierProvider).error;
     if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error)));
     }
   }
 
@@ -154,7 +158,7 @@ class _LoanCreateScreenState extends ConsumerState<LoanCreateScreen> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           children: [
             Consumer(
               builder: (context, ref, child) {
@@ -317,9 +321,8 @@ class _LoanCreateScreenState extends ConsumerState<LoanCreateScreen> {
                     children: [
                       Text(
                         'Loan Quote',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
                       Text('Payment: \$${quote.regularPaymentAmount}'),
@@ -337,18 +340,20 @@ class _LoanCreateScreenState extends ConsumerState<LoanCreateScreen> {
                 ),
               ),
             ],
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: isSubmitting ? null : _submit,
-              icon: isSubmitting
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.check),
-              label: Text(isSubmitting ? 'Creating\u2026' : 'Create Loan'),
-            ),
           ],
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        child: FilledButton.icon(
+          onPressed: isSubmitting ? null : _submit,
+          icon: isSubmitting
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.check),
+          label: Text(isSubmitting ? 'Creating\u2026' : 'Create Loan'),
         ),
       ),
     );

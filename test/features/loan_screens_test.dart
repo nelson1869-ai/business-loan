@@ -13,6 +13,28 @@ import 'package:lending_nelson/features/loans/presentation/loan_create_screen.da
 import 'package:lending_nelson/features/loans/presentation/loan_detail_screen.dart';
 import 'package:lending_nelson/features/loans/presentation/providers/loans_provider.dart';
 
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:lending_nelson/core/network/server_health_service.dart';
+
+class FakeConnectivity implements Connectivity {
+  @override
+  Future<List<ConnectivityResult>> checkConnectivity() async => [
+    ConnectivityResult.wifi,
+  ];
+
+  @override
+  Stream<List<ConnectivityResult>> get onConnectivityChanged =>
+      const Stream.empty();
+}
+
+class FakeServerHealthService extends ServerHealthService {
+  FakeServerHealthService([this.reachable = true]) : super(FakeConnectivity());
+  final bool reachable;
+
+  @override
+  Future<bool> isServerReachable() async => reachable;
+}
+
 void main() {
   test('percentage conversion stays exact without binary floating point', () {
     expect(percentageToDecimalRate('10'), '0.1');
@@ -24,6 +46,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          serverHealthServiceProvider.overrideWithValue(
+            FakeServerHealthService(true),
+          ),
           borrowerLoansProvider(
             'borrower-1',
           ).overrideWith((ref) => Future.value(const [])),
@@ -50,6 +75,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            serverHealthServiceProvider.overrideWithValue(
+              FakeServerHealthService(true),
+            ),
             remoteLoanRepositoryProvider.overrideWithValue(repository),
           ],
           child: const MaterialApp(
@@ -106,7 +134,12 @@ void main() {
     final repository = _PendingLoanRepository();
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [remoteLoanRepositoryProvider.overrideWithValue(repository)],
+        overrides: [
+          serverHealthServiceProvider.overrideWithValue(
+            FakeServerHealthService(true),
+          ),
+          remoteLoanRepositoryProvider.overrideWithValue(repository),
+        ],
         child: const MaterialApp(
           home: LoanCreateScreen(borrowerId: 'borrower-1'),
         ),

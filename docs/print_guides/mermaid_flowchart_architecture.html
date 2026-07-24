@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Lending Nelson - Pure Mermaid Flowcharts (Frontend & Backend)</title>
+  <style>
+    @page { size: letter portrait; margin: 0.2in 0.25in 0.2in 0.25in; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    /* Screen View: Styled to look exactly like printed US Letter bond paper sheets */
+    body {
+      font-family: Arial, sans-serif;
+      font-size: 7.5pt;
+      color: #111;
+      background: #e2e8f0;
+      line-height: 1.32;
+      padding: 20px 0;
+    }
+
+    .sheet {
+      width: 8.5in;
+      min-height: 10.5in;
+      height: 10.5in;
+      background: #ffffff;
+      margin: 0 auto 20px auto;
+      padding: 0.2in 0.25in;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+      border-radius: 2px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-sizing: border-box;
+    }
+
+    .header { background: #1e3a5f; color: #fff; padding: 5px 8px; margin-bottom: 4px; border-radius: 3px; }
+    .header h1 { font-size: 11.5pt; font-weight: bold; }
+    .header p  { font-size: 7.2pt; opacity: 0.92; margin-top: 1px; }
+
+    .page-title { background: #0f172a; color: #fff; font-size: 8.2pt; font-weight: bold; padding: 2.5px 6px; margin: 3px 0 4px; border-radius: 2px; text-align: center; }
+
+    h2 { font-size: 9pt; font-weight: bold; color: #1e3a5f; border-bottom: 1.5px solid #1e3a5f; padding-bottom: 1.5px; margin: 4px 0 4px; }
+
+    .mermaid-box { border: 1.5px solid #cbd5e1; border-radius: 4px; background: #f8fafc; padding: 8px; margin-bottom: 4px; flex-grow: 1; display: flex; justify-content: center; align-items: center; }
+    .page2-mermaid-box { border: 2px solid #6d28d9; border-radius: 4px; background: #fcfaff; padding: 12px; margin-bottom: 4px; flex-grow: 1; display: flex; justify-content: center; align-items: center; min-height: 8.6in; }
+    
+    .mermaid { width: 100%; display: flex; justify-content: center; }
+    .page2-mermaid-box svg { width: 100% !important; min-height: 8.2in !important; height: auto !important; }
+
+    .footer { text-align: center; font-size: 7pt; color: #9ca3af; border-top: 1px solid #e5e7eb; margin-top: 4px; padding-top: 3px; }
+
+    /* Print Mode Override */
+    @media print {
+      @page { size: letter portrait; margin: 0.2in 0.25in 0.2in 0.25in; }
+      html, body { margin: 0; padding: 0; background: #fff; font-size: 7.4pt; }
+      .sheet {
+        width: 100% !important;
+        height: 10.4in !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        box-sizing: border-box;
+        page-break-after: always !important;
+        page-break-inside: avoid !important;
+      }
+      .sheet:last-child { page-break-after: avoid !important; }
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+    });
+  </script>
+</head>
+<body>
+
+<!-- SHEET 1 (BOND PAPER 1 - FRONTEND ONLY MERMAID FLOWCHART) -->
+<section class="sheet">
+  <div>
+    <div class="header">
+      <h1>&#128506;&#65039; Lending Nelson &mdash; Pure Mermaid Flowcharts | Frontend Architecture</h1>
+      <p>Page 1 of 2 &middot; Flutter Mobile Client Architecture &middot; Screen Navigation &amp; Riverpod Notifiers</p>
+    </div>
+
+    <div class="page-title">PAGE 1 OF 2 &mdash; FRONTEND ONLY MERMAID FLOWCHART</div>
+
+    <h2>Flutter Mobile Client Architecture Flowchart</h2>
+    <div class="mermaid-box">
+      <pre class="mermaid">
+flowchart TD
+    subgraph Entry ["App Setup & Root Widget"]
+        A[lib/main.dart] -->|ProviderScope| B[LendingApp Widget]
+        B -->|GoRouter Provider| C[app_router.dart Router]
+    end
+
+    subgraph Nav ["Navigation & Presentation Screens"]
+        C -->|Initial Route '/'| D[SplashScreen]
+        C -->|Route '/login'| E[LoginScreen]
+        C -->|Route '/borrowers'| F[BorrowerListPage]
+        C -->|Route '/loans/new'| G[LoanCreateScreen]
+        C -->|Route '/dashboard'| H[DashboardPage]
+    end
+
+    subgraph State ["Riverpod State Notifiers"]
+        E -->|Submit Credentials| I[AuthNotifier]
+        F -->|Fetch / Filter List| J[BorrowerNotifier]
+        G -->|Submit Origination| K[LoanNotifier]
+    end
+
+    subgraph Core ["Core Client Network & Security"]
+        I -->|HTTP Calls| L[Dio ApiClient]
+        J -->|HTTP Calls| L
+        K -->|HTTP Calls| L
+
+        L -->|401 Interception| M[JwtInterceptor]
+        M -->|Store JWT Keys| N[SecureStorageService]
+        M -->|Cache Offline Rows| O[DatabaseService SQLite]
+    end
+
+    style Entry fill:#e0f2fe,stroke:#0369a1,stroke-width:1.5px
+    style Nav fill:#e0f2fe,stroke:#0369a1,stroke-width:1.5px
+    style State fill:#f3e8ff,stroke:#6d28d9,stroke-width:1.5px
+    style Core fill:#d1fae5,stroke:#047857,stroke-width:1.5px
+      </pre>
+    </div>
+  </div>
+
+  <div class="footer">Page 1 of 2 &middot; Lending Nelson Pure Mermaid Flowchart &middot; Frontend Architecture</div>
+</section>
+
+<!-- SHEET 2 (BOND PAPER 2 - 4 PARALLEL VERTICAL COLUMNS: FACTORY TOP -> SERVICES & DB BOTTOM) -->
+<section class="sheet">
+  <div>
+    <div class="header">
+      <h1>&#128506;&#65039; Lending Nelson &mdash; Pure Mermaid Flowcharts | Backend Architecture</h1>
+      <p>Page 2 of 2 &middot; 4 Parallel Vertical Columns &middot; App Factory Top &rarr; Database &amp; Services Bottom</p>
+    </div>
+
+    <div class="page-title">PAGE 2 OF 2 &mdash; 4 PARALLEL VERTICAL ARCHITECTURE COLUMNS</div>
+
+    <h2>FastAPI Python Backend Architecture Flowchart (4 Parallel Vertical Columns)</h2>
+    <div class="page2-mermaid-box">
+      <pre class="mermaid">
+flowchart TD
+    subgraph Gateway ["1. TOP GATEWAY: FastAPI App Factory & Middleware"]
+        A1["backend/app/main.py (App Factory)"] -->|CORSMiddleware| B1["GET /health (Ping Endpoint)"]
+        A1 -->|APIRouter Pipeline| C1["FastAPI APIRouter Pipeline"]
+    end
+
+    subgraph AuthCol ["Column 1: Authentication Flow"]
+        C1 -->|POST /token & /refresh| D1["routers/auth.py"]
+        D1 -->|Query & Validate User| DB1[("users Table")]
+        DB1 -->|Pass Passwords & Claims| I1["services/auth_service.py\n(bcrypt & JWT Issue)"]
+    end
+
+    subgraph BorrowerCol ["Column 2: Borrower Management Flow"]
+        C1 -->|GET / POST /borrowers| E1["routers/borrowers.py"]
+        E1 -->|Query / Insert Borrower| DB2[("borrowers Table")]
+        DB2 -->|Stage Redacted Log| DB3[("audit_logs Table")]
+        DB3 -->|Enforce Redaction Guard| J1["services/borrower_service.py\n(PII Redaction Guard)"]
+    end
+
+    subgraph LoanCol ["Column 3: Loan Origination Flow"]
+        C1 -->|POST /loans & /drafts| F1["routers/loans.py"]
+        F1 -->|Insert Loan Master Row| DB4[("loans Table")]
+        DB4 -->|Batch Insert 12 Rows| DB5[("loan_installments Table")]
+        DB5 -->|Reducing Balance Calc| K1["services/loan_calculator.py\n(Decimal Amortization Engine)"]
+    end
+
+    subgraph PaymentCol ["Column 4: Payment Ledger Flow"]
+        C1 -->|POST /payments| G1["routers/payments.py"]
+        G1 -->|Record Ledger Entry| DB6[("payments Table")]
+        DB6 -->|Payment Allocation Engine| L1["services/payment_service.py\n(Ledger Engine)"]
+    end
+
+    style Gateway fill:#f3e8ff,stroke:#6d28d9,stroke-width:2px
+    style AuthCol fill:#fef3c7,stroke:#d97706,stroke-width:1.5px
+    style BorrowerCol fill:#e0f2fe,stroke:#0369a1,stroke-width:1.5px
+    style LoanCol fill:#f3e8ff,stroke:#6d28d9,stroke-width:1.5px
+    style PaymentCol fill:#d1fae5,stroke:#047857,stroke-width:1.5px
+      </pre>
+    </div>
+  </div>
+
+  <div class="footer">Page 2 of 2 &middot; Lending Nelson Pure Mermaid Flowchart &middot; 4 Parallel Vertical Columns</div>
+</section>
+
+</body>
+</html>

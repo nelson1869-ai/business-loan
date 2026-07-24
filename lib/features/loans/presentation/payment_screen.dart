@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/formatters.dart';
 import '../domain/models/payment.dart';
@@ -164,7 +165,19 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     });
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Loan Payments')),
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/loans');
+            }
+          },
+        ),
+        title: const Text('Loan Payments'),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

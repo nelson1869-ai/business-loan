@@ -1,8 +1,8 @@
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_endpoints.dart';
 import '../../../core/network/offline_sync_service.dart';
+import '../../../core/network/server_health_service.dart';
 
 import '../data/borrower_repository.dart';
 import '../data/remote_borrower_repository.dart';
@@ -15,6 +15,11 @@ class BorrowersNotifier extends AsyncNotifier<List<Borrower>> {
     final remoteRepository = ref.watch(remoteBorrowerRepositoryProvider);
     ref.watch(offlineSyncServiceProvider);
 
+    // 1. Fetch local borrowers first for instant rendering
+    final localBorrowers = await localRepository.getBorrowers()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    // 2. Check if the backend server is actually reachable before attempting network calls
     if (await _isOnline()) {
       try {
         final remote = await remoteRepository.getBorrowers();
@@ -23,9 +28,7 @@ class BorrowersNotifier extends AsyncNotifier<List<Borrower>> {
       } catch (_) {}
     }
 
-    final borrowers = await localRepository.getBorrowers()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    return borrowers;
+    return localBorrowers;
   }
 
   Future<void> registerBorrower(Borrower borrower) async {
@@ -142,8 +145,7 @@ class BorrowersNotifier extends AsyncNotifier<List<Borrower>> {
   }
 
   Future<bool> _isOnline() async {
-    final results = await ref.read(connectivityProvider).checkConnectivity();
-    return results.any((result) => result != ConnectivityResult.none);
+    return ref.read(serverHealthServiceProvider).isServerReachable();
   }
 }
 

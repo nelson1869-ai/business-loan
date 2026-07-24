@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../loans/presentation/borrower_loans_section.dart';
 import '../../loans/presentation/providers/loans_provider.dart';
@@ -23,7 +24,19 @@ class BorrowerDetailPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      appBar: AppBar(title: Text(initialBorrower?.fullName ?? 'Borrower')),
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/borrowers');
+            }
+          },
+        ),
+        title: Text(initialBorrower?.fullName ?? 'Borrower'),
+      ),
       body: _BorrowerDetailContent(
         borrowerId: borrowerId,
         initialBorrower: initialBorrower,

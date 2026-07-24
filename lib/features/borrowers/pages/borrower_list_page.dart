@@ -147,12 +147,12 @@ class _BorrowerListPageState extends ConsumerState<BorrowerListPage> {
                     final borrower = filtered[index];
                     return BorrowerCard(
                       borrower: borrower,
-                      onTap: () => context.go(
+                      onTap: () => context.push(
                         '/borrowers/${borrower.id}',
                         extra: borrower,
                       ),
                       onEdit: () =>
-                          context.go('/borrowers/register', extra: borrower),
+                          context.push('/borrowers/register', extra: borrower),
                       onDelete: () async {
                         final confirmed = await showDialog<bool>(
                           context: context,

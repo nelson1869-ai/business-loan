@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Step 3 - Borrower Management & PII Protection | Lending Nelson</title>
+  <style>
+    @page { size: letter portrait; margin: 0.25in 0.3in 0.25in 0.3in; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    /* Screen View: Styled to look exactly like printed US Letter bond paper sheets */
+    body {
+      font-family: Arial, sans-serif;
+      font-size: 7.5pt;
+      color: #111;
+      background: #e2e8f0;
+      line-height: 1.3;
+      padding: 20px 0;
+    }
+
+    .sheet {
+      width: 8.5in;
+      min-height: 10.5in;
+      height: 10.5in;
+      background: #ffffff;
+      margin: 0 auto 20px auto;
+      padding: 0.25in 0.3in;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+      border-radius: 2px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-sizing: border-box;
+    }
+
+    .header { background: #6d28d9; color: #fff; padding: 5px 8px; margin-bottom: 4px; border-radius: 3px; }
+    .header h1 { font-size: 11.5pt; font-weight: bold; }
+    .header p  { font-size: 7.2pt; opacity: 0.92; margin-top: 1px; }
+
+    .page-title { background: #4c1d95; color: #fff; font-size: 8.2pt; font-weight: bold; padding: 2.5px 6px; margin: 4px 0 4px; border-radius: 2px; }
+
+    h2 { font-size: 8.8pt; font-weight: bold; color: #6d28d9; border-bottom: 1px solid #6d28d9; padding-bottom: 1.5px; margin: 5px 0 3px; }
+
+    .big-flow { border: 1px solid #6d28d9; border-left: 3.5px solid #6d28d9; background: #f5f3ff; padding: 4px 6px; font-family: 'Courier New', monospace; font-size: 6.3pt; white-space: pre; margin-bottom: 4px; line-height: 1.25; }
+
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 4px; }
+    .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; margin-bottom: 4px; }
+
+    .layer { border: 1px solid #ccc; border-radius: 3px; margin-bottom: 4px; }
+    .layer-header { padding: 3px 6px; font-weight: bold; font-size: 8pt; color: #fff; border-radius: 2px 2px 0 0; }
+    .layer-body { padding: 4px 6px; }
+    .postman  > .layer-header { background: #ea580c; }
+    .backend  > .layer-header { background: #6d28d9; }
+    .sql      > .layer-header { background: #047857; }
+    .flutter  > .layer-header { background: #0369a1; }
+    .concept  > .layer-header { background: #1e3a5f; }
+    .debug    > .layer-header { background: #b91c1c; }
+
+    .file-card { border: 1px solid #e5e7eb; border-radius: 2px; margin-top: 3px; }
+    .file-card-header { background: #f8fafc; border-bottom: 1px solid #e5e7eb; padding: 2.5px 5px; font-size: 7pt; font-weight: bold; color: #374151; }
+
+    pre { background: #fff; color: #111; padding: 4px 6px; font-family: 'Courier New', monospace; font-size: 6.4pt; white-space: pre-wrap; word-break: break-word; line-height: 1.3; }
+    .cm { color: #6b7280; }
+    .kw { color: #1d4ed8; }
+    .st { color: #15803d; }
+
+    .note { border-left: 2.5px solid #6d28d9; background: #f5f3ff; padding: 3px 5px; font-size: 7.2pt; margin-top: 3px; line-height: 1.32; }
+    .warn { border-left: 2.5px solid #dc2626; background: #fef2f2; padding: 3px 5px; font-size: 7.2pt; margin-top: 3px; line-height: 1.32; }
+    .tip  { border-left: 2.5px solid #d97706; background: #fffbeb; padding: 3px 5px; font-size: 7.2pt; margin-top: 3px; line-height: 1.32; }
+    .eli5 { border-left: 2.5px solid #ea580c; background: #fff7ed; padding: 3px 5px; font-size: 7.2pt; margin-top: 3px; line-height: 1.32; }
+
+    p  { margin: 2px 0; font-size: 7.5pt; line-height: 1.32; }
+    ul { margin: 2px 0 2px 12px; font-size: 7.2pt; line-height: 1.4; }
+    code { font-family: 'Courier New', monospace; font-size: 7.1pt; background: #f1f5f9; padding: 0 2px; border-radius: 2px; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 6.8pt; margin-top: 3px; }
+    th { background: #ddd6fe; color: #4c1d95; padding: 2.5px 5px; border: 1px solid #c4b5fd; text-align: left; }
+    td { padding: 2px 5px; border: 1px solid #edd5ff; vertical-align: top; }
+    tr:nth-child(even) td { background: #f5f3ff; }
+
+    .footer { text-align: center; font-size: 7pt; color: #9ca3af; border-top: 1px solid #e5e7eb; margin-top: 4px; padding-top: 3px; }
+
+    /* Print Mode Override */
+    @media print {
+      @page { size: letter portrait; margin: 0.25in 0.3in 0.25in 0.3in; }
+      html, body { margin: 0; padding: 0; background: #fff; font-size: 7.4pt; }
+      pre { font-size: 6.4pt; line-height: 1.3; }
+      .sheet {
+        width: 100% !important;
+        height: 10.4in !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        box-sizing: border-box;
+        page-break-after: always !important;
+        page-break-inside: avoid !important;
+      }
+      .sheet:last-child { page-break-after: avoid !important; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- SHEET 1 (BOND PAPER 1) -->
+<section class="sheet">
+  <div>
+    <div class="header">
+      <h1>&#128218; Step 3 &mdash; Borrower Management &amp; PII Protection &nbsp;|&nbsp; Lending Nelson Reference</h1>
+      <p>Backend Focus: Postman CRUD Specs &middot; FastAPI Router &amp; Pagination &middot; Redacted Audit Logs &middot; Print: Ctrl+P &rarr; Letter</p>
+    </div>
+
+    <div class="page-title">PAGE 1 OF 3 &mdash; Postman CRUD Payloads + FastAPI Router &amp; Header Pagination</div>
+
+    <h2>Full Borrower Lifecycle &amp; PII Audit Logging Flow</h2>
+    <div class="big-flow">
++------------------------+    +-----------------------------+    +------------------------------+    +-----------------------------+
+|  1. POSTMAN API TEST   |    |  2. FASTAPI ROUTER          |    |  3. BORROWER SERVICE & AUDIT |    |  4. SQL TRANSACTIONS        |
+|  POST /borrowers       | -> |  backend/app/routers/       | -> |  backend/app/services/       | -> |  INSERT INTO borrowers      |
+|  {firstName,phone...}  |    |  borrowers.py               |    |  borrower_service.py         |    |  INSERT INTO audit_logs     |
+|  Header: Authorization |    |  Paginated GET & POST endpoints|   |  Redacts PII state json      |    |  Commit or Rollback on error|
++------------------------+    +-----------------------------+    +------------------------------+    +-----------------------------+
+  Response HTTP 201 Created: Returns Borrower JSON + Header X-Total-Count for paginated list queries.</div>
+
+    <h2>Layer 1: Postman Borrower API Specifications</h2>
+    <div class="layer postman">
+      <div class="layer-header">Postman API Testing &mdash; Create &amp; List Borrowers</div>
+      <div class="layer-body">
+        <div class="grid2">
+          <div class="file-card">
+            <div class="file-card-header">Postman POST /api/v1/borrowers &mdash; Create Request</div>
+            <pre><span class="cm">// Headers: Authorization: Bearer {{accessToken}}</span>
+<span class="kw">POST</span> http://localhost:8000/api/v1/borrowers
+{
+  <span class="st">"firstName"</span>: <span class="st">"Maria"</span>,
+  <span class="st">"lastName"</span>: <span class="st">"Santos"</span>,
+  <span class="st">"nationalId"</span>: <span class="st">"1234-5678-9012"</span>,
+  <span class="st">"phone"</span>: <span class="st">"+639171234567"</span>,
+  <span class="st">"dateOfBirth"</span>: <span class="st">"1990-05-15"</span>,
+  <span class="st">"status"</span>: <span class="st">"Active"</span>
+}</pre>
+          </div>
+
+          <div class="file-card">
+            <div class="file-card-header">Postman GET /api/v1/borrowers?offset=0&amp;limit=50</div>
+            <pre><span class="cm">// Response HTTP 200 OK</span>
+<span class="cm">// Header: X-Total-Count: 15</span>
+[
+  {
+    <span class="st">"id"</span>: <span class="st">"b3f7e148-8c1d-4f12-a720-94d5b2901a52"</span>,
+    <span class="st">"firstName"</span>: <span class="st">"Maria"</span>,
+    <span class="st">"lastName"</span>: <span class="st">"Santos"</span>,
+    <span class="st">"nationalId"</span>: <span class="st">"1234-5678-9012"</span>,
+    <span class="st">"phone"</span>: <span class="st">"+639171234567"</span>,
+    <span class="st">"status"</span>: <span class="st">"Active"</span>
+  }
+]</pre>
+          </div>
+        </div>
+        <div class="eli5"><strong>ELI5 Postman Flow:</strong> Postman tests creating new borrower records and lists all active borrowers using pagination headers (`X-Total-Count`) so mobile apps don't overload memory!</div>
+      </div>
+    </div>
+
+    <h2>Layer 2: FastAPI Borrower Router &amp; Pagination Headers</h2>
+    <div class="layer backend">
+      <div class="layer-header">FastAPI Router &mdash; backend/app/routers/borrowers.py</div>
+      <div class="layer-body">
+        <div class="file-card">
+          <div class="file-card-header">Paginated Listing &amp; Creation Endpoints &mdash; borrowers.py</div>
+          <pre><span class="kw">@router.get</span>(<span class="st">""</span>, response_model=list[BorrowerResponse])
+<span class="kw">async def</span> list_all_borrowers(
+    db: DbSession, current_user: CurrentUser, response: Response,
+    borrower_status: Annotated[str | None, Query(alias=<span class="st">"status"</span>)] = <span class="kw">None</span>,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+) -&gt; list[BorrowerResponse]:
+    <span class="cm"># 1. Query paginated list &amp; total row count from database</span>
+    borrowers, total = <span class="kw">await</span> borrower_service.list_borrowers(db, borrower_status, offset, limit)
+    <span class="cm"># 2. Expose total count in HTTP Header X-Total-Count for mobile list pagination</span>
+    response.headers[<span class="st">"X-Total-Count"</span>] = str(total)
+    <span class="kw">return</span> [BorrowerResponse.model_validate(item) <span class="kw">for</span> item <span class="kw">in</span> borrowers]
+
+<span class="kw">@router.post</span>(<span class="st">""</span>, response_model=BorrowerResponse, status_code=status.HTTP_201_CREATED)
+<span class="kw">async def</span> register_borrower(payload: BorrowerCreate, db: DbSession, current_user: CurrentUser) -&gt; BorrowerResponse:
+    <span class="kw">try</span>:
+        <span class="cm"># 3. Create borrower record &amp; stage redacted audit log in same SQL transaction</span>
+        borrower = <span class="kw">await</span> borrower_service.create_borrower(db, payload, current_user)
+        <span class="kw">await</span> db.commit()
+    <span class="kw">except</span> IntegrityError <span class="kw">as</span> error:
+        <span class="kw">await</span> db.rollback()
+        <span class="kw">raise</span> HTTPException(status_code=status.HTTP_409_CONFLICT, detail=<span class="st">"National ID already exists"</span>)
+    <span class="kw">return</span> BorrowerResponse.model_validate(borrower)</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">Page 1 of 3 &middot; Lending Nelson Backend &amp; Database Architecture &middot; Step 3</div>
+</section>
+
+<!-- SHEET 2 (BOND PAPER 2) -->
+<section class="sheet">
+  <div>
+    <div class="header">
+      <h1>&#128218; Step 3 &mdash; Borrower Management &amp; PII Protection &nbsp;|&nbsp; Page 2</h1>
+      <p>Redacted Audit Logging Service &middot; PostgreSQL Tables &amp; Indexes &middot; Transaction Integrity</p>
+    </div>
+
+    <div class="page-title">PAGE 2 OF 3 &mdash; PII Redacted Audit Service + SQL Schema &amp; Indexes</div>
+
+    <h2>Layer 3: Redacted Audit Logging &amp; PII Sanitization Service</h2>
+    <div class="layer backend">
+      <div class="layer-header">Borrower Service Logic &mdash; backend/app/services/borrower_service.py</div>
+      <div class="layer-body">
+        <div class="file-card">
+          <div class="file-card-header">PII Redaction &amp; Immutable Audit Trail &mdash; borrower_service.py</div>
+          <pre><span class="kw">def</span> _audit_state(borrower: Borrower) -&gt; str:
+    <span class="cm"># 1. PII Protection: Redact names, phone numbers, and national IDs before audit writing</span>
+    <span class="kw">return</span> json.dumps({
+        <span class="st">"id"</span>: borrower.id,
+        <span class="st">"status"</span>: borrower.status,
+        <span class="st">"firstName"</span>: <span class="st">"[REDACTED]"</span>,
+        <span class="st">"lastName"</span>: <span class="st">"[REDACTED]"</span>,
+        <span class="st">"nationalId"</span>: <span class="st">"[REDACTED]"</span>,
+        <span class="st">"phone"</span>: <span class="st">"[REDACTED]"</span>,
+    })
+
+<span class="kw">async def</span> create_borrower(db: AsyncSession, payload: BorrowerCreate, user: User) -&gt; Borrower:
+    <span class="cm"># 2. Construct new Borrower entity</span>
+    borrower = Borrower(id=str(uuid4()), **payload.model_dump())
+    db.add(borrower)
+    
+    <span class="cm"># 3. Write immutable audit log record in same SQL transaction</span>
+    db.add(AuditLog(
+        id=str(uuid4()), user_id=user.id, action=<span class="st">"CREATE_BORROWER"</span>,
+        entity_name=<span class="st">"borrowers"</span>, entity_id=borrower.id,
+        old_state_json=<span class="kw">None</span>, new_state_json=_audit_state(borrower)
+    ))
+    <span class="kw">return</span> borrower</pre>
+        </div>
+        <div class="note"><strong>Security Constraint:</strong> PII (Name, Phone, National ID) is NEVER saved in cleartext inside system audit logs. All mutation logs redact PII values to comply with privacy laws.</div>
+      </div>
+    </div>
+
+    <h2>Layer 4: PostgreSQL Schema, Indexes &amp; Audit Tables</h2>
+    <div class="layer sql">
+      <div class="layer-header">SQL Persistence &mdash; backend/app/models/borrower.py &amp; audit_log.py</div>
+      <div class="layer-body">
+        <div class="grid2">
+          <div class="file-card">
+            <div class="file-card-header">Borrower Table Schema &mdash; models/borrower.py</div>
+            <pre><span class="kw">class</span> Borrower(Base):
+    __tablename__ = <span class="st">"borrowers"</span>
+
+    id = mapped_column(String(36), primary_key=<span class="kw">True</span>)
+    first_name = mapped_column(String(100), nullable=<span class="kw">False</span>)
+    last_name = mapped_column(String(100), nullable=<span class="kw">False</span>)
+    national_id = mapped_column(String(100), nullable=<span class="kw">False</span>, unique=<span class="kw">True</span>, index=<span class="kw">True</span>)
+    phone = mapped_column(String(32), nullable=<span class="kw">False</span>)
+    status = mapped_column(String(20), nullable=<span class="kw">False</span>, index=<span class="kw">True</span>)
+    created_at = mapped_column(DateTime(timezone=<span class="kw">True</span>), server_default=func.now())</pre>
+          </div>
+
+          <div class="file-card">
+            <div class="file-card-header">Immutable Audit Log Schema &mdash; models/audit_log.py</div>
+            <pre><span class="kw">class</span> AuditLog(Base):
+    __tablename__ = <span class="st">"audit_logs"</span>
+
+    id = mapped_column(String(36), primary_key=<span class="kw">True</span>)
+    user_id = mapped_column(UUID(as_uuid=<span class="kw">True</span>), ForeignKey(<span class="st">"users.id"</span>))
+    action = mapped_column(String(50), nullable=<span class="kw">False</span>)
+    entity_name = mapped_column(String(50), nullable=<span class="kw">False</span>)
+    entity_id = mapped_column(String(36), nullable=<span class="kw">False</span>)
+    new_state_json = mapped_column(Text, nullable=<span class="kw">True</span>)
+    created_at = mapped_column(DateTime(timezone=<span class="kw">True</span>), server_default=func.now())</pre>
+          </div>
+        </div>
+        <div class="tip"><strong>SQL Performance:</strong> B-Tree indexes on <code>national_id</code> and <code>status</code> enable sub-millisecond lookup speeds on 100,000+ borrower records!</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">Page 2 of 3 &middot; Lending Nelson Backend &amp; Database Architecture &middot; Step 3</div>
+</section>
+
+<!-- SHEET 3 (BOND PAPER 3) -->
+<section class="sheet">
+  <div>
+    <div class="header">
+      <h1>&#128218; Step 3 &mdash; Borrower Management &amp; PII Protection &nbsp;|&nbsp; Page 3</h1>
+      <p>Flutter UI Client Listing &middot; Masked PII Widgets &middot; Troubleshooting &amp; Debugging Guide</p>
+    </div>
+
+    <div class="page-title">PAGE 3 OF 3 &mdash; Flutter Mobile List Screen + PII Masking Widget + Debugging Guide</div>
+
+    <h2>Layer 5: Mobile App Borrower Listing &amp; Masked PII UI</h2>
+    <div class="layer flutter">
+      <div class="layer-header">Flutter UI &mdash; lib/features/borrowers/pages/borrower_list_page.dart</div>
+      <div class="layer-body">
+        <div class="grid2">
+          <div class="file-card">
+            <div class="file-card-header">Paginated List Screen &mdash; borrower_list_page.dart</div>
+            <pre><span class="kw">class</span> BorrowerListPage <span class="kw">extends</span> ConsumerWidget {
+  <span class="kw">const</span> BorrowerListPage({<span class="kw">super</span>.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    <span class="kw">final</span> state = ref.watch(borrowersNotifierProvider);
+    <span class="kw">return</span> Scaffold(
+      appBar: AppBar(title: <span class="kw">const</span> Text(<span class="st">'Borrowers'</span>)),
+      body: RefreshIndicator(
+        onRefresh: () =&gt; ref.read(borrowersNotifierProvider.notifier).refresh(),
+        child: ListView.builder(
+          itemCount: state.borrowers.length,
+          itemBuilder: (context, index) =&gt; BorrowerCard(borrower: state.borrowers[index]),
+        ),
+      ),
+    );
+  }
+}</pre>
+          </div>
+
+          <div class="file-card">
+            <div class="file-card-header">Masked PII Text Widget &mdash; pii_masked_text.dart</div>
+            <pre><span class="cm">/// Displays masked PII until user toggles reveal</span>
+<span class="kw">class</span> PiiMaskedText <span class="kw">extends</span> StatefulWidget {
+  <span class="kw">final</span> String value;
+  <span class="kw">const</span> PiiMaskedText({<span class="kw">super</span>.key, <span class="kw">required</span> <span class="kw">this</span>.value});
+
+  @override
+  State&lt;PiiMaskedText&gt; createState() =&gt; _PiiMaskedTextState();
+}
+
+<span class="kw">class</span> _PiiMaskedTextState <span class="kw">extends</span> State&lt;PiiMaskedText&gt; {
+  bool _isVisible = <span class="kw">false</span>;
+
+  @override
+  Widget build(BuildContext context) {
+    <span class="kw">final</span> display = _isVisible ? widget.value : <span class="st">'••••••••${widget.value.characters.takeLast(4)}'</span>;
+    <span class="kw">return</span> InkWell(
+      onTap: () =&gt; setState(() =&gt; _isVisible = !_isVisible),
+      child: Text(display, style: <span class="kw">const</span> TextStyle(fontFamily: <span class="st">'monospace'</span>)),
+    );
+  }
+}</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h2>Step 3 Debugging &amp; Troubleshooting Guide</h2>
+    <div class="layer debug">
+      <div class="layer-header">Troubleshooting Checklist</div>
+      <div class="layer-body">
+        <table>
+          <thead>
+            <tr>
+              <th>Issue / Error Symptom</th>
+              <th>Root Cause</th>
+              <th>Backend / Database Fix</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>HTTP 409 "National ID already exists"</strong></td>
+              <td>Unique index constraint violation on <code>national_id</code> column</td>
+              <td>Catch <code>IntegrityError</code> in FastAPI router and return HTTP 409 Conflict.</td>
+            </tr>
+            <tr>
+              <td><strong>Mobile List Missing Total Page Count</strong></td>
+              <td>FastAPI router not returning <code>X-Total-Count</code> header</td>
+              <td>Ensure <code>response.headers["X-Total-Count"] = str(total)</code> is set.</td>
+            </tr>
+            <tr>
+              <td><strong>PII Data Leaked in Audit Logs</strong></td>
+              <td>Unsanitized model passed to <code>AuditLog.new_state_json</code></td>
+              <td>Always process entities through <code>_audit_state()</code> before staging log.</td>
+            </tr>
+            <tr>
+              <td><strong>PostgreSQL Slow Query on Status Search</strong></td>
+              <td>Missing B-Tree index on <code>status</code> column</td>
+              <td>Add <code>index=True</code> to <code>status = mapped_column(...)</code> in borrower model.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">Page 3 of 3 &middot; Lending Nelson Backend &amp; Database Architecture &middot; Step 3</div>
+</section>
+
+</body>
+</html>

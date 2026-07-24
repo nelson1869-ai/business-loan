@@ -59,7 +59,7 @@ class PortfolioSummaryCards extends StatelessWidget {
               label: 'Due Today ($collectionCountToday)',
               value: _formatCurrency(collectionDueToday),
               color: const Color(0xFF3B82F6),
-              onTap: () => context.go('/collections/today'),
+              onTap: () => context.push('/collections/today'),
             ),
           ],
         ),

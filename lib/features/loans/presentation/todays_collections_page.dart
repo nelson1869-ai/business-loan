@@ -15,7 +15,19 @@ class TodaysCollectionsPage extends ConsumerWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Today's Collections")),
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/dashboard');
+            }
+          },
+        ),
+        title: const Text("Today's Collections"),
+      ),
       body: data.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (Object e, _) => Center(

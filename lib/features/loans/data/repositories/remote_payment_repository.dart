@@ -1,16 +1,21 @@
+// ignore_for_file: prefer_initializing_formals
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../domain/models/payment.dart';
+import 'local_loan_repository.dart';
 import 'remote_loan_repository.dart';
 
 /// Calls the authenticated payment endpoints owned by FastAPI.
 class RemotePaymentRepository {
-  RemotePaymentRepository(this._dio);
+  RemotePaymentRepository(this._dio, {LocalLoanRepository? localRepo})
+    : _localRepo = localRepo;
 
   final Dio _dio;
+  final LocalLoanRepository? _localRepo;
 
   Future<PaymentPreview> preview({
     required String loanId,
@@ -50,7 +55,9 @@ class RemotePaymentRepository {
           if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
         },
       );
-      return LoanPayment.fromJson(_requiredMap(response.data));
+      final payment = LoanPayment.fromJson(_requiredMap(response.data));
+      await _localRepo?.savePayment(payment);
+      return payment;
     } on DioException catch (error) {
       throw _mapError(error, 'Unable to record payment');
     } on FormatException catch (error) {
@@ -63,7 +70,7 @@ class RemotePaymentRepository {
       final response = await _dio.get<List<dynamic>>(
         ApiEndpoints.loanPayments(loanId),
       );
-      return (response.data ?? const <dynamic>[])
+      final payments = (response.data ?? const <dynamic>[])
           .map((dynamic row) {
             if (row is! Map) {
               throw const FormatException('Payment must be an object');
@@ -71,7 +78,14 @@ class RemotePaymentRepository {
             return LoanPayment.fromJson(Map<String, dynamic>.from(row));
           })
           .toList(growable: false);
+      await _localRepo?.savePayments(loanId, payments);
+      return payments;
     } on DioException catch (error) {
+      final local = _localRepo;
+      if (local != null) {
+        final cached = await local.getPayments(loanId);
+        if (cached.isNotEmpty) return cached;
+      }
       throw _mapError(error, 'Unable to load payment history');
     } on FormatException catch (error) {
       throw RemoteLoanException(error.message, isRetryable: false);
@@ -95,7 +109,9 @@ class RemotePaymentRepository {
           'reason': reason.trim(),
         },
       );
-      return LoanPayment.fromJson(_requiredMap(response.data));
+      final payment = LoanPayment.fromJson(_requiredMap(response.data));
+      await _localRepo?.savePayment(payment);
+      return payment;
     } on DioException catch (error) {
       throw _mapError(error, 'Unable to reverse payment');
     } on FormatException catch (error) {
@@ -123,5 +139,8 @@ class RemotePaymentRepository {
 final remotePaymentRepositoryProvider = Provider<RemotePaymentRepository>((
   ref,
 ) {
-  return RemotePaymentRepository(ref.watch(apiClientProvider));
+  return RemotePaymentRepository(
+    ref.watch(apiClientProvider),
+    localRepo: ref.watch(localLoanRepositoryProvider),
+  );
 });

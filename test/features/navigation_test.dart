@@ -9,6 +9,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:lending_nelson/app/app.dart';
 import 'package:lending_nelson/core/database/database_service.dart';
 import 'package:lending_nelson/core/network/offline_sync_service.dart';
+import 'package:lending_nelson/core/network/server_health_service.dart';
 import 'package:lending_nelson/core/security/encryption_service.dart';
 
 // Feature Repository & Models
@@ -28,9 +29,19 @@ class FakeConnectivity implements Connectivity {
   ];
 }
 
+class FakeServerHealthService extends ServerHealthService {
+  FakeServerHealthService() : super(FakeConnectivity());
+
+  @override
+  Future<bool> isServerReachable() async => false;
+}
+
 /// A successful authentication repository used by navigation tests.
 class FakeAuthRepository extends AuthRepository {
   FakeAuthRepository() : super(Dio(), const FlutterSecureStorage());
+
+  @override
+  Future<bool> hasStoredSession() async => false;
 
   @override
   Future<void> login(String username, String password) async {}
@@ -49,7 +60,7 @@ class FakeBorrowerRepository extends BorrowerRepository {
       nationalId: '12345678',
       phone: '+254712345678',
       dateOfBirth: '1990-05-15',
-      status: 'Synced',
+      status: 'Active',
       createdAt: '2026-07-10T10:00:00.000Z',
     ),
   ];
@@ -94,6 +105,9 @@ void main() {
           ProviderScope(
             overrides: [
               connectivityProvider.overrideWithValue(FakeConnectivity()),
+              serverHealthServiceProvider.overrideWithValue(
+                FakeServerHealthService(),
+              ),
               authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
               borrowerRepositoryProvider.overrideWithValue(
                 FakeBorrowerRepository(),
@@ -164,7 +178,29 @@ void main() {
         );
         expect(find.text('John Doe'), findsOneWidget);
 
-        // 6. Test subroute navigation: Open Register Borrower Screen
+        // 6. A borrower profile must preserve the list for Android Back.
+        await tester.tap(find.text('John Doe'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(
+          find.descendant(
+            of: find.byType(AppBar),
+            matching: find.text('John Doe'),
+          ),
+          findsOneWidget,
+        );
+        await tester.binding.handlePopRoute();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(
+          find.descendant(
+            of: find.byType(AppBar),
+            matching: find.text('Borrowers'),
+          ),
+          findsOneWidget,
+        );
+
+        // 7. Test subroute navigation: Open Register Borrower Screen
         final fabFinder = find.byType(FloatingActionButton);
         expect(fabFinder, findsOneWidget);
         final fab = tester.widget<FloatingActionButton>(fabFinder);
@@ -199,7 +235,7 @@ void main() {
           findsOneWidget,
         );
 
-        // 7. Test Bottom Navigation: Switch to Settings Tab
+        // 8. Test Bottom Navigation: Switch to Settings Tab
         await tester.tap(
           find.descendant(
             of: find.byType(BottomNavigationBar),
@@ -212,14 +248,10 @@ void main() {
         expect(find.text('Officer Profile'), findsOneWidget);
         expect(find.text('Assigned Branch'), findsOneWidget);
 
-        // 8. Test Logout Action
+        // 9. Test Logout Action
         final logoutBtn = find.widgetWithText(ElevatedButton, 'Logout');
-        await tester.scrollUntilVisible(
-          logoutBtn,
-          200,
-          scrollable: find.byType(Scrollable).last,
-        );
-        await tester.tap(logoutBtn);
+        final buttonWidget = tester.widget<ElevatedButton>(logoutBtn);
+        buttonWidget.onPressed!();
         await tester.pumpAndSettle();
 
         // Verify redirected back to Login Screen

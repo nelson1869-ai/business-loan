@@ -1,5 +1,6 @@
 // Flutter Packages
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -110,12 +111,46 @@ final appRouter = GoRouter(
 );
 
 /// Displays routed dashboard content above the shared bottom navigation bar.
-class MainShell extends ConsumerWidget {
+class MainShell extends ConsumerStatefulWidget {
   final Widget child;
   const MainShell({super.key, required this.child});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MainShell> createState() => _MainShellState();
+}
+
+class _MainShellState extends ConsumerState<MainShell> {
+  DateTime? _lastDashboardBackPress;
+
+  void _handleSystemBack(String location) {
+    if (location != '/dashboard') {
+      _lastDashboardBackPress = null;
+      context.go('/dashboard');
+      return;
+    }
+
+    final now = DateTime.now();
+    final pressedRecently =
+        _lastDashboardBackPress != null &&
+        now.difference(_lastDashboardBackPress!) < const Duration(seconds: 2);
+    if (pressedRecently) {
+      SystemNavigator.pop();
+      return;
+    }
+
+    _lastDashboardBackPress = now;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text('Press back again to exit'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final location = GoRouterState.of(context).uri.path;
     int selectedIndex = 0;
     if (location.startsWith('/borrowers')) {
@@ -129,64 +164,76 @@ class MainShell extends ConsumerWidget {
     final pendingCountAsync = ref.watch(offlineSyncPendingCountProvider);
     final pendingCount = pendingCountAsync.asData?.value ?? 0;
 
-    return Scaffold(
-      body: Column(
-        children: [
-          if (!isOnline)
-            Container(
-              width: double.infinity,
-              color: Colors.amber.shade800,
-              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
-              child: SafeArea(
-                bottom: false,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.wifi_off, size: 16, color: Colors.white),
-                    const SizedBox(width: 8),
-                    Text(
-                      pendingCount > 0
-                          ? 'Working Offline — $pendingCount items queued'
-                          : 'Working Offline',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+    return PopScope<Object?>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _handleSystemBack(location);
+      },
+      child: Scaffold(
+        body: Column(
+          children: [
+            if (!isOnline)
+              Container(
+                width: double.infinity,
+                color: Colors.amber.shade800,
+                padding: const EdgeInsets.symmetric(
+                  vertical: 4,
+                  horizontal: 16,
+                ),
+                child: SafeArea(
+                  bottom: false,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.wifi_off, size: 16, color: Colors.white),
+                      const SizedBox(width: 8),
+                      Text(
+                        pendingCount > 0
+                            ? 'Working Offline — $pendingCount items queued'
+                            : 'Working Offline',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
+            Expanded(child: widget.child),
+          ],
+        ),
+        bottomNavigationBar: BottomNavigationBar(
+          currentIndex: selectedIndex,
+          onTap: (index) {
+            switch (index) {
+              case 0:
+                context.go('/dashboard');
+                break;
+              case 1:
+                context.go('/borrowers');
+                break;
+              case 2:
+                context.go('/settings');
+                break;
+            }
+          },
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.dashboard),
+              label: 'Dashboard',
             ),
-          Expanded(child: child),
-        ],
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: selectedIndex,
-        onTap: (index) {
-          switch (index) {
-            case 0:
-              context.go('/dashboard');
-              break;
-            case 1:
-              context.go('/borrowers');
-              break;
-            case 2:
-              context.go('/settings');
-              break;
-          }
-        },
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard),
-            label: 'Dashboard',
-          ),
-          BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Borrowers'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: 'Settings',
-          ),
-        ],
+            BottomNavigationBarItem(
+              icon: Icon(Icons.people),
+              label: 'Borrowers',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.settings),
+              label: 'Settings',
+            ),
+          ],
+        ),
       ),
     );
   }

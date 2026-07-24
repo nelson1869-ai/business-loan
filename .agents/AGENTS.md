@@ -67,3 +67,23 @@ All code modifications must conform to the following architectural design:
   6. **Grouped & Layered Imports:** Group and comment Dart imports by their architectural layer (e.g. Core Services, Data Repositories, Domain Models) in code snippets.
   7. **What, Why, and ELI5:** A clear description of what the code is, why it's needed, and a simple "Explain Like I'm 5" (ELI5) explanation.
   8. The agent must wait for the user to confirm completion of the current step before showing the next step.
+
+---
+
+## 🖨️ Printable HTML Learning Document Standards
+
+When creating printable HTML study documents or reference guides:
+- **Paper Dimensions & Exact Printable Math:**
+  - Standard US Letter Bond Paper Size: `8.5 in × 11.0 in` (`215.9 mm × 279.4 mm` / `612 pt × 792 pt`).
+  - Margins: `@page { size: letter portrait; margin: 0.25in 0.30in 0.25in 0.30in; }`.
+  - Net Printable Width: `8.5 in - 0.60 in = 7.90 in` (`758 px`).
+  - Net Printable Height: `11.0 in - 0.50 in = 10.50 in` (`1008 px` / `10.4 in - 10.5 in` threshold).
+- **Dynamic Flexbox Print Engine & Zero Empty Space:** Use CSS `.sheet { width: 8.5in; height: 10.4in; min-height: 10.4in; display: flex; flex-direction: column; justify-content: space-between; page-break-after: always; page-break-inside: avoid; }` so each page automatically stretches top-to-bottom across 1 bond paper sheet with **ZERO empty white space gaps** at the bottom.
+- **Dynamic Page Count per Topic:** Document length is NOT fixed to 3 pages. It scales naturally to 1, 2, 3, or more pages based strictly on topic complexity and content depth.
+- **Per-Page Custom Styling:** Font sizes, font families, line-heights, card margins, and padding must be tuned independently on a per-page (`.sheet`) basis to fit each page's unique content perfectly.
+- **Primary Backend & Database Focus (80-90%):** All study guides must prioritize Postman API collections/specs, FastAPI backend routers/services, and PostgreSQL database schemas/queries, using Flutter UI strictly as the mobile client connection layer.
+- **Real Data Travel Trace:** Every guide must include a visual ASCII "Real Data Travel Trace" showing step-by-step value transformations (Postman JSON Request &rarr; FastAPI Pydantic &rarr; Service/Engine &rarr; PostgreSQL SQL rows &rarr; Flutter UI Model).
+- **Live Stored SQL Rows Example:** Include sample stored SQL database rows (e.g., formatted ASCII output of `SELECT * FROM table`) alongside ORM model code blocks.
+- **Mermaid Visual Flowcharts:** Include interactive or printable Mermaid flowcharts (`flowchart TD`) visualizing client layers, backend services, and database table relationships.
+- **Short Inline Study Comments:** Include concise, step-by-step inline comments (`// 1.`, `// 2.`) and ELI5 callout boxes in all code snippets so they are easy to learn from.
+

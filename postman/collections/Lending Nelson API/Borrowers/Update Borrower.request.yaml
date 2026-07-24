@@ -5,8 +5,8 @@ body:
   type: json
   content: |-
     {
-      "full_name": "Test Borrower Updated",
-      "phone": "+639171234567",
-      "address": "456 Updated St, Manila"
+      "firstName": "Test",
+      "lastName": "Borrower Updated",
+      "phone": "+639171234567"
     }
 order: 4000

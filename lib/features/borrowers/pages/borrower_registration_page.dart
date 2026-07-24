@@ -171,6 +171,16 @@ class _BorrowerRegistrationPageState
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/borrowers');
+            }
+          },
+        ),
         title: Text(
           widget.borrower != null ? 'Edit Borrower' : 'Register Borrower',
         ),

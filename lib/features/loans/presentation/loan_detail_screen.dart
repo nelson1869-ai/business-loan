@@ -21,6 +21,16 @@ class LoanDetailScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/loans');
+            }
+          },
+        ),
         title: const Text('Loan Details'),
         actions: <Widget>[
           IconButton(

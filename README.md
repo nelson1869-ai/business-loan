@@ -29,6 +29,18 @@ The root launcher starts FastAPI, checks backend health, and runs Flutter with t
 .\start.ps1 -Target android
 ```
 
+Or target a physical Android phone wirelessly:
+
+```powershell
+.\start-phone.ps1
+```
+
+or via Bash / Git Bash:
+
+```bash
+./start-phone.sh
+```
+
 Other examples:
 
 ```powershell

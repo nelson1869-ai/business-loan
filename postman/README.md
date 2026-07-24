@@ -52,7 +52,7 @@ npx --yes newman run "D:\Development\lending_nelson\postman\lending-nelson-api.j
 ## Collection variables
 
 | Variable | Purpose |
-|---|---|
+| --- | --- |
 | `baseUrl` | API origin; defaults to `http://127.0.0.1:8000` |
 | `accessToken`, `refreshToken` | Captured and rotated by authentication requests |
 | `borrowerId`, `loanId`, `draftLoanId`, `paidLoanId` | Captured entity IDs |

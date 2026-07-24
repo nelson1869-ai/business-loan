@@ -19,7 +19,19 @@ class LoansListPage extends ConsumerWidget {
     final initialTab = _tabIndex(queryStatus);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Loans Portfolio')),
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/dashboard');
+            }
+          },
+        ),
+        title: const Text('Loans Portfolio'),
+      ),
       body: allLoans.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (Object e, _) => Center(

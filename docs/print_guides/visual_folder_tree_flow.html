@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Lending Nelson - Real Project Directory Tree & Architecture Map</title>
+  <style>
+    @page { size: letter portrait; margin: 0.2in 0.25in 0.2in 0.25in; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    /* Screen View: Styled to look exactly like printed US Letter bond paper sheets */
+    body {
+      font-family: Arial, sans-serif;
+      font-size: 7.5pt;
+      color: #111;
+      background: #e2e8f0;
+      line-height: 1.3;
+      padding: 15px 0;
+    }
+
+    .sheet {
+      width: 8.5in;
+      min-height: 10.5in;
+      height: 10.5in;
+      background: #ffffff;
+      margin: 0 auto;
+      padding: 0.2in 0.25in;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+      border-radius: 2px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-sizing: border-box;
+    }
+
+    .header { background: #047857; color: #fff; padding: 5px 8px; margin-bottom: 4px; border-radius: 3px; }
+    .header h1 { font-size: 11.5pt; font-weight: bold; }
+    .header p  { font-size: 7.2pt; opacity: 0.92; margin-top: 1px; }
+
+    .page-title { background: #065f46; color: #fff; font-size: 8.2pt; font-weight: bold; padding: 2.5px 6px; margin: 3px 0 4px; border-radius: 2px; text-align: center; }
+
+    h2 { font-size: 8.6pt; font-weight: bold; color: #047857; border-bottom: 1px solid #047857; padding-bottom: 1.5px; margin: 4px 0 3px; }
+
+    .big-flow { border: 1px solid #047857; border-left: 3.5px solid #047857; background: #ecfdf5; padding: 4px 6px; font-family: 'Courier New', monospace; font-size: 6.2pt; white-space: pre; margin-bottom: 4px; line-height: 1.25; }
+
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 4px; align-items: stretch; }
+    .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; margin-bottom: 4px; }
+
+    .layer { border: 1px solid #ccc; border-radius: 3px; margin-bottom: 4px; }
+    .layer-header { padding: 3px 6px; font-weight: bold; font-size: 7.8pt; color: #fff; border-radius: 2px 2px 0 0; }
+    .layer-body { padding: 4px 6px; }
+    .postman  > .layer-header { background: #ea580c; }
+    .backend  > .layer-header { background: #6d28d9; }
+    .sql      > .layer-header { background: #047857; }
+    .flutter  > .layer-header { background: #0369a1; }
+    .concept  > .layer-header { background: #1e3a5f; }
+
+    .file-card { border: 1px solid #e5e7eb; border-radius: 2px; margin-top: 3px; display: flex; flex-direction: column; }
+    .file-card-header { background: #f8fafc; border-bottom: 1px solid #e5e7eb; padding: 3px 5px; font-size: 7pt; font-weight: bold; color: #374151; }
+
+    pre { background: #fff; color: #111; padding: 4px 6px; font-family: 'Courier New', monospace; font-size: 6.2pt; white-space: pre-wrap; word-break: break-word; line-height: 1.26; flex-grow: 1; }
+    .cm { color: #6b7280; }
+    .kw { color: #1d4ed8; }
+    .st { color: #15803d; }
+
+    .note { border-left: 2.5px solid #047857; background: #ecfdf5; padding: 3px 5px; font-size: 7.2pt; margin-top: 3px; line-height: 1.3; }
+    .eli5 { border-left: 2.5px solid #ea580c; background: #fff7ed; padding: 3px 5px; font-size: 7.2pt; margin-top: 3px; line-height: 1.3; }
+
+    p  { margin: 2px 0; font-size: 7.4pt; line-height: 1.3; }
+    ul { margin: 2px 0 2px 12px; font-size: 7.1pt; line-height: 1.35; }
+    code { font-family: 'Courier New', monospace; font-size: 7pt; background: #f1f5f9; padding: 0 2px; border-radius: 2px; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 6.6pt; margin-top: 3px; }
+    th { background: #d1fae5; color: #065f46; padding: 3px 5px; border: 1px solid #a7f3d0; text-align: left; }
+    td { padding: 2px 5px; border: 1px solid #d1fae5; vertical-align: top; }
+    tr:nth-child(even) td { background: #f0fdf4; }
+
+    .footer { text-align: center; font-size: 7pt; color: #9ca3af; border-top: 1px solid #e5e7eb; margin-top: 3px; padding-top: 3px; }
+
+    /* Print Mode Override */
+    @media print {
+      @page { size: letter portrait; margin: 0.2in 0.25in 0.2in 0.25in; }
+      html, body { margin: 0; padding: 0; background: #fff; font-size: 7.4pt; }
+      pre { font-size: 6.2pt; line-height: 1.26; }
+      .sheet {
+        width: 100% !important;
+        height: 10.4in !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        box-sizing: border-box;
+        page-break-after: avoid !important;
+        page-break-inside: avoid !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<!-- SINGLE SHEET (EXACTLY 1 PAGE) -->
+<section class="sheet">
+  <div>
+    <div class="header">
+      <h1>&#127794; Lending Nelson &mdash; Real Project Directory Tree &amp; PostgreSQL ERD Map</h1>
+      <p>Actual Workspace Directory Structure &middot; High-Density Layout &middot; 1-Page Bond Paper Summary</p>
+    </div>
+
+    <div class="page-title">REAL EXISTING PROJECT DIRECTORY TREE &amp; POSTGRESQL DATABASE SCHEMAS</div>
+
+    <h2>1. Live System Data Path &amp; Layer Architecture</h2>
+    <div class="big-flow">
+[FLUTTER CLIENT]            [DIO NETWORK REPO]         [POSTMAN API SPEC]       [FASTAPI ROUTERS]         [SERVICES & CALC]          [POSTGRES DB]
+lib/features/auth/           lib/core/network/          postman/collections/     backend/app/routers/      backend/app/services/      PostgreSQL Tables
+  └─► login_screen.dart ------> api_client.dart ---------> POST /auth/token ------> auth.py -----------------> auth_service.py ----------> users
+lib/features/borrowers/                                  GET/POST /borrowers      borrowers.py ------------> borrower_service.py -----> borrowers
+  └─► borrower_list_page.dart -> remote_borrower_repo.dart
+lib/features/loans/                                     POST /loans              loans.py ----------------> loan_calculator.py -----> loans & installments</div>
+
+    <h2>2. Real Project Filesystem Directory Tree</h2>
+    <div class="grid2">
+      <div class="file-card">
+        <div class="file-card-header" style="background: #f3e8ff; color: #6d28d9;">&#128013; Real Backend &amp; DB Files &mdash; backend/app/</div>
+        <pre>lending_nelson/
+├── PROJECT_MAP.md            <span class="cm"># Step-by-Step Learning Roadmap</span>
+├── .agents/AGENTS.md         <span class="cm"># Printable HTML &amp; Agent Rules</span>
+├── backend/app/
+│   ├── main.py               <span class="cm"># FastAPI App Factory &amp; GET /health</span>
+│   ├── database.py           <span class="cm"># Async SQLAlchemy Engine</span>
+│   ├── dependencies.py       <span class="cm"># CurrentUser &amp; DbSession injection</span>
+│   ├── config.py             <span class="cm"># Settings &amp; JWT secret keys</span>
+│   ├── bootstrap.py          <span class="cm"># DB Schema init &amp; default seeder</span>
+│   ├── models/               <span class="cm"># PostgreSQL SQLAlchemy Entities</span>
+│   │   ├── user.py           <span class="cm"># User table &amp; bcrypt password</span>
+│   │   ├── borrower.py       <span class="cm"># Borrower table &amp; national_id index</span>
+│   │   ├── loan.py           <span class="cm"># Loan &amp; LoanInstallment tables</span>
+│   │   ├── payment.py        <span class="cm"># Payment ledger table</span>
+│   │   └── audit_log.py      <span class="cm"># Immutable redacted audit log</span>
+│   ├── routers/              <span class="cm"># FastAPI REST Controllers</span>
+│   │   ├── auth.py           <span class="cm"># POST /token &amp; POST /refresh</span>
+│   │   ├── borrowers.py      <span class="cm"># GET/POST /borrowers</span>
+│   │   ├── loans.py          <span class="cm"># POST /loans &amp; drafts</span>
+│   │   ├── payments.py       <span class="cm"># POST /payments</span>
+│   │   ├── projections.py    <span class="cm"># GET /projections/summary</span>
+│   │   ├── sync.py           <span class="cm"># POST /sync/drain</span>
+│   │   └── admin.py          <span class="cm"># POST /admin/seed &amp; reset</span>
+│   └── services/             <span class="cm"># Pure Business Calculations</span>
+│       ├── auth_service.py   <span class="cm"># bcrypt &amp; JWT creation</span>
+│       ├── borrower_service.py<span class="cm"># PII redaction audit logger</span>
+│       ├── loan_calculator.py<span class="cm"># Python Decimal Amortization Engine</span>
+│       ├── loan_service.py   <span class="cm"># Loan transaction manager</span>
+│       ├── payment_service.py<span class="cm"># Payment allocation manager</span>
+│       ├── projection_service.py<span class="cm"># Portfolio analytics</span>
+│       └── admin_service.py  <span class="cm"># Seeding &amp; reset service</span>
+│   └── schemas/              <span class="cm"># Pydantic Request/Response Models</span>
+│       ├── auth.py &amp; borrower.py &amp; loan.py &amp; payment.py</pre>
+      </div>
+
+      <div class="file-card">
+        <div class="file-card-header" style="background: #e0f2fe; color: #0369a1;">&#128394; Real Mobile &amp; Docs Files &mdash; lib/ &amp; docs/</div>
+        <pre>lib/
+├── main.dart                 <span class="cm"># ProviderScope &amp; App Entrypoint</span>
+├── app/
+│   ├── app_router.dart       <span class="cm"># GoRouter route definitions</span>
+│   └── app_theme.dart        <span class="cm"># UI design tokens</span>
+├── core/
+│   ├── network/              <span class="cm"># Network Client Layer</span>
+│   │   ├── api_client.dart   <span class="cm"># Dio client with SSL Pinning</span>
+│   │   ├── api_endpoints.dart<span class="cm"># Endpoint URI definitions</span>
+│   │   └── offline_sync_service.dart <span class="cm"># Background sync queue</span>
+│   ├── security/             <span class="cm"># Encryption &amp; Security Layer</span>
+│   │   ├── encryption_service.dart <span class="cm"># AES-256 local encryption</span>
+│   │   └── secure_storage_service.dart <span class="cm"># FlutterSecureStorage</span>
+│   └── database/             <span class="cm"># Offline Persistence Layer</span>
+│       ├── database_service.dart <span class="cm"># Encrypted SQLite database</span>
+│       └── database_provider.dart<span class="cm"># Riverpod DB provider</span>
+└── features/                 <span class="cm"># Feature-First Clean Architecture</span>
+    ├── auth/                 <span class="cm"># LoginScreen, LoginNotifier, AuthRepo</span>
+    ├── borrowers/            <span class="cm"># BorrowerListPage, BorrowerCard</span>
+    ├── loans/                <span class="cm"># LoanCreateScreen, LoanInstallmentCard</span>
+    ├── dashboard/            <span class="cm"># DashboardPage, PortfolioSummary</span>
+    ├── dev_tools/            <span class="cm"># DevToolsPage diagnostics</span>
+    └── splash/               <span class="cm"># SplashScreen</span>
+
+docs/print_guides/              <span class="cm"># Printable HTML Study Guides</span>
+├── step0_app_launch.html     <span class="cm"># App Launch &amp; GET /health</span>
+├── step1_login_flow.html     <span class="cm"># POST /token &amp; bcrypt auth</span>
+├── step2_token_refresh.html  <span class="cm"># POST /refresh &amp; JwtInterceptor</span>
+├── step3_borrower_management.html <span class="cm"># POST /borrowers &amp; PII audit</span>
+├── step4_loan_origination.html<span class="cm"># POST /loans &amp; Amortization engine</span>
+├── summary_key_learnings.html <span class="cm"># Master Summary Cheat Sheet</span>
+├── visual_folder_tree_flow.html<span class="cm"># Real Project Tree &amp; SQL ERD</span>
+└── mermaid_flowchart_architecture.html<span class="cm"># Pure Mermaid Flowcharts</span></pre>
+      </div>
+    </div>
+
+    <h2>3. PostgreSQL Schema ERD Summary &amp; Relationships</h2>
+    <div class="layer sql">
+      <div class="layer-header">PostgreSQL Relational Database Tables &amp; Foreign Key Relationships</div>
+      <div class="layer-body">
+        <div class="big-flow" style="background: #ffffff; border-color: #047857; margin: 0; padding: 3px 5px;">
++-------------------+       +-----------------------+       +-------------------+       +------------------------+
+|   users (Table)   |       |   borrowers (Table)   |       |   loans (Table)   |       | loan_installments (Tbl)|
++-------------------+       +-----------------------+       +-------------------+       +------------------------+
+| PK id (UUID)      |       | PK id (String 36)     | <---+ | PK id (String 36) | <---+ | PK id (String 36)      |
+|    username       |       |    first_name         |     | | FK borrower_id    |     | | FK loan_id             |
+|    hashed_password|       |    last_name          |     | |    principal      |     | |    installment_number |
+|    role           |       | PK national_id (Index)|     | |    monthly_rate   |     | |    due_date (Date)    |
+|    is_active      |       |    phone              |     | |    status         |     | |    principal_amount  |
++-------------------+       +-----------------------+     | +-------------------+     | |    interest_amount   |
+          |                                               |           |               | +------------------------+
+          | 1:N (Foreign Key)                             |           | 1:N           |
++-------------------+                                     |           +---------------+
+| audit_logs (Tbl)  |                                     |
++-------------------+                                     |
+| PK id (String 36) |                                     |
+| FK user_id (UUID) +-------------------------------------+
+|    action &amp; json  |
++-------------------+</div>
+      </div>
+    </div>
+
+    <h2>4. Architectural Component Responsibilities</h2>
+    <div class="layer concept">
+      <div class="layer-header">Component Responsibilities Summary</div>
+      <div class="layer-body">
+        <table>
+          <thead>
+            <tr>
+              <th>Layer Component</th>
+              <th>Directory Path</th>
+              <th>Primary Technical Responsibility</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>PostgreSQL Models</strong></td>
+              <td><code>backend/app/models/</code></td>
+              <td>Relational entities (`users`, `borrowers`, `loans`, `loan_installments`, `payments`, `audit_logs`) with foreign keys and unique indexes.</td>
+            </tr>
+            <tr>
+              <td><strong>FastAPI Routers</strong></td>
+              <td><code>backend/app/routers/</code></td>
+              <td>Exposes REST API endpoints, validates HTTP headers, manages status codes (`200`, `201`, `401`), returns Pydantic responses.</td>
+            </tr>
+            <tr>
+              <td><strong>Business Services</strong></td>
+              <td><code>backend/app/services/</code></td>
+              <td>Implements domain logic (reducing balance amortization, bcrypt hashing, JWT issuance, PII audit redaction).</td>
+            </tr>
+            <tr>
+              <td><strong>Dio Network Client</strong></td>
+              <td><code>lib/core/network/</code></td>
+              <td>Manages HTTP requests from mobile app, handles JWT headers, auto-retries failed calls on 401 via `JwtInterceptor`.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">Lending Nelson Real Project Directory Tree Map &middot; Printed as Exactly 1 US Letter Bond Paper Page</div>
+</section>
+
+</body>
+</html>

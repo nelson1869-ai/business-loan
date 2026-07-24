@@ -1,41 +1,73 @@
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/network/offline_sync_service.dart';
-import '../../loans/data/repositories/remote_loan_repository.dart';
-import '../../loans/data/repositories/remote_payment_repository.dart';
+import '../../../core/network/server_health_service.dart';
 import '../../borrowers/data/borrower_repository.dart';
 import '../../borrowers/data/remote_borrower_repository.dart';
+import '../../borrowers/domain/borrower_model.dart';
+import '../../loans/data/repositories/local_loan_repository.dart';
+import '../../loans/data/repositories/remote_loan_repository.dart';
+import '../../loans/data/repositories/remote_payment_repository.dart';
+import '../../loans/domain/models/loan.dart';
+import '../../loans/domain/models/payment.dart';
 import '../domain/dashboard_data.dart';
 
+/// Repository that computes dashboard metrics using local SQLite caching and remote API fallback.
+///
+/// File: `lib/features/dashboard/data/dashboard_repository.dart`
 class DashboardRepository {
+  /// Creates the repository with data dependencies and health check service.
   DashboardRepository(
     this._borrowerRepository,
     this._remoteBorrowerRepository,
     this._loanRepository,
+    this._localLoanRepository,
     this._paymentRepository,
-    this._connectivity,
+    this._healthService,
   );
 
   final BorrowerRepository _borrowerRepository;
   final RemoteBorrowerRepository _remoteBorrowerRepository;
   final RemoteLoanRepository _loanRepository;
+  final LocalLoanRepository _localLoanRepository;
   final RemotePaymentRepository _paymentRepository;
-  final Connectivity _connectivity;
+  final ServerHealthService _healthService;
 
+  /// Compiles dashboard statistics and lists from online endpoints or local SQLite cache.
   Future<DashboardState> loadDashboard() async {
     try {
-      final results = await _connectivity.checkConnectivity();
-      final isOnline = results.any((r) => r != ConnectivityResult.none);
+      // 1. Determine fast server reachability
+      final isOnline = await _healthService.isServerReachable();
 
-      final borrowers = isOnline
-          ? await _remoteBorrowerRepository.getBorrowers()
-          : await _borrowerRepository.getBorrowers();
+      // 2. Resolve borrowers
+      List<Borrower> borrowers;
+      if (isOnline) {
+        try {
+          borrowers = await _remoteBorrowerRepository.getBorrowers();
+          await _borrowerRepository.syncRemoteBorrowers(borrowers);
+        } catch (_) {
+          borrowers = await _borrowerRepository.getBorrowers();
+        }
+      } else {
+        borrowers = await _borrowerRepository.getBorrowers();
+      }
+
       final activeBorrowerCount = borrowers
           .where((b) => b.status != 'Deleted')
           .length;
 
-      final allLoans = await _loanRepository.getLoans();
+      // 3. Resolve loans
+      List<Loan> allLoans;
+      if (isOnline) {
+        try {
+          allLoans = await _loanRepository.getLoans();
+          await _localLoanRepository.syncLoans(allLoans);
+        } catch (_) {
+          allLoans = await _localLoanRepository.getLoans();
+        }
+      } else {
+        allLoans = await _localLoanRepository.getLoans();
+      }
+
       final activeLoans = allLoans
           .where((l) => l.status == 'Active' || l.status == 'Overdue')
           .toList();
@@ -82,9 +114,20 @@ class DashboardRepository {
       final recentActivities = <DashboardRecentActivity>[];
 
       for (final loan in activeLoans.take(10)) {
-        try {
-          final detail = await _loanRepository.getLoan(loan.id);
+        // Resolve detailed loan object (installments)
+        Loan? detail;
+        if (isOnline) {
+          try {
+            detail = await _loanRepository.getLoan(loan.id);
+            await _localLoanRepository.saveLoan(detail);
+          } catch (_) {
+            detail = await _localLoanRepository.getLoan(loan.id);
+          }
+        } else {
+          detail = await _localLoanRepository.getLoan(loan.id);
+        }
 
+        if (detail != null) {
           for (final inst in detail.installments) {
             final dueDateStr = inst.dueDate.length >= 10
                 ? inst.dueDate.substring(0, 10)
@@ -111,24 +154,34 @@ class DashboardRepository {
               );
             }
           }
-        } catch (_) {}
+        }
 
-        try {
-          final payments = await _paymentRepository.history(loan.id);
-          for (final p in payments.take(3)) {
-            final borrowerName = await resolveBorrowerName(loan.borrowerId);
-            recentActivities.add(
-              DashboardRecentActivity(
-                loanId: loan.id,
-                borrowerId: loan.borrowerId,
-                borrowerName: borrowerName,
-                amount: p.amount,
-                effectiveDate: p.effectiveDate,
-                entryType: p.entryType,
-              ),
-            );
+        // Resolve recent payment history
+        List<LoanPayment> payments = [];
+        if (isOnline) {
+          try {
+            payments = await _paymentRepository.history(loan.id);
+            await _localLoanRepository.savePayments(loan.id, payments);
+          } catch (_) {
+            payments = await _localLoanRepository.getPayments(loan.id);
           }
-        } catch (_) {}
+        } else {
+          payments = await _localLoanRepository.getPayments(loan.id);
+        }
+
+        for (final p in payments.take(3)) {
+          final borrowerName = await resolveBorrowerName(loan.borrowerId);
+          recentActivities.add(
+            DashboardRecentActivity(
+              loanId: loan.id,
+              borrowerId: loan.borrowerId,
+              borrowerName: borrowerName,
+              amount: p.amount,
+              effectiveDate: p.effectiveDate,
+              entryType: p.entryType,
+            ),
+          );
+        }
       }
 
       recentActivities.sort(
@@ -172,12 +225,14 @@ class DashboardRepository {
   }
 }
 
+/// Provider for [DashboardRepository].
 final dashboardRepositoryProvider = Provider<DashboardRepository>((ref) {
   return DashboardRepository(
     ref.watch(borrowerRepositoryProvider),
     ref.watch(remoteBorrowerRepositoryProvider),
     ref.watch(remoteLoanRepositoryProvider),
+    ref.watch(localLoanRepositoryProvider),
     ref.watch(remotePaymentRepositoryProvider),
-    ref.watch(connectivityProvider),
+    ref.watch(serverHealthServiceProvider),
   );
 });

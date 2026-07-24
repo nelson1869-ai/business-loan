@@ -8,6 +8,7 @@ import '../../data/repositories/remote_loan_repository.dart';
 import '../../domain/models/loan.dart';
 import '../../../borrowers/data/remote_borrower_repository.dart';
 import '../../../borrowers/domain/borrower_model.dart';
+import '../../../../core/network/server_health_service.dart';
 import 'loans_provider.dart';
 
 class LoanCreateState {
@@ -80,8 +81,13 @@ class LoanCreateNotifier extends StateNotifier<LoanCreateState> {
 
     state = LoanCreateState(isSubmitting: true);
     try {
-      if (borrower != null) {
-        await _remoteBorrowerRepository.ensureBorrowerExists(borrower);
+      final isOnline = await ref
+          .read(serverHealthServiceProvider)
+          .isServerReachable();
+      if (borrower != null && isOnline) {
+        try {
+          await _remoteBorrowerRepository.ensureBorrowerExists(borrower);
+        } catch (_) {}
       }
       final fingerprint = <Object>[
         borrowerId,
