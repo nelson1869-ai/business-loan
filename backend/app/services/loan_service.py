@@ -12,6 +12,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.audit_log import AuditLog
 from app.models.loan import Installment, Loan
+from app.models.payment import Payment, PaymentAllocation
 from app.models.user import User
 from app.schemas.loan import (
     LoanCreate,
@@ -229,10 +230,13 @@ async def page_loans(
 
 
 async def get_loan(db: AsyncSession, loan_id: str) -> Loan | None:
-    """Return one loan with its ordered installment schedule."""
+    """Return one loan with its ordered installment schedule and payment allocations."""
     result = await db.execute(
         select(Loan)
-        .options(selectinload(Loan.installments))
+        .options(
+            selectinload(Loan.installments),
+            selectinload(Loan.payments).selectinload(Payment.allocation),
+        )
         .where(Loan.id == loan_id)
     )
     return result.scalar_one_or_none()

@@ -319,7 +319,10 @@ class _LoanContent extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        if (nextDue != null)
+        if (loan.status == 'Paid' ||
+            (double.tryParse(loan.outstandingPrincipal) ?? 0) == 0)
+          const _FullyPaidCard()
+        else if (nextDue != null)
           _NextDueCard(
             installment: nextDue,
             canPay: loan.status == 'Active' || loan.status == 'Overdue',
@@ -336,8 +339,12 @@ class _LoanContent extends StatelessWidget {
             ),
           )
         else
-          ...loan.installments.map(
-            (Installment installment) => Card(
+          ...loan.installments.map((Installment installment) {
+            final isNextDue = installment.id == nextDue?.id;
+            final isPaid = installment.status == 'Paid';
+            final canPay = loan.status == 'Active' || loan.status == 'Overdue';
+
+            return Card(
               child: ExpansionTile(
                 title: Text(
                   'Payment ${installment.installmentNumber} · '
@@ -346,6 +353,20 @@ class _LoanContent extends StatelessWidget {
                 subtitle: Text(
                   '${formatDateShort(installment.dueDate)} · ${installment.status}',
                 ),
+                trailing: isPaid
+                    ? const _StatusChip(
+                        label: 'Paid',
+                        color: Colors.green,
+                        icon: Icons.check_circle_outline,
+                      )
+                    : (isNextDue && canPay
+                          ? FilledButton.tonal(
+                              onPressed: onRecordPayment,
+                              child: Text(
+                                'Pay #${installment.installmentNumber}',
+                              ),
+                            )
+                          : null),
                 childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                 expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
@@ -367,20 +388,35 @@ class _LoanContent extends StatelessWidget {
                     label: 'Paid',
                     value: formatCurrency(installment.paidAmount),
                   ),
+                  if (isNextDue && canPay) ...[
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      onPressed: onRecordPayment,
+                      icon: const Icon(Icons.payments_outlined),
+                      label: Text(
+                        'Record Payment for #${installment.installmentNumber}',
+                      ),
+                    ),
+                  ],
                 ],
               ),
-            ),
-          ),
+            );
+          }),
       ],
     );
   }
 
   Installment? _findNextDue() {
+    if (loan.status == 'Paid' ||
+        (double.tryParse(loan.outstandingPrincipal) ?? 0) == 0) {
+      return null;
+    }
     Installment? candidate;
     for (final inst in loan.installments) {
+      if (inst.status == 'Paid') continue;
       final paidAmt = double.tryParse(inst.paidAmount) ?? 0;
       final expectedAmt = double.tryParse(inst.expectedPayment) ?? 0;
-      if (paidAmt < expectedAmt || inst.status != 'Paid') {
+      if (paidAmt < expectedAmt) {
         if (candidate == null ||
             inst.installmentNumber < candidate.installmentNumber) {
           candidate = inst;
@@ -562,6 +598,103 @@ class _NextDueCard extends StatelessWidget {
               label: Text(isOverdue ? 'Pay Overdue Now' : 'Record Payment'),
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(40),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({
+    required this.label,
+    required this.color,
+    required this.icon,
+  });
+
+  final String label;
+  final Color color;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FullyPaidCard extends StatelessWidget {
+  const _FullyPaidCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: Colors.green.withValues(alpha: 0.4),
+          width: 1.5,
+        ),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: Colors.green.withValues(alpha: 0.05),
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            const CircleAvatar(
+              backgroundColor: Colors.green,
+              radius: 20,
+              child: Icon(Icons.check, color: Colors.white),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Loan Fully Paid Off',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Zero balance remaining. All scheduled installments are satisfied.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

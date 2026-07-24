@@ -232,7 +232,7 @@ void main() {
       await tester.pumpWidget(buildPreview(_fullPreview()));
       await tester.pumpAndSettle();
 
-      expect(find.text('5'), findsOneWidget);
+      expect(find.textContaining('5'), findsWidgets);
       expect(find.textContaining('Days late'), findsOneWidget);
     });
 

@@ -23,6 +23,7 @@ class Loan {
     required this.finalDueDate,
     required this.status,
     required this.createdAt,
+    this.unappliedCredit = '0.00',
     Iterable<Installment> installments = const <Installment>[],
   }) : installments = UnmodifiableListView<Installment>(installments);
 
@@ -43,6 +44,12 @@ class Loan {
   final String finalDueDate;
   final String status;
   final String createdAt;
+
+  /// Net advance credit currently held for this loan that has not yet been
+  /// applied to a future installment.  Populated from the backend's
+  /// [unappliedCredit] field on the loan-detail response.
+  final String unappliedCredit;
+
   final List<Installment> installments;
 
   /// Parses either a loan-list item or a loan-detail response.
@@ -75,6 +82,7 @@ class Loan {
       finalDueDate: _requiredDate(json, 'finalDueDate'),
       status: _requiredString(json, 'status'),
       createdAt: _requiredDate(json, 'createdAt'),
+      unappliedCredit: _optionalDecimal(json, 'unappliedCredit'),
       installments: installmentRows.map<Installment>((dynamic item) {
         if (item is! Map<dynamic, dynamic>) {
           throw const FormatException('installment must be a JSON object');
@@ -103,6 +111,7 @@ class Loan {
     'finalDueDate': finalDueDate,
     'status': status,
     'createdAt': createdAt,
+    'unappliedCredit': unappliedCredit,
     'installments': installments
         .map((Installment installment) => installment.toJson())
         .toList(growable: false),
@@ -131,4 +140,14 @@ String _requiredDate(Map<String, dynamic> json, String key) {
   final value = _requiredString(json, key);
   if (DateTime.tryParse(value) != null) return value;
   throw FormatException('$key must be an ISO-8601 date');
+}
+
+/// Returns the decimal string at [key], or `'0.00'` when the field is absent.
+/// Used for fields that older or list endpoints may omit.
+String _optionalDecimal(Map<String, dynamic> json, String key) {
+  final value = json[key];
+  if (value == null) return '0.00';
+  final str = value.toString();
+  if (RegExp(r'^-?\d+(?:\.\d+)?$').hasMatch(str)) return str;
+  return '0.00';
 }

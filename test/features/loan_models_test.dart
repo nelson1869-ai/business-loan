@@ -54,6 +54,7 @@ Map<String, dynamic> _loanJson() => <String, dynamic>{
   'finalDueDate': '2026-12-20',
   'status': 'Active',
   'createdAt': '2026-08-01T00:00:00Z',
+  'unappliedCredit': '0.00',
   'installments': <Map<String, dynamic>>[
     <String, dynamic>{
       'id': '00000000-0000-4000-8000-000000000011',

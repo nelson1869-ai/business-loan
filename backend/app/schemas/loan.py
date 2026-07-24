@@ -175,9 +175,16 @@ class LoanResponse(BaseModel):
 
 
 class LoanDetailResponse(LoanResponse):
-    """A loan account returned together with its ordered installments."""
+    """A loan account returned together with its ordered installments.
+
+    [unapplied_credit] is the net advance credit held across all active
+    payment allocations that has not yet been forwarded to a future
+    installment.  Flutter uses this to suppress the Due-Installment
+    quick-fill button when the credit already covers the next payment.
+    """
 
     installments: list[InstallmentResponse]
+    unapplied_credit: Decimal = Decimal("0.00")
 
 
 class LoanPage(BaseModel):

@@ -145,15 +145,38 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     final loan = loanAsync.valueOrNull;
     if (loan != null) {
       outstandingPrincipal = loan.outstandingPrincipal;
-      for (final inst in loan.installments) {
-        final paid = double.tryParse(inst.paidAmount) ?? 0;
-        final expected = double.tryParse(inst.expectedPayment) ?? 0;
-        if (paid < expected) {
-          installmentAmount = (expected - paid).toStringAsFixed(2);
-          break;
+      if (loan.status == 'Paid' ||
+          (double.tryParse(loan.outstandingPrincipal) ?? 0) == 0) {
+        installmentAmount = null;
+      } else {
+        // Net advance credit that already covers future installments.
+        // When the borrower overpaid a prior installment the backend stores
+        // the excess as unapplied_credit on the allocation but does NOT
+        // automatically update the next installment's paid_amount.  We
+        // subtract that credit here so the Due-Installment button shows the
+        // TRUE amount still owed (and hides when credit >= remaining balance).
+        double remainingCredit = double.tryParse(loan.unappliedCredit) ?? 0.0;
+        for (final inst in loan.installments) {
+          if (inst.status == 'Paid' || inst.status == 'Cancelled') continue;
+          final paid = double.tryParse(inst.paidAmount) ?? 0;
+          final expected = double.tryParse(inst.expectedPayment) ?? 0;
+          final remaining = expected - paid;
+          if (remaining <= 0) continue;
+
+          // Reduce remaining by any advance credit carried forward.
+          final netDue = remaining - remainingCredit;
+          remainingCredit = (remainingCredit - remaining).clamp(
+            0.0,
+            double.infinity,
+          );
+
+          if (netDue > 0) {
+            installmentAmount = netDue.toStringAsFixed(2);
+            break;
+          }
+          // Credit fully covers this installment – continue to the next one.
         }
       }
-      installmentAmount ??= loan.regularPaymentAmount;
     }
 
     ref.listen(paymentNotifierProvider, (_, next) {
