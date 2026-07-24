@@ -2,8 +2,20 @@
 
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+ALLOWED_ENVIRONMENTS = {"development", "dev", "test", "staging", "production", "prod"}
+WEAK_SECRETS = {
+    "secret",
+    "change-me",
+    "changeme",
+    "supersecret",
+    "supersecretkey",
+    "12345678901234567890123456789012",
+    "0123456789abcdef0123456789abcdef",
+    "your_jwt_secret_key_here_must_be_32_bytes_min",
+}
 
 
 class Settings(BaseSettings):
@@ -24,6 +36,43 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
     )
+
+    @field_validator("app_env")
+    @classmethod
+    def validate_app_env(cls, value: str) -> str:
+        """Validate allowed application environments."""
+        env = value.lower().strip()
+        if env not in ALLOWED_ENVIRONMENTS:
+            raise ValueError(
+                f"Invalid APP_ENV '{value}'. Allowed: {', '.join(sorted(ALLOWED_ENVIRONMENTS))}"
+            )
+        return env
+
+    @field_validator("jwt_secret_key")
+    @classmethod
+    def validate_jwt_secret_key(cls, value: str, info) -> str:
+        """Reject obvious placeholder secrets in production."""
+        env = info.data.get("app_env", "development").lower().strip()
+        val_lower = value.lower().strip()
+        if env in ("production", "prod"):
+            if val_lower in WEAK_SECRETS or val_lower == "secret" or val_lower.startswith("change-me"):
+                raise ValueError(
+                    "Production environment requires a strong, random JWT secret key. "
+                    "Placeholder or weak secrets are strictly rejected."
+                )
+        return value
+
+    @field_validator("cors_origins")
+    @classmethod
+    def validate_cors_origins(cls, value: str, info) -> str:
+        """Reject wildcard CORS in production environments."""
+        env = info.data.get("app_env", "development").lower().strip()
+        if env in ("production", "prod") and value.strip() == "*":
+            raise ValueError(
+                "Production environment does not allow wildcard CORS ('*'). "
+                "Specify explicit allowed origins in CORS_ORIGINS."
+            )
+        return value
 
     @property
     def cors_origin_list(self) -> list[str]:

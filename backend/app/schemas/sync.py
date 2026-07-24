@@ -43,7 +43,9 @@ class SyncFailure(BaseModel):
     """A queue item that could not be replayed."""
 
     transaction_uuid: str
+    code: str = "UNKNOWN_ERROR"
     detail: str
+    retryable: bool = False
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 

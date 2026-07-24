@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 // Core Network Services
 import 'package:lending_nelson/core/network/offline_sync_service.dart';
+import 'package:lending_nelson/core/network/server_health_service.dart';
 
 // Presentation Layer Screens
 import 'package:lending_nelson/features/auth/presentation/login_screen.dart';
@@ -110,43 +111,37 @@ final appRouter = GoRouter(
   ],
 );
 
-/// Displays routed dashboard content above the shared bottom navigation bar.
+/// Shared shell layout wrapping tabs with an accurate, multi-state status banner.
 class MainShell extends ConsumerStatefulWidget {
+  const MainShell({required this.child, super.key});
+
   final Widget child;
-  const MainShell({super.key, required this.child});
 
   @override
   ConsumerState<MainShell> createState() => _MainShellState();
 }
 
 class _MainShellState extends ConsumerState<MainShell> {
-  DateTime? _lastDashboardBackPress;
+  DateTime? _lastBackPressTime;
 
   void _handleSystemBack(String location) {
-    if (location != '/dashboard') {
-      _lastDashboardBackPress = null;
+    if (location == '/dashboard') {
+      final now = DateTime.now();
+      if (_lastBackPressTime == null ||
+          now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
+        _lastBackPressTime = now;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Press back again to exit application'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      } else {
+        SystemNavigator.pop();
+      }
+    } else {
       context.go('/dashboard');
-      return;
     }
-
-    final now = DateTime.now();
-    final pressedRecently =
-        _lastDashboardBackPress != null &&
-        now.difference(_lastDashboardBackPress!) < const Duration(seconds: 2);
-    if (pressedRecently) {
-      SystemNavigator.pop();
-      return;
-    }
-
-    _lastDashboardBackPress = now;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(
-          content: Text('Press back again to exit'),
-          duration: Duration(seconds: 2),
-        ),
-      );
   }
 
   @override
@@ -159,10 +154,12 @@ class _MainShellState extends ConsumerState<MainShell> {
       selectedIndex = 2;
     }
 
-    final isOnlineAsync = ref.watch(isOnlineProvider);
-    final isOnline = isOnlineAsync.asData?.value ?? true;
-    final pendingCountAsync = ref.watch(offlineSyncPendingCountProvider);
-    final pendingCount = pendingCountAsync.asData?.value ?? 0;
+    final serverStatus = ref.watch(serverStatusNotifierProvider);
+    final pendingCount = ref.watch(offlineSyncPendingCountProvider);
+
+    final showBanner =
+        serverStatus != ServerStatus.serverReady || pendingCount > 0;
+    final bannerConfig = _bannerConfig(serverStatus, pendingCount);
 
     return PopScope<Object?>(
       canPop: false,
@@ -172,10 +169,10 @@ class _MainShellState extends ConsumerState<MainShell> {
       child: Scaffold(
         body: Column(
           children: [
-            if (!isOnline)
+            if (showBanner)
               Container(
                 width: double.infinity,
-                color: Colors.amber.shade800,
+                color: bannerConfig.backgroundColor,
                 padding: const EdgeInsets.symmetric(
                   vertical: 4,
                   horizontal: 16,
@@ -185,12 +182,10 @@ class _MainShellState extends ConsumerState<MainShell> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.wifi_off, size: 16, color: Colors.white),
+                      Icon(bannerConfig.icon, size: 16, color: Colors.white),
                       const SizedBox(width: 8),
                       Text(
-                        pendingCount > 0
-                            ? 'Working Offline — $pendingCount items queued'
-                            : 'Working Offline',
+                        bannerConfig.message,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 12,
@@ -237,4 +232,47 @@ class _MainShellState extends ConsumerState<MainShell> {
       ),
     );
   }
+
+  _BannerData _bannerConfig(ServerStatus status, int pendingCount) {
+    switch (status) {
+      case ServerStatus.offline:
+        return _BannerData(
+          backgroundColor: Colors.amber.shade900,
+          icon: Icons.wifi_off,
+          message: pendingCount > 0
+              ? 'Working Offline — $pendingCount items queued'
+              : 'Working Offline',
+        );
+      case ServerStatus.networkAvailable:
+        return _BannerData(
+          backgroundColor: Colors.blue.shade800,
+          icon: Icons.sync,
+          message: 'Server Connecting…',
+        );
+      case ServerStatus.serverUnavailable:
+        return _BannerData(
+          backgroundColor: Colors.deepOrange.shade800,
+          icon: Icons.cloud_off,
+          message: 'Network Available — Server Unreachable',
+        );
+      case ServerStatus.serverReady:
+        return _BannerData(
+          backgroundColor: Colors.teal.shade800,
+          icon: Icons.cloud_done,
+          message: 'Online — Syncing $pendingCount items',
+        );
+    }
+  }
+}
+
+class _BannerData {
+  const _BannerData({
+    required this.backgroundColor,
+    required this.icon,
+    required this.message,
+  });
+
+  final Color backgroundColor;
+  final IconData icon;
+  final String message;
 }

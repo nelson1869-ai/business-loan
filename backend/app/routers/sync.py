@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 from pydantic import ValidationError
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from app.dependencies import CurrentUser, DbSession
 from app.schemas.borrower import BorrowerCreate, BorrowerUpdate
@@ -19,6 +19,16 @@ from app.services import borrower_service, loan_service, payment_service
 router = APIRouter(prefix="/api/v1/sync", tags=["Offline Sync"])
 
 
+class SyncReplayError(Exception):
+    """Specific error during replay with code and retryability metadata."""
+
+    def __init__(self, code: str, detail: str, retryable: bool = False) -> None:
+        super().__init__(detail)
+        self.code = code
+        self.detail = detail
+        self.retryable = retryable
+
+
 async def _replay_item(
     item: SyncQueueItem,
     db: DbSession,
@@ -28,14 +38,14 @@ async def _replay_item(
     if item.endpoint == "/api/v1/loans" and item.method == "POST":
         payload = LoanCreate.model_validate(item.payload)
         if payload.request_id is None:
-            raise ValueError("Offline loan creation requires requestId")
+            raise SyncReplayError("INVALID_PAYLOAD", "Offline loan creation requires requestId", retryable=False)
         existing = await loan_service.get_loan_by_request_id(db, payload.request_id)
         if existing is not None:
             if not loan_service.loan_matches_request(existing, payload, current_user.id):
-                raise ValueError("Loan request ID conflicts with existing data")
+                raise SyncReplayError("IDEMPOTENCY_CONFLICT", "Loan request ID conflicts with existing data", retryable=False)
             return
         if await borrower_service.get_borrower(db, payload.borrower_id) is None:
-            raise ValueError("Borrower not found")
+            raise SyncReplayError("RESOURCE_NOT_FOUND", "Borrower for loan does not exist", retryable=False)
         await loan_service.create_loan(db, payload, current_user)
         return
 
@@ -48,7 +58,7 @@ async def _replay_item(
             existing = await payment_service.get_payment_by_request_id(db, payload.request_id)
             if existing is not None:
                 if not payment_service.reversal_matches_request(existing, loan_id, payment_id, payload):
-                    raise ValueError("Reversal request ID conflicts with existing data")
+                    raise SyncReplayError("IDEMPOTENCY_CONFLICT", "Reversal request ID conflicts with existing data", retryable=False)
                 return
             await payment_service.reverse_latest_payment(db, loan_id, payment_id, payload, current_user)
             return
@@ -56,7 +66,7 @@ async def _replay_item(
         existing = await payment_service.get_payment_by_request_id(db, payload.request_id)
         if existing is not None:
             if not payment_service.payment_matches_request(existing, loan_id, payload):
-                raise ValueError("Payment request ID conflicts with existing data")
+                raise SyncReplayError("IDEMPOTENCY_CONFLICT", "Payment request ID conflicts with existing data", retryable=False)
             return
         await payment_service.record_payment(db, loan_id, payload, current_user)
         return
@@ -76,7 +86,7 @@ async def _replay_item(
         return
 
     if borrower is None:
-        raise ValueError("Borrower not found")
+        raise SyncReplayError("RESOURCE_NOT_FOUND", "Borrower does not exist", retryable=False)
     payload = BorrowerUpdate.model_validate(item.payload)
     await borrower_service.update_borrower(db, borrower, payload, current_user)
 
@@ -95,20 +105,64 @@ async def drain_sync_queue(
             await _replay_item(item, db, current_user)
             await db.commit()
             synced.append(item.transaction_uuid)
+        except SyncReplayError as error:
+            await db.rollback()
+            failures.append(
+                SyncFailure(
+                    transaction_uuid=item.transaction_uuid,
+                    code=error.code,
+                    detail=error.detail,
+                    retryable=error.retryable,
+                )
+            )
         except IntegrityError:
             await db.rollback()
             failures.append(
                 SyncFailure(
                     transaction_uuid=item.transaction_uuid,
+                    code="IDEMPOTENCY_CONFLICT",
                     detail="Mutation conflicts with existing data",
+                    retryable=False,
                 )
             )
-        except (ValidationError, ValueError):
+        except ValidationError:
             await db.rollback()
             failures.append(
                 SyncFailure(
                     transaction_uuid=item.transaction_uuid,
+                    code="INVALID_PAYLOAD",
                     detail="Mutation payload is invalid",
+                    retryable=False,
+                )
+            )
+        except (ValueError, KeyError) as error:
+            await db.rollback()
+            failures.append(
+                SyncFailure(
+                    transaction_uuid=item.transaction_uuid,
+                    code="INVALID_PAYLOAD",
+                    detail=str(error) or "Mutation payload is invalid",
+                    retryable=False,
+                )
+            )
+        except DBAPIError:
+            await db.rollback()
+            failures.append(
+                SyncFailure(
+                    transaction_uuid=item.transaction_uuid,
+                    code="TEMPORARY_DATABASE_ERROR",
+                    detail="Temporary database error occurred during replay",
+                    retryable=True,
+                )
+            )
+        except Exception:
+            await db.rollback()
+            failures.append(
+                SyncFailure(
+                    transaction_uuid=item.transaction_uuid,
+                    code="UNKNOWN_ERROR",
+                    detail="An unexpected error occurred during replay",
+                    retryable=True,
                 )
             )
     return SyncBatchResponse(synced_transaction_uuids=synced, failures=failures)

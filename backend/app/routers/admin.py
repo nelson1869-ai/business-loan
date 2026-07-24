@@ -3,6 +3,7 @@
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
+from app.config import get_settings
 from app.dependencies import CurrentUser, DbSession
 from app.services import admin_service
 
@@ -12,6 +13,16 @@ router = APIRouter(prefix="/api/v1/admin", tags=["Admin"])
 class LoanStatusUpdate(BaseModel):
     status: str
     dueToday: bool = False
+
+
+def _verify_dev_environment() -> None:
+    """Ensure development endpoints are disabled outside development/test environments."""
+    settings = get_settings()
+    if settings.app_env.lower() not in ("development", "dev", "test"):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Development admin endpoint is disabled in production",
+        )
 
 
 @router.post("/reset", status_code=status.HTTP_200_OK)
@@ -24,15 +35,18 @@ async def reset_all_data(
     Intended for the in-app Dev Tools *Delete All Data* button.
     The `users` table is never touched.
     """
+    _verify_dev_environment()
     try:
         await admin_service.reset_all_data(db, current_user)
         await db.commit()
         return {"status": "ok", "detail": "All data deleted successfully"}
+    except HTTPException:
+        raise
     except Exception as error:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Reset failed: {error}",
+            detail="Reset failed due to internal error",
         ) from error
 
 
@@ -45,15 +59,18 @@ async def seed_database(
 
     Intended for development tooling and seeding.
     """
+    _verify_dev_environment()
     try:
         res = await admin_service.seed_database(db, current_user)
         await db.commit()
         return res
+    except HTTPException:
+        raise
     except Exception as error:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Seed failed: {error}",
+            detail="Seed failed due to internal error",
         ) from error
 
 
@@ -65,6 +82,7 @@ async def update_loan_status(
     current_user: CurrentUser,
 ) -> dict:
     """Update loan status and optionally set first installment due to today."""
+    _verify_dev_environment()
     try:
         await admin_service.update_loan_status(
             db, loan_id, payload.status, payload.dueToday
@@ -74,10 +92,11 @@ async def update_loan_status(
             "status": "ok",
             "detail": f"Loan {loan_id} updated to {payload.status}",
         }
+    except HTTPException:
+        raise
     except Exception as error:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Update failed: {error}",
+            detail="Update failed due to internal error",
         ) from error
-

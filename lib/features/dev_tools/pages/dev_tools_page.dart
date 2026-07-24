@@ -10,6 +10,7 @@ import '../../../core/network/api_endpoints.dart';
 import '../../borrowers/providers/borrowers_state.dart';
 import '../../dashboard/providers/dashboard_state.dart';
 import '../../loans/presentation/providers/loans_provider.dart';
+import 'offline_queue_inspection_page.dart';
 
 class DevToolsPage extends ConsumerStatefulWidget {
   const DevToolsPage({super.key});
@@ -245,10 +246,6 @@ class _DevToolsPageState extends ConsumerState<DevToolsPage> {
     try {
       final ts = DateTime.now().millisecondsSinceEpoch;
 
-      // ── Borrowers ──────────────────────────────────────────────────
-      // Each borrower demonstrates a distinct status scenario.
-      // nationalId includes a timestamp so re-seeding does not collide.
-
       final john = await createBorrower(
         firstName: 'John',
         lastName: 'Smith',
@@ -258,7 +255,7 @@ class _DevToolsPageState extends ConsumerState<DevToolsPage> {
         status: 'Active',
         createdAt: '2026-01-01T09:00:00Z',
       );
-      _log('Borrower: John Smith — Active (paid-off + current loan)');
+      _log('Borrower: John Smith — Active');
 
       final mary = await createBorrower(
         firstName: 'Mary',
@@ -269,7 +266,7 @@ class _DevToolsPageState extends ConsumerState<DevToolsPage> {
         status: 'Pending',
         createdAt: '2026-07-20T10:30:00Z',
       );
-      _log('Borrower: Mary Johnson — Pending (new registration)');
+      _log('Borrower: Mary Johnson — Pending');
 
       final robert = await createBorrower(
         firstName: 'Robert',
@@ -280,7 +277,7 @@ class _DevToolsPageState extends ConsumerState<DevToolsPage> {
         status: 'Active',
         createdAt: '2026-02-15T08:00:00Z',
       );
-      _log('Borrower: Robert Williams — Active (overdue + current loan)');
+      _log('Borrower: Robert Williams — Active');
 
       final patricia = await createBorrower(
         firstName: 'Patricia',
@@ -291,7 +288,7 @@ class _DevToolsPageState extends ConsumerState<DevToolsPage> {
         status: 'Active',
         createdAt: '2026-01-20T11:00:00Z',
       );
-      _log('Borrower: Patricia Brown — Active (early payoff + current loan)');
+      _log('Borrower: Patricia Brown — Active');
 
       final james = await createBorrower(
         firstName: 'James',
@@ -302,7 +299,7 @@ class _DevToolsPageState extends ConsumerState<DevToolsPage> {
         status: 'Active',
         createdAt: '2026-03-01T07:45:00Z',
       );
-      _log('Borrower: James Miller — Active (late, under, reversal)');
+      _log('Borrower: James Miller — Active');
 
       final susan = await createBorrower(
         firstName: 'Susan',
@@ -313,7 +310,7 @@ class _DevToolsPageState extends ConsumerState<DevToolsPage> {
         status: 'Deleted',
         createdAt: '2026-04-01T08:00:00Z',
       );
-      _log('Borrower: Susan Davis — Deleted (had paid-off loan)');
+      _log('Borrower: Susan Davis — Deleted');
 
       final now = DateTime.now();
       final todayStr =
@@ -331,19 +328,8 @@ class _DevToolsPageState extends ConsumerState<DevToolsPage> {
         status: 'Active',
         createdAt: '${todayStr}T08:00:00Z',
       );
-      _log('Borrower: Grace Mwangi — Active (installment due today)');
+      _log('Borrower: Grace Mwangi — Active');
 
-      // ════════════════════════════════════════════════════════════════
-      //  LOANS
-      // ════════════════════════════════════════════════════════════════
-      //
-      // monthlyRate is stored as a DECIMAL FRACTION on the backend.
-      // 10 % per month  →  "0.10"
-      //  8 % per month  →  "0.08"
-      // 12 % per month  →  "0.12"
-      // 15 % per month  →  "0.15"
-
-      // John A — 6 on-time payments → Paid off
       final johnLoan1 = await createLoan(
         borrowerId: john,
         originalPrincipal: '50000.00',
@@ -354,7 +340,6 @@ class _DevToolsPageState extends ConsumerState<DevToolsPage> {
         firstDueDate: '2026-02-01',
       );
 
-      // John B — 1 on-time payment so far → Current / Active
       final johnLoan2 = await createLoan(
         borrowerId: john,
         originalPrincipal: '30000.00',
@@ -365,7 +350,6 @@ class _DevToolsPageState extends ConsumerState<DevToolsPage> {
         firstDueDate: '2026-07-01',
       );
 
-      // Mary A — Pending borrower with an active loan (edge case)
       await createLoan(
         borrowerId: mary,
         originalPrincipal: '12000.00',
@@ -376,7 +360,6 @@ class _DevToolsPageState extends ConsumerState<DevToolsPage> {
         firstDueDate: '2026-09-01',
       );
 
-      // Robert A — No payments for 4 months → Overdue
       await createLoan(
         borrowerId: robert,
         originalPrincipal: '25000.00',
@@ -387,7 +370,6 @@ class _DevToolsPageState extends ConsumerState<DevToolsPage> {
         firstDueDate: '2026-04-01',
       );
 
-      // Robert B — New loan, partial payment then reversed → Active
       final robertLoan2 = await createLoan(
         borrowerId: robert,
         originalPrincipal: '10000.00',
@@ -398,7 +380,6 @@ class _DevToolsPageState extends ConsumerState<DevToolsPage> {
         firstDueDate: '2026-08-15',
       );
 
-      // Patricia A — Early overpay before first due → Paid
       final patriciaLoan = await createLoan(
         borrowerId: patricia,
         originalPrincipal: '20000.00',
@@ -409,7 +390,6 @@ class _DevToolsPageState extends ConsumerState<DevToolsPage> {
         firstDueDate: '2026-02-15',
       );
 
-      // Patricia B — 1 on-time payment → Current / Active
       final patriciaLoan2 = await createLoan(
         borrowerId: patricia,
         originalPrincipal: '15000.00',
@@ -420,7 +400,6 @@ class _DevToolsPageState extends ConsumerState<DevToolsPage> {
         firstDueDate: '2026-08-01',
       );
 
-      // James A — Late pays, underpayment, reversal, same-day split → Mixed
       final jamesLoan = await createLoan(
         borrowerId: james,
         originalPrincipal: '40000.00',
@@ -431,7 +410,6 @@ class _DevToolsPageState extends ConsumerState<DevToolsPage> {
         firstDueDate: '2026-03-01',
       );
 
-      // Susan A — Paid off on a Deleted borrower (edge case)
       final susanLoan = await createLoan(
         borrowerId: susan,
         originalPrincipal: '18000.00',
@@ -442,7 +420,6 @@ class _DevToolsPageState extends ConsumerState<DevToolsPage> {
         firstDueDate: '2026-05-01',
       );
 
-      // Grace A — Due today so Today's Collections shows it
       await createLoan(
         borrowerId: grace,
         originalPrincipal: '22000.00',
@@ -453,16 +430,8 @@ class _DevToolsPageState extends ConsumerState<DevToolsPage> {
         firstDueDate: todayStr,
       );
 
-      // ════════════════════════════════════════════════════════════════
-      //  PAYMENTS
-      // ════════════════════════════════════════════════════════════════
-
-      // ── John A — All installments paid on time → Paid ─────────────
-      _log('John A: paying all installments exactly on their due dates → Paid');
       await payAllInstallments(johnLoan1);
 
-      // ── John B — First installment on time → Current ──────────────
-      _log('John B: first installment paid on time → Current');
       {
         final loan = await fetchLoan(johnLoan2);
         final inst = (loan['installments'] as List<dynamic>).first;
@@ -473,14 +442,6 @@ class _DevToolsPageState extends ConsumerState<DevToolsPage> {
         );
       }
 
-      // ── Mary A — No payments → Active loan, Pending borrower ──────
-      _log('Mary A: no payments (Pending borrower with active loan)');
-
-      // ── Robert A — No payments → Overdue ──────────────────────────
-      _log('Robert A: no payments → Overdue');
-
-      // ── Robert B — Partial late payment, then reversed ────────────
-      _log('Robert B: partial late payment, then reversed');
       {
         final partial = await recordPayment(
           loanId: robertLoan2,
@@ -495,16 +456,12 @@ class _DevToolsPageState extends ConsumerState<DevToolsPage> {
         );
       }
 
-      // ── Patricia A — Single large payment before first due → Early overpay → Paid
-      _log('Patricia A: early overpay before first due → Paid');
       await recordPayment(
         loanId: patriciaLoan,
         amount: '25000.00',
         effectiveDate: '2026-01-25',
       );
 
-      // ── Patricia B — First installment on time → Current ──────────
-      _log('Patricia B: first installment paid on time → Current');
       {
         final loan = await fetchLoan(patriciaLoan2);
         final inst = (loan['installments'] as List<dynamic>).first;
@@ -515,27 +472,22 @@ class _DevToolsPageState extends ConsumerState<DevToolsPage> {
         );
       }
 
-      // ── James A — Late, under, reversal, re-pay, same-day split ──
-      _log('James A: late pay, underpayment, reversal, re-pay, same-day split');
       {
         final loan = await fetchLoan(jamesLoan);
         final insts = loan['installments'] as List<dynamic>;
 
-        // Installment 1 — late (due 2026-03-01, paid 2026-03-10)
         await recordPayment(
           loanId: jamesLoan,
           amount: (insts[0] as Map)['expectedPayment'] as String,
           effectiveDate: '2026-03-10',
         );
 
-        // Installment 2 — late (due 2026-04-01, paid 2026-04-05)
         await recordPayment(
           loanId: jamesLoan,
           amount: (insts[1] as Map)['expectedPayment'] as String,
           effectiveDate: '2026-04-05',
         );
 
-        // Installment 3 — underpayment (due 2026-05-01, paid 5000)
         final inst3Expected = (insts[2] as Map)['expectedPayment'] as String;
         final inst3Due = (insts[2] as Map)['dueDate'] as String;
         final underPayment = await recordPayment(
@@ -544,7 +496,6 @@ class _DevToolsPageState extends ConsumerState<DevToolsPage> {
           effectiveDate: inst3Due,
         );
 
-        // Reversal of the underpayment (latest unreversed payment)
         await reversePayment(
           loanId: jamesLoan,
           paymentId: underPayment,
@@ -552,14 +503,12 @@ class _DevToolsPageState extends ConsumerState<DevToolsPage> {
           reason: 'Incorrect amount — reversed',
         );
 
-        // Re-pay installment 3 with the correct amount (now late)
         await recordPayment(
           loanId: jamesLoan,
           amount: inst3Expected,
           effectiveDate: '2026-05-15',
         );
 
-        // Installment 4 — split into two same‑day payments
         final inst4Expected = (insts[3] as Map)['expectedPayment'] as String;
         final inst4Due = (insts[3] as Map)['dueDate'] as String;
         final half = (double.parse(inst4Expected) / 2).toStringAsFixed(2);
@@ -575,14 +524,8 @@ class _DevToolsPageState extends ConsumerState<DevToolsPage> {
         );
       }
 
-      // ── Grace A — No payments → Scheduled installment due today ───
-      _log('Grace A: no payments (installment due today)');
-
-      // ── Susan A — All installments paid on time → Paid (Deleted borrower)
-      _log('Susan A: paying all installments → Paid (Deleted borrower)');
       await payAllInstallments(susanLoan);
 
-      // Refresh app providers so the UI picks up the new data
       ref.invalidate(borrowersNotifierProvider);
       ref.invalidate(allLoansProvider);
       ref.invalidate(dashboardProvider);
@@ -628,23 +571,44 @@ class _DevToolsPageState extends ConsumerState<DevToolsPage> {
         children: [
           Padding(
             padding: const EdgeInsets.all(16),
-            child: Row(
+            child: Column(
               children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: _running ? null : _deleteAll,
-                    icon: const Icon(Icons.delete_forever),
-                    label: const Text('Delete All Data'),
-                    style: FilledButton.styleFrom(backgroundColor: Colors.red),
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: _running ? null : _deleteAll,
+                        icon: const Icon(Icons.delete_forever),
+                        label: const Text('Delete All Data'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.red,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: _running ? null : _seed,
+                        icon: const Icon(Icons.science),
+                        label: const Text('Seed Test Data'),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: _running ? null : _seed,
-                    icon: const Icon(Icons.science),
-                    label: const Text('Seed Test Data'),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(44),
                   ),
+                  icon: const Icon(Icons.sync_problem),
+                  label: const Text('Inspect Offline Queue & Diagnostics'),
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const OfflineQueueInspectionPage(),
+                      ),
+                    );
+                  },
                 ),
               ],
             ),

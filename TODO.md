@@ -2,20 +2,21 @@
 
 Completed history belongs in [Development Log](docs/history/DEVELOPMENT_LOG.md). The full remaining plan is in [Delivery Milestones](docs/roadmap/MILESTONES.md).
 
-## Current priority: complete Flutter projection workflows
+## Completed: System Hardening & Reliability
 
-The backend already provides receipt, statement, dashboard, financial-report, workflow, pagination, and offline-sync APIs. The next focused step is to complete and verify their Flutter presentation.
+- [x] Implemented `/health/live` (process liveness) and `/health/ready` (PostgreSQL connectivity check returning HTTP 503 on failure).
+- [x] Separated physical network interface connectivity from backend server reachability (`offline`, `networkAvailable`, `serverUnavailable`, `serverReady`).
+- [x] Made offline queue count reactive in Riverpod (`offlineSyncPendingCountProvider`, `offlineSyncQueueNotifierProvider`).
+- [x] Upgraded SQLite schema to v5 with diagnostic columns (`status`, `retry_count`, `last_attempt_at`, `last_error_code`, `last_error_message`, `next_retry_at`).
+- [x] Implemented startup crash recovery (resetting `syncing` to `pending`) and bounded exponential backoff for queue retries.
+- [x] Added machine-readable backend sync failure codes (`INVALID_PAYLOAD`, `RESOURCE_NOT_FOUND`, `IDEMPOTENCY_CONFLICT`, `INVALID_WORKFLOW_STATE`, `TEMPORARY_DATABASE_ERROR`).
+- [x] Added `OfflineQueueInspectionPage` under Dev Tools / Settings for queue diagnostics and safe purging.
+- [x] Restricted development-only admin endpoints (`/api/v1/admin/reset`, `/api/v1/admin/seed`) when `APP_ENV=production`.
+- [x] Enforced backend configuration safety (JWT secret strength, CORS origin controls in production).
+- [x] Formalized loan workflow state transitions and audit log safety.
+- [x] Verified 100% test pass rate across Python unittests (81), Flutter tests (64), and Postman API regression (68 endpoints, 124 assertions).
 
-- [ ] Verify receipt detail uses `GET /api/v1/payments/{paymentId}/receipt` without recalculating totals.
-- [ ] Verify loan statement uses `GET /api/v1/loans/{loanId}/statement` and displays reversal history and reconciliation.
-- [ ] Verify dashboard cards use `GET /api/v1/dashboard` as their financial source of truth.
-- [ ] Add or verify financial-report UI using `GET /api/v1/reports/financial`.
-- [ ] Expose appropriate loan workflow actions without permitting invalid transitions.
-- [ ] Add widget tests for loading, success, empty, validation, conflict, and offline states.
-- [ ] Run `flutter analyze`, `flutter test`, backend checks, and the complete Postman collection.
+## Next priority: Additional UI Projections & Staging
 
-## Known workflow issue
-
-- [ ] Resolve the successful `complete` transition design. Full payoff currently changes a loan directly to `Paid`, while `complete` requires an Active or Overdue zero-balance loan.
-
-Do not add production-hardening work here unless it becomes an explicit project priority.
+- [ ] Add PDF export capability for loan statements and payment receipts.
+- [ ] Add push notification triggers for overdue collection reminders.

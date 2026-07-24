@@ -49,8 +49,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         actions: [
           Consumer(
             builder: (context, ref, child) {
-              final pendingAsync = ref.watch(offlineSyncPendingCountProvider);
-              final pendingCount = pendingAsync.asData?.value ?? 0;
+              final pendingCount = ref.watch(offlineSyncPendingCountProvider);
               if (pendingCount <= 0) return const SizedBox.shrink();
               return Padding(
                 padding: const EdgeInsets.only(right: 12),

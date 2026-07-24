@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'api_endpoints.dart';
 import 'offline_sync_service.dart';
+
+/// Explicit status representing device network and backend reachability.
+enum ServerStatus { offline, networkAvailable, serverUnavailable, serverReady }
 
 /// Performs fast server health checks to verify backend reachability.
 ///
@@ -17,41 +20,113 @@ class ServerHealthService {
   /// Optional override callback for testing environment.
   final Future<bool> Function()? isServerReachableOverride;
 
-  /// Checks if the device has network connectivity and the FastAPI backend is online.
-  Future<bool> isServerReachable() async {
+  bool _isChecking = false;
+  DateTime? _lastCheckAt;
+
+  /// Evaluates exact device network connectivity and server readiness.
+  Future<ServerStatus> checkStatus() async {
     if (isServerReachableOverride != null) {
-      return isServerReachableOverride!();
+      final reachable = await isServerReachableOverride!();
+      return reachable
+          ? ServerStatus.serverReady
+          : ServerStatus.serverUnavailable;
     }
 
-    // 1. Check physical Wi-Fi / Cellular connectivity
+    // 1. Check physical network interface status
     final connectivityResults = await _connectivity.checkConnectivity();
-    final hasConnection = connectivityResults.any(
+    final hasNetwork = connectivityResults.any(
       (result) => result != ConnectivityResult.none,
     );
-    if (!hasConnection) return false;
+    if (!hasNetwork) return ServerStatus.offline;
 
-    // 2. Perform a fast 1.5-second health ping to verify the backend server is active
+    // Cooldown check (prevent tight polling loop if called frequently)
+    if (_lastCheckAt != null &&
+        DateTime.now().difference(_lastCheckAt!) < const Duration(seconds: 2)) {
+      return ServerStatus.networkAvailable;
+    }
+
+    if (_isChecking) return ServerStatus.networkAvailable;
+    _isChecking = true;
+    _lastCheckAt = DateTime.now();
+
     final dio = Dio(
       BaseOptions(
         baseUrl: const String.fromEnvironment(
           'API_BASE_URL',
           defaultValue: 'http://localhost:8000',
         ),
-        connectTimeout: const Duration(milliseconds: 1500),
-        receiveTimeout: const Duration(milliseconds: 1500),
+        connectTimeout: const Duration(milliseconds: 2000),
+        receiveTimeout: const Duration(milliseconds: 2000),
       ),
     );
 
     try {
-      final response = await dio.get<Map<String, dynamic>>(ApiEndpoints.health);
-      return response.statusCode == 200;
+      final response = await dio.get<Map<String, dynamic>>('/health/ready');
+      if (response.statusCode == 200 && response.data != null) {
+        final statusStr = response.data!['status'] as String?;
+        if (statusStr == 'ready' || statusStr == 'ok') {
+          return ServerStatus.serverReady;
+        }
+      }
+      return ServerStatus.serverUnavailable;
     } on DioException {
-      return false;
+      return ServerStatus.serverUnavailable;
     } catch (_) {
-      return false;
+      return ServerStatus.serverUnavailable;
     } finally {
       dio.close(force: true);
+      _isChecking = false;
     }
+  }
+
+  /// Convenience helper returning true only if server is verified ready.
+  Future<bool> isServerReachable() async {
+    final status = await checkStatus();
+    return status == ServerStatus.serverReady;
+  }
+}
+
+/// Reactive notifier managing process-wide [ServerStatus].
+class ServerStatusNotifier extends StateNotifier<ServerStatus> {
+  ServerStatusNotifier(this._service, this._connectivity)
+    : super(ServerStatus.offline) {
+    _init();
+  }
+
+  final ServerHealthService _service;
+  final Connectivity _connectivity;
+  StreamSubscription<List<ConnectivityResult>>? _subscription;
+  Timer? _pollingTimer;
+
+  void _init() {
+    refreshStatus();
+    _subscription = _connectivity.onConnectivityChanged.listen((results) {
+      final hasConnection = results.any((r) => r != ConnectivityResult.none);
+      if (!hasConnection) {
+        state = ServerStatus.offline;
+      } else {
+        state = ServerStatus.networkAvailable;
+        refreshStatus();
+      }
+    });
+
+    // Background periodic health probe every 15 seconds
+    _pollingTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      refreshStatus();
+    });
+  }
+
+  /// Triggers an immediate status evaluation.
+  Future<void> refreshStatus() async {
+    final newStatus = await _service.checkStatus();
+    state = newStatus;
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    _pollingTimer?.cancel();
+    super.dispose();
   }
 }
 
@@ -59,3 +134,12 @@ class ServerHealthService {
 final serverHealthServiceProvider = Provider<ServerHealthService>((ref) {
   return ServerHealthService(ref.watch(connectivityProvider));
 });
+
+/// Reactive provider for process-wide [ServerStatus].
+final serverStatusNotifierProvider =
+    StateNotifierProvider<ServerStatusNotifier, ServerStatus>((ref) {
+      return ServerStatusNotifier(
+        ref.watch(serverHealthServiceProvider),
+        ref.watch(connectivityProvider),
+      );
+    });

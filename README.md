@@ -51,6 +51,35 @@ Other examples:
 
 The launcher force-stops an existing process using the selected port. Use a different port when that process must remain running. See [Quick Start](docs/QUICK_START.md) for manual startup and target details.
 
+## Health Monitoring & Connectivity
+
+The backend provides hardened liveness and readiness endpoints:
+
+- `GET /health/live`: Fast process check confirming FastAPI is alive (no database queries).
+- `GET /health/ready`: Database connectivity check via `SELECT 1`. Returns HTTP 200 `ready` or HTTP 503 `unavailable` without exposing sensitive credentials or stack traces.
+- `GET /health`: Backward-compatible lightweight service ping.
+
+Flutter tracks four discrete network and server states:
+1. `offline`: Physical device interface has no internet/Wi-Fi connection.
+2. `networkAvailable`: Physical connection present, probing backend health.
+3. `serverUnavailable`: Physical network available, but backend is unreachable or returning HTTP 503.
+4. `serverReady`: Backend is verified reachable and database is connected.
+
+## Offline Synchronization & Diagnostics
+
+- **Reactive Sync Counters:** Pending counts update real-time upon enqueue, retry, and drain.
+- **SQLite Queue Diagnostics:** Schema version 5 tracks `status` (`pending`, `syncing`, `retryableFailed`, `permanentlyFailed`, `conflict`), `retry_count`, `last_attempt_at`, `last_error_code`, `last_error_message`, `next_retry_at`, and `server_resource_id`.
+- **Automatic Crash Recovery:** Stale `syncing` queue records automatically reset to `pending` on startup.
+- **Bounded Exponential Backoff:** Re-attempts calculate retry delays automatically.
+- **Diagnostics Screen:** Accessible under Dev Tools / Settings to inspect, retry, copy safe summaries, or remove queue items.
+
+## Development & Production Security
+
+- Admin reset (`/api/v1/admin/reset`) and sample seed (`/api/v1/admin/seed`) endpoints are strictly disabled when `APP_ENV=production`.
+- Production rejects wildcard CORS origins (`*`) and requires strong, non-placeholder JWT secret keys.
+- Borrower PII and offline queue payloads are encrypted at rest using AES-GCM.
+- Backend audit logs redact borrower names, national IDs, phone numbers, passwords, and JWT tokens.
+
 ## Flutter app
 
 Install packages and run the app:
@@ -70,23 +99,13 @@ flutter analyze
 flutter test
 ```
 
-## Data Seeding Tool
-
-Populate the database with sample borrowers, active loans, overdue loans, paid loans, and today's collection items:
-
-```powershell
-$env:SEED_USERNAME="officer1"; $env:SEED_PASSWORD="password123"; dart run tool/seed_data.dart --reset
-```
-
 ## Python backend
 
-The backend provides JWT authentication, borrower CRUD, loan workflows, exact payment allocation, immutable reversals, receipt and statement projections, dashboard and financial reports, PostgreSQL persistence, and offline mutation replay.
-
-See [backend/README.md](backend/README.md) for PostgreSQL setup, migrations, first-user creation, and server commands.
-
-Major API areas include:
+Major API routes include:
 
 ```text
+GET    /health/live
+GET    /health/ready
 POST   /api/v1/auth/token
 POST   /api/v1/auth/refresh
 *      /api/v1/borrowers
@@ -100,12 +119,16 @@ GET    /api/v1/reports/financial
 POST   /api/v1/sync/drain
 ```
 
-Use Swagger or `/openapi.json` for the exact methods, fields, aliases, enums, and status codes. Do not point Flutter at an API exposing `/api/v1/auth/login`; this application uses the access/refresh-token contract above.
+Run backend checks:
 
-## Security
+```powershell
+Set-Location backend
+$env:PYTHONPATH="."; .\.venv\Scripts\python.exe -m unittest discover -s tests -t .
+.\.venv\Scripts\python.exe -m alembic check
+```
 
-- Borrower PII is encrypted in device-local SQLite.
-- Offline queue payloads are encrypted at rest.
-- Backend audit records redact names, national IDs, and phone numbers.
-- JWTs and encryption keys are stored using secure storage.
-- Secrets belong in `backend/.env`, which must never be committed.
+Run Postman API regression suite:
+
+```powershell
+npx --yes newman run postman\lending-nelson-api.json
+```

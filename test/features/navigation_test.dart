@@ -116,9 +116,7 @@ void main() {
                 FakeRemoteBorrowerRepository(),
               ),
               isOnlineProvider.overrideWith((ref) => Stream.value(false)),
-              offlineSyncPendingCountProvider.overrideWith(
-                (ref) => Future.value(0),
-              ),
+              offlineSyncPendingCountProvider.overrideWith((ref) => 0),
             ],
             child: const LendingNelsonApp(),
           ),

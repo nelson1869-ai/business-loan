@@ -14,8 +14,7 @@ class SettingsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final offlineSyncService = ref.watch(offlineSyncServiceProvider);
-    final pendingCountAsync = ref.watch(offlineSyncPendingCountProvider);
-    final pendingCount = pendingCountAsync.asData?.value ?? 0;
+    final pendingCount = ref.watch(offlineSyncPendingCountProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
