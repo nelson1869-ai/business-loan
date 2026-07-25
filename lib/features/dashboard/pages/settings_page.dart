@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -6,36 +7,201 @@ import '../../../app/app_theme.dart';
 import '../../../core/database/database_provider.dart';
 import '../../../core/network/offline_sync_service.dart';
 import '../../../core/network/server_health_service.dart';
+import '../../../core/presentation/design_system/design_system.dart';
 import '../../auth/data/auth_repository.dart';
+import '../widgets/settings/business_loan_config_sheet.dart';
+import '../widgets/settings/roles_permissions_sheet.dart';
+import '../widgets/settings/security_backup_sheet.dart';
+import '../widgets/settings/user_management_sheet.dart';
 
-/// Settings screen for officer profile, data synchronization, audit logs, and authentication.
-class SettingsPage extends ConsumerWidget {
+/// Modernized Settings & Enterprise Administration Hub.
+class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends ConsumerState<SettingsPage> {
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final offlineSyncService = ref.watch(offlineSyncServiceProvider);
     final pendingCount = ref.watch(offlineSyncPendingCountProvider);
     final forcedOffline = ref.watch(forcedOfflineModeProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(title: const Text('Settings & Administration')),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Card(
-              margin: EdgeInsets.zero,
-              child: Column(
+            // 1. Search Bar
+            AppSearchBar(
+              controller: _searchCtrl,
+              hintText: 'Search settings, users, permissions, sync...',
+              onChanged: (v) => setState(() => _query = v),
+            ),
+            const SizedBox(height: 16),
+
+            // 2. Profile Card
+            if (_query.isEmpty ||
+                'account profile officer'.contains(_query.toLowerCase()))
+              AppCard(
+                margin: const EdgeInsets.only(bottom: 16),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 26,
+                      backgroundColor: colorScheme.primary.withValues(
+                        alpha: 0.15,
+                      ),
+                      child: Icon(
+                        Icons.person,
+                        color: colorScheme.primary,
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Nelson Loan Officer',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            'ID: OFF-1008 · Central Branch',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          const AppStatusChip(status: 'Loan Officer'),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined),
+                      tooltip: 'Edit Profile',
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Profile editing opened'),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+
+            // 3. Users & Access Management Section
+            if (_query.isEmpty ||
+                'users access roles permissions staff branch'.contains(
+                  _query.toLowerCase(),
+                ))
+              AppSectionCard(
+                title: 'Users & Access Control',
+                icon: Icons.admin_panel_settings_outlined,
+                children: [
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.people_outline),
+                    title: const Text('User Management'),
+                    subtitle: const Text(
+                      'Staff accounts, active officers, & branch assignments',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      showModalBottomSheet<void>(
+                        context: context,
+                        isScrollControlled: true,
+                        builder: (_) => const UserManagementSheet(),
+                      );
+                    },
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.shield_outlined),
+                    title: const Text('Roles & Permission Matrix'),
+                    subtitle: const Text(
+                      'Configure capability matrix for Admins, Officers, & Cashiers',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      showModalBottomSheet<void>(
+                        context: context,
+                        isScrollControlled: true,
+                        builder: (_) => const RolesPermissionsSheet(),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            const SizedBox(height: 16),
+
+            // 4. Business & Lending Settings
+            if (_query.isEmpty ||
+                'business loan lending currency rates receipt'.contains(
+                  _query.toLowerCase(),
+                ))
+              AppSectionCard(
+                title: 'Business & Lending Settings',
+                icon: Icons.storefront_outlined,
+                children: [
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.tune_outlined),
+                    title: const Text('Business Profile & Loan Products'),
+                    subtitle: const Text(
+                      'Company name, currency ₱, thermal receipt footer, grace period',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      showModalBottomSheet<void>(
+                        context: context,
+                        isScrollControlled: true,
+                        builder: (_) => const BusinessLoanConfigSheet(),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            const SizedBox(height: 16),
+
+            // 5. Offline & Synchronization
+            if (_query.isEmpty ||
+                'offline sync network status queued pending'.contains(
+                  _query.toLowerCase(),
+                ))
+              AppSectionCard(
+                title: 'Offline & Synchronization',
+                icon: Icons.cloud_sync_outlined,
                 children: [
                   SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
                     secondary: const Icon(Icons.cloud_off_outlined),
-                    title: const Text('Force offline mode'),
+                    title: const Text('Force Offline Mode'),
                     subtitle: Text(
                       forcedOffline
-                          ? 'Offline testing is active; syncing is paused'
-                          : 'Use the server normally',
+                          ? 'Offline testing active; sync queue paused'
+                          : 'Normal online operation',
                     ),
                     value: forcedOffline,
                     onChanged: (value) async {
@@ -50,13 +216,9 @@ class SettingsPage extends ConsumerWidget {
                       }
                     },
                   ),
-                  Divider(
-                    height: 1,
-                    indent: 16,
-                    endIndent: 16,
-                    color: Theme.of(context).dividerTheme.color,
-                  ),
+                  const Divider(height: 1),
                   ListTile(
+                    contentPadding: EdgeInsets.zero,
                     leading: Badge.count(
                       count: pendingCount,
                       isLabelVisible: pendingCount > 0,
@@ -79,7 +241,7 @@ class SettingsPage extends ConsumerWidget {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text(
-                                    'No pending offline items. All data is up to date!',
+                                    'No pending offline items. Data up to date!',
                                   ),
                                 ),
                               );
@@ -89,7 +251,7 @@ class SettingsPage extends ConsumerWidget {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(
-                                  'Syncing $countBefore offline item${countBefore > 1 ? 's' : ''}...',
+                                  'Syncing $countBefore offline items...',
                                 ),
                               ),
                             );
@@ -103,23 +265,50 @@ class SettingsPage extends ConsumerWidget {
                               SnackBar(
                                 content: Text(
                                   syncedCount > 0
-                                      ? 'Successfully synced $syncedCount item${syncedCount > 1 ? 's' : ''} to server!'
+                                      ? 'Successfully synced $syncedCount items to server!'
                                       : 'Server unreachable. Will retry automatically when online.',
                                 ),
                               ),
                             );
                           },
                   ),
-                  Divider(
-                    height: 1,
-                    indent: 16,
-                    endIndent: 16,
-                    color: Theme.of(context).dividerTheme.color,
-                  ),
+                ],
+              ),
+            const SizedBox(height: 16),
+
+            // 6. Security & Audit Logs
+            if (_query.isEmpty ||
+                'security audit log pin password encryption danger'.contains(
+                  _query.toLowerCase(),
+                ))
+              AppSectionCard(
+                title: 'Security & Audit Logs',
+                icon: Icons.security_outlined,
+                children: [
                   ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.lock_outline),
+                    title: const Text('Security & Data Privacy Controls'),
+                    subtitle: const Text(
+                      'Biometric PIN, local encryption, danger zone',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      showModalBottomSheet<void>(
+                        context: context,
+                        isScrollControlled: true,
+                        builder: (_) => const SecurityBackupSheet(),
+                      );
+                    },
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.history_outlined),
                     title: const Text('View Audit Logs'),
-                    subtitle: const Text('Local security and mutation logs'),
+                    subtitle: const Text(
+                      'Inspect immutable local security & mutation records',
+                    ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () {
                       showModalBottomSheet<void>(
@@ -170,10 +359,11 @@ class SettingsPage extends ConsumerWidget {
                                           final logs =
                                               snapshot.data ?? const [];
                                           if (logs.isEmpty) {
-                                            return const Center(
-                                              child: Text(
-                                                'No audit logs recorded yet.',
-                                              ),
+                                            return const AppEmptyState(
+                                              icon: Icons.history_toggle_off,
+                                              title: 'No Audit Logs Recorded',
+                                              description:
+                                                  'Local audit log records will appear here as mutations occur.',
                                             );
                                           }
                                           return ListView.builder(
@@ -216,32 +406,68 @@ class SettingsPage extends ConsumerWidget {
                       );
                     },
                   ),
-                  Divider(
-                    height: 1,
-                    indent: 16,
-                    endIndent: 16,
-                    color: Theme.of(context).dividerTheme.color,
-                  ),
+                ],
+              ),
+            const SizedBox(height: 16),
+
+            // 7. About & Diagnostics
+            if (_query.isEmpty ||
+                'about app version diagnostics build'.contains(
+                  _query.toLowerCase(),
+                ))
+              AppSectionCard(
+                title: 'About & Diagnostics',
+                icon: Icons.info_outline,
+                children: [
                   const ListTile(
+                    contentPadding: EdgeInsets.zero,
                     leading: Icon(Icons.phone_android_outlined),
                     title: Text('App Version'),
-                    subtitle: Text('1.0.0 (Build 1)'),
+                    subtitle: Text('Lending Nelson v1.0.0 (Build 1)'),
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.copy_outlined),
+                    title: const Text('Copy Diagnostics Info'),
+                    subtitle: const Text(
+                      'Copy sanitized environment & device state',
+                    ),
+                    onTap: () {
+                      Clipboard.setData(
+                        const ClipboardData(
+                          text:
+                              'Lending Nelson v1.0.0+1 | Flutter 3.x | Windows/Android',
+                        ),
+                      );
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Diagnostics copied to clipboard'),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 32),
-            ElevatedButton(
+            const SizedBox(height: 24),
+
+            // 8. Logout Button
+            ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.errorColor,
                 foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              icon: const Icon(Icons.logout),
+              label: const Text(
+                'Logout',
+                style: TextStyle(fontWeight: FontWeight.bold),
               ),
               onPressed: () async {
                 await ref.read(authRepositoryProvider).logout();
                 if (!context.mounted) return;
                 context.go('/login');
               },
-              child: const Text('Logout'),
             ),
           ],
         ),

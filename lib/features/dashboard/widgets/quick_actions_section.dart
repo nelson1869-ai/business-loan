@@ -35,7 +35,7 @@ class QuickActionsSection extends ConsumerWidget {
                 onTap: () => context.push('/borrowers/register'),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
             Expanded(
               child: _ActionButton(
                 icon: Icons.add_card,
@@ -44,13 +44,22 @@ class QuickActionsSection extends ConsumerWidget {
                 onTap: () => _pickBorrower(context, ref),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
             Expanded(
               child: _ActionButton(
                 icon: Icons.payments,
-                label: 'Record Payment',
+                label: 'Collect Pay',
                 color: const Color(0xFF3B82F6),
                 onTap: () => context.push('/collections/today'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _ActionButton(
+                icon: Icons.analytics_outlined,
+                label: 'Reports',
+                color: Colors.purple,
+                onTap: () => context.push('/reports'),
               ),
             ),
           ],

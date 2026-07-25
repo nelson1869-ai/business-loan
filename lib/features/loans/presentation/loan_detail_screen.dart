@@ -4,11 +4,20 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/utils/formatters.dart';
-import '../domain/models/installment.dart';
 import '../domain/models/loan.dart';
 import 'providers/loans_provider.dart';
+import 'widgets/loan_header_card.dart';
+import 'widgets/loan_payment_status_banner.dart';
+import 'widgets/loan_quick_actions.dart';
+import 'widgets/loan_skeleton_loader.dart';
+import 'widgets/tabs/loan_activity_tab.dart';
+import 'widgets/tabs/loan_documents_tab.dart';
+import 'widgets/tabs/loan_notes_tab.dart';
+import 'widgets/tabs/loan_overview_tab.dart';
+import 'widgets/tabs/loan_payments_tab.dart';
+import 'widgets/tabs/loan_schedule_tab.dart';
 
-/// Displays backend-owned loan totals and the persisted installment schedule.
+/// Redesigned Material 3 Loan Detail Screen.
 class LoanDetailScreen extends ConsumerWidget {
   const LoanDetailScreen({super.key, required this.loanId, this.initialLoan});
 
@@ -19,48 +28,57 @@ class LoanDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final detail = ref.watch(loanDetailProvider(loanId));
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go('/loans');
-            }
-          },
+    return DefaultTabController(
+      length: 6,
+      initialIndex: 0,
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go('/loans');
+              }
+            },
+          ),
+          title: const Text('Loan Details'),
+          actions: <Widget>[
+            IconButton(
+              tooltip: 'Share schedule',
+              icon: const Icon(Icons.share_outlined),
+              onPressed: () => _shareSchedule(context, ref),
+            ),
+            IconButton(
+              tooltip: 'Refresh loan',
+              onPressed: () => ref.invalidate(loanDetailProvider(loanId)),
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
         ),
-        title: const Text('Loan Details'),
-        actions: <Widget>[
-          IconButton(
-            tooltip: 'Share schedule',
-            icon: const Icon(Icons.share_outlined),
-            onPressed: () => _shareSchedule(context, ref),
+        body: detail.when(
+          loading: () => initialLoan == null
+              ? const LoanSkeletonLoader()
+              : _LoanDetailContent(
+                  loan: initialLoan!,
+                  onRecordPayment: () =>
+                      context.push('/loans/$loanId/payments'),
+                  onShareSchedule: () => _shareSchedule(context, ref),
+                ),
+          error: (Object error, StackTrace stackTrace) => initialLoan == null
+              ? Center(child: Text('Could not load loan: $error'))
+              : _LoanDetailContent(
+                  loan: initialLoan!,
+                  onRecordPayment: () =>
+                      context.push('/loans/$loanId/payments'),
+                  onShareSchedule: () => _shareSchedule(context, ref),
+                ),
+          data: (Loan loan) => _LoanDetailContent(
+            loan: loan,
+            onRecordPayment: () => context.push('/loans/$loanId/payments'),
+            onShareSchedule: () => _shareSchedule(context, ref),
           ),
-          IconButton(
-            tooltip: 'Refresh loan',
-            onPressed: () => ref.invalidate(loanDetailProvider(loanId)),
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-      ),
-      body: detail.when(
-        loading: () => initialLoan == null
-            ? const Center(child: CircularProgressIndicator())
-            : _LoanContent(
-                loan: initialLoan!,
-                onRecordPayment: () => context.push('/loans/$loanId/payments'),
-              ),
-        error: (Object error, StackTrace stackTrace) => initialLoan == null
-            ? Center(child: Text('Could not load loan: $error'))
-            : _LoanContent(
-                loan: initialLoan!,
-                onRecordPayment: () => context.push('/loans/$loanId/payments'),
-              ),
-        data: (Loan loan) => _LoanContent(
-          loan: loan,
-          onRecordPayment: () => context.push('/loans/$loanId/payments'),
         ),
       ),
     );
@@ -100,6 +118,128 @@ class LoanDetailScreen extends ConsumerWidget {
       ),
       builder: (_) => _ShareSheet(loan: loan, text: text),
     );
+  }
+}
+
+class _LoanDetailContent extends StatelessWidget {
+  final Loan loan;
+  final VoidCallback onRecordPayment;
+  final VoidCallback onShareSchedule;
+
+  const _LoanDetailContent({
+    required this.loan,
+    required this.onRecordPayment,
+    required this.onShareSchedule,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return NestedScrollView(
+      headerSliverBuilder: (context, innerBoxIsScrolled) {
+        return [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Loan Header Card
+                  LoanHeaderCard(loan: loan),
+                  const SizedBox(height: 12),
+                  // Payment Status Banner (Overdue Alert / Healthy Status)
+                  LoanPaymentStatusBanner(
+                    loan: loan,
+                    onPayNow: onRecordPayment,
+                  ),
+                  const SizedBox(height: 14),
+                  // Quick Actions Bar
+                  LoanQuickActions(loan: loan, onShare: onShareSchedule),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            ),
+          ),
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _SliverTabBarDelegate(
+              TabBar(
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
+                labelColor: theme.colorScheme.primary,
+                unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+                indicatorColor: theme.colorScheme.primary,
+                tabs: const [
+                  Tab(
+                    text: 'Schedule',
+                    icon: Icon(Icons.calendar_month_outlined, size: 20),
+                  ),
+                  Tab(
+                    text: 'Overview',
+                    icon: Icon(Icons.summarize_outlined, size: 20),
+                  ),
+                  Tab(
+                    text: 'Payments',
+                    icon: Icon(Icons.history_outlined, size: 20),
+                  ),
+                  Tab(
+                    text: 'Documents',
+                    icon: Icon(Icons.folder_open_outlined, size: 20),
+                  ),
+                  Tab(
+                    text: 'Notes',
+                    icon: Icon(Icons.note_alt_outlined, size: 20),
+                  ),
+                  Tab(
+                    text: 'Activity',
+                    icon: Icon(Icons.timeline_outlined, size: 20),
+                  ),
+                ],
+              ),
+              theme.colorScheme.surface,
+            ),
+          ),
+        ];
+      },
+      body: TabBarView(
+        children: [
+          LoanScheduleTab(loan: loan, onRecordPayment: onRecordPayment),
+          LoanOverviewTab(loan: loan),
+          LoanPaymentsTab(loan: loan),
+          const LoanDocumentsTab(),
+          const LoanNotesTab(),
+          LoanActivityTab(loan: loan),
+        ],
+      ),
+    );
+  }
+}
+
+class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
+  final TabBar tabBar;
+  final Color backgroundColor;
+
+  _SliverTabBarDelegate(this.tabBar, this.backgroundColor);
+
+  @override
+  double get minExtent => tabBar.preferredSize.height;
+
+  @override
+  double get maxExtent => tabBar.preferredSize.height;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return Container(color: backgroundColor, child: tabBar);
+  }
+
+  @override
+  bool shouldRebuild(_SliverTabBarDelegate oldDelegate) {
+    return false;
   }
 }
 
@@ -219,486 +359,6 @@ class _ShareOption extends StatelessWidget {
             style: TextStyle(color: color, fontWeight: FontWeight.w600),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _LoanContent extends StatelessWidget {
-  const _LoanContent({required this.loan, required this.onRecordPayment});
-
-  final Loan loan;
-  final VoidCallback onRecordPayment;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final total = double.tryParse(loan.originalPrincipal) ?? 0;
-    final outstanding = double.tryParse(loan.outstandingPrincipal) ?? 0;
-    final paid = total - outstanding;
-    final percentPaidOff = total > 0 ? (paid / total * 100) : 0.0;
-
-    final nextDue = _findNextDue();
-
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: <Widget>[
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  children: [
-                    Text(loan.status, style: theme.textTheme.titleLarge),
-                    const Spacer(),
-                    Text(
-                      '${percentPaidOff.round()}% Paid Off',
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        color: theme.colorScheme.primary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: percentPaidOff / 100,
-                    minHeight: 8,
-                    backgroundColor: theme.colorScheme.error.withValues(
-                      alpha: 0.15,
-                    ),
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      percentPaidOff >= 100
-                          ? Colors.green
-                          : theme.colorScheme.primary,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${formatCurrency(paid.toStringAsFixed(2))} Paid · '
-                  '${formatCurrency(outstanding.toStringAsFixed(2))} Remaining',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _SummaryRow(
-                  label: 'Original principal',
-                  value: formatCurrency(loan.originalPrincipal),
-                ),
-                _SummaryRow(
-                  label: 'Outstanding principal',
-                  value: formatCurrency(loan.outstandingPrincipal),
-                ),
-                _SummaryRow(
-                  label: 'Monthly rate',
-                  value: '${formatInterestRate(loan.monthlyRate)} / mo',
-                ),
-                _SummaryRow(
-                  label: 'Payment frequency',
-                  value: loan.paymentsPerMonth == 1
-                      ? 'Once a month'
-                      : '${loan.paymentsPerMonth} times a month',
-                ),
-                _SummaryRow(
-                  label: 'First due date',
-                  value: formatDateShort(loan.firstDueDate),
-                ),
-                _SummaryRow(
-                  label: 'Final due date',
-                  value: formatDateShort(loan.finalDueDate),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        if (loan.status == 'Paid' ||
-            (double.tryParse(loan.outstandingPrincipal) ?? 0) == 0)
-          const _FullyPaidCard()
-        else if (nextDue != null)
-          _NextDueCard(
-            installment: nextDue,
-            canPay: loan.status == 'Active' || loan.status == 'Overdue',
-            onRecordPayment: onRecordPayment,
-          ),
-        const SizedBox(height: 16),
-        Text('Installment Schedule', style: theme.textTheme.titleLarge),
-        const SizedBox(height: 8),
-        if (loan.installments.isEmpty)
-          const Card(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('No installment schedule was returned.'),
-            ),
-          )
-        else
-          ...loan.installments.map((Installment installment) {
-            final isNextDue = installment.id == nextDue?.id;
-            final isPaid = installment.status == 'Paid';
-            final canPay = loan.status == 'Active' || loan.status == 'Overdue';
-
-            return Card(
-              child: ExpansionTile(
-                title: Text(
-                  'Payment ${installment.installmentNumber} · '
-                  '${formatCurrency(installment.expectedPayment)}',
-                ),
-                subtitle: Text(
-                  '${formatDateShort(installment.dueDate)} · ${installment.status}',
-                ),
-                trailing: isPaid
-                    ? const _StatusChip(
-                        label: 'Paid',
-                        color: Colors.green,
-                        icon: Icons.check_circle_outline,
-                      )
-                    : (isNextDue && canPay
-                          ? FilledButton.tonal(
-                              onPressed: onRecordPayment,
-                              child: Text(
-                                'Pay #${installment.installmentNumber}',
-                              ),
-                            )
-                          : null),
-                childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  _SummaryRow(
-                    label: 'Interest',
-                    value: formatCurrency(installment.expectedInterest),
-                  ),
-                  _SummaryRow(
-                    label: 'Principal',
-                    value: formatCurrency(installment.expectedPrincipal),
-                  ),
-                  _SummaryRow(
-                    label: 'Remaining principal',
-                    value: formatCurrency(
-                      installment.expectedRemainingPrincipal,
-                    ),
-                  ),
-                  _SummaryRow(
-                    label: 'Paid',
-                    value: formatCurrency(installment.paidAmount),
-                  ),
-                  if (isNextDue && canPay) ...[
-                    const SizedBox(height: 12),
-                    FilledButton.icon(
-                      onPressed: onRecordPayment,
-                      icon: const Icon(Icons.payments_outlined),
-                      label: Text(
-                        'Record Payment for #${installment.installmentNumber}',
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            );
-          }),
-      ],
-    );
-  }
-
-  Installment? _findNextDue() {
-    if (loan.status == 'Paid' ||
-        (double.tryParse(loan.outstandingPrincipal) ?? 0) == 0) {
-      return null;
-    }
-    Installment? candidate;
-    for (final inst in loan.installments) {
-      if (inst.status == 'Paid') continue;
-      final paidAmt = double.tryParse(inst.paidAmount) ?? 0;
-      final expectedAmt = double.tryParse(inst.expectedPayment) ?? 0;
-      if (paidAmt < expectedAmt) {
-        if (candidate == null ||
-            inst.installmentNumber < candidate.installmentNumber) {
-          candidate = inst;
-        }
-      }
-    }
-    return candidate;
-  }
-}
-
-class _SummaryRow extends StatelessWidget {
-  const _SummaryRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        children: <Widget>[
-          Expanded(child: Text(label)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
-        ],
-      ),
-    );
-  }
-}
-
-class _NextDueCard extends StatelessWidget {
-  const _NextDueCard({
-    required this.installment,
-    required this.canPay,
-    required this.onRecordPayment,
-  });
-
-  final Installment installment;
-  final bool canPay;
-  final VoidCallback onRecordPayment;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final expected = double.tryParse(installment.expectedPayment) ?? 0;
-    final paid = double.tryParse(installment.paidAmount) ?? 0;
-    final remaining = expected - paid;
-    final isOverdue = installment.status == 'Overdue';
-
-    return Card(
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: isOverdue
-              ? Colors.red.withValues(alpha: 0.4)
-              : theme.colorScheme.primary.withValues(alpha: 0.3),
-          width: 1.5,
-        ),
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          color: isOverdue
-              ? Colors.red.withValues(alpha: 0.04)
-              : theme.colorScheme.primary.withValues(alpha: 0.04),
-        ),
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  isOverdue
-                      ? Icons.warning_amber_rounded
-                      : Icons.event_note_outlined,
-                  size: 18,
-                  color: isOverdue ? Colors.red : theme.colorScheme.primary,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  isOverdue ? 'Overdue Payment' : 'Next Payment Due',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: isOverdue ? Colors.red : theme.colorScheme.primary,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        formatDateShort(installment.dueDate),
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Payment #${installment.installmentNumber}',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: theme.colorScheme.onSurface.withValues(
-                            alpha: 0.6,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      formatCurrency(remaining.toStringAsFixed(2)),
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: isOverdue
-                            ? Colors.red
-                            : theme.colorScheme.primary,
-                      ),
-                    ),
-                    Text(
-                      'Expected Due',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: theme.colorScheme.onSurface.withValues(
-                          alpha: 0.6,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            if (isOverdue) ...[
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.warning_amber_rounded,
-                      size: 16,
-                      color: Colors.redAccent,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Payment Overdue — Immediate Collection Recommended',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.red.shade300,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: canPay ? onRecordPayment : null,
-              icon: const Icon(Icons.add_card, size: 18),
-              label: Text(isOverdue ? 'Pay Overdue Now' : 'Record Payment'),
-              style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(40),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({
-    required this.label,
-    required this.color,
-    required this.icon,
-  });
-
-  final String label;
-  final Color color;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FullyPaidCard extends StatelessWidget {
-  const _FullyPaidCard();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: Colors.green.withValues(alpha: 0.4),
-          width: 1.5,
-        ),
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          color: Colors.green.withValues(alpha: 0.05),
-        ),
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            const CircleAvatar(
-              backgroundColor: Colors.green,
-              radius: 20,
-              child: Icon(Icons.check, color: Colors.white),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Loan Fully Paid Off',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Zero balance remaining. All scheduled installments are satisfied.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

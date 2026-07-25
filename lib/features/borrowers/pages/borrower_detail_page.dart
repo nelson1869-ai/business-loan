@@ -9,10 +9,14 @@ import '../providers/borrower_recommendation_provider.dart';
 import '../providers/borrowers_state.dart';
 import '../widgets/borrower_active_loan_card.dart';
 import '../widgets/borrower_alert_banner.dart';
-import '../widgets/borrower_financial_metrics.dart';
+import '../widgets/borrower_customer_score_card.dart';
+import '../widgets/borrower_emergency_guarantor_card.dart';
+import '../widgets/borrower_financial_snapshot.dart';
 import '../widgets/borrower_header_card.dart';
+import '../widgets/borrower_payment_behavior_card.dart';
 import '../widgets/borrower_quick_actions.dart';
 import '../widgets/borrower_recommendation_card.dart';
+import '../widgets/borrower_recommended_actions.dart';
 import '../widgets/borrower_skeleton_loader.dart';
 import '../widgets/tabs/activity_tab_view.dart';
 import '../widgets/tabs/documents_tab_view.dart';
@@ -21,7 +25,7 @@ import '../widgets/tabs/notes_tab_view.dart';
 import '../widgets/tabs/overview_tab_view.dart';
 import '../widgets/tabs/payments_tab_view.dart';
 
-/// Redesigned Material 3 Borrower Profile Page.
+/// Redesigned Material 3 Customer 360° Borrower Profile & Relationship Dashboard.
 class BorrowerDetailPage extends ConsumerWidget {
   final String borrowerId;
   final Borrower? initialBorrower;
@@ -48,7 +52,7 @@ class BorrowerDetailPage extends ConsumerWidget {
               }
             },
           ),
-          title: Text(initialBorrower?.fullName ?? 'Borrower Profile'),
+          title: Text(initialBorrower?.fullName ?? 'Customer 360° Profile'),
         ),
         body: _BorrowerDetailContent(
           borrowerId: borrowerId,
@@ -92,7 +96,6 @@ class _BorrowerDetailContent extends ConsumerWidget {
         .where((l) => l.status == 'Active' || l.status == 'Overdue')
         .firstOrNull;
 
-    // Check overdue status
     int daysOverdue = 0;
     double overdueAmount = 0;
     for (final loan in loans) {
@@ -111,9 +114,10 @@ class _BorrowerDetailContent extends ConsumerWidget {
       }
     }
 
+    final recommendation = recommendationAsync.valueOrNull;
+
     return Column(
       children: [
-        // Fixed Top Header & Key Details (Scrollable Header Section)
         Expanded(
           child: NestedScrollView(
             headerSliverBuilder: (context, innerBoxIsScrolled) {
@@ -124,15 +128,16 @@ class _BorrowerDetailContent extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Material 3 Header Card
-                        recommendationAsync.when(
-                          data: (rec) => BorrowerHeaderCard(
-                            borrower: borrower,
-                            recommendation: rec,
-                          ),
-                          loading: () => BorrowerHeaderCard(borrower: borrower),
-                          error: (_, _) =>
-                              BorrowerHeaderCard(borrower: borrower),
+                        // 1. Material 3 Customer 360 Header Card
+                        BorrowerHeaderCard(
+                          borrower: borrower,
+                          recommendation: recommendation,
+                        ),
+                        const SizedBox(height: 12),
+                        // 2. Customer Score Card
+                        BorrowerCustomerScoreCard(
+                          borrower: borrower,
+                          recommendation: recommendation,
                         ),
                         if (overdueAmount > 0) ...[
                           const SizedBox(height: 12),
@@ -140,7 +145,7 @@ class _BorrowerDetailContent extends ConsumerWidget {
                             daysOverdue: daysOverdue > 0 ? daysOverdue : 1,
                             overdueAmount: overdueAmount.toStringAsFixed(2),
                             recommendedNextAction:
-                                'Contact borrower for payment agreement',
+                                'Contact borrower for immediate payment agreement',
                             onTakeAction: () {
                               if (activeLoan != null) {
                                 context.push(
@@ -151,23 +156,36 @@ class _BorrowerDetailContent extends ConsumerWidget {
                           ),
                         ],
                         const SizedBox(height: 14),
-                        // Quick Action Buttons
+                        // 3. Recommended Officer Next Actions
+                        BorrowerRecommendedActions(
+                          borrower: borrower,
+                          activeLoanId: activeLoan?.id,
+                        ),
+                        const SizedBox(height: 14),
+                        // 4. Quick Action Buttons Bar
                         BorrowerQuickActions(
                           borrower: borrower,
                           activeLoanId: activeLoan?.id,
                         ),
                         const SizedBox(height: 16),
-                        // Financial Metrics Grid
-                        BorrowerFinancialMetrics(loans: loans),
+                        // 5. Financial Snapshot Grid
+                        BorrowerFinancialSnapshot(loans: loans),
                         const SizedBox(height: 16),
-                        // Active Loan Card (if exists)
-                        if (activeLoan != null)
+                        // 6. Payment Behavior Analytics
+                        BorrowerPaymentBehaviorCard(loans: loans),
+                        const SizedBox(height: 16),
+                        // 7. Active Loan Card
+                        if (activeLoan != null) ...[
                           BorrowerActiveLoanCard(loan: activeLoan),
+                          const SizedBox(height: 16),
+                        ],
+                        // 8. Emergency Contact & Guarantor Card
+                        BorrowerEmergencyGuarantorCard(borrower: borrower),
                         const SizedBox(height: 16),
-                        // AI Credit Recommendation Widget
-                        recommendationAsync.when(
-                          data: (rec) => BorrowerRecommendationCard(
-                            recommendation: rec,
+                        // 9. AI Credit Recommendation Widget
+                        if (recommendation != null)
+                          BorrowerRecommendationCard(
+                            recommendation: recommendation,
                             onApplyRecommended: () {
                               context.push(
                                 '/borrowers/$borrowerId/loans/new',
@@ -175,9 +193,6 @@ class _BorrowerDetailContent extends ConsumerWidget {
                               );
                             },
                           ),
-                          loading: () => const SizedBox.shrink(),
-                          error: (_, _) => const SizedBox.shrink(),
-                        ),
                       ],
                     ),
                   ),

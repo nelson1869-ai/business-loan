@@ -6,11 +6,14 @@ import '../../../core/utils/formatters.dart';
 import '../domain/models/payment.dart';
 import 'providers/loans_provider.dart';
 import 'providers/payment_notifier.dart';
+import 'widgets/payment_borrower_card.dart';
 import 'widgets/payment_form_card.dart';
+import 'widgets/payment_history_section.dart';
 import 'widgets/payment_preview_card.dart';
 import 'widgets/payment_reversal_dialog.dart';
-import 'widgets/payment_history_section.dart';
+import 'widgets/payment_summary_cards.dart';
 
+/// Redesigned Material 3 Payment Collection Screen.
 class PaymentScreen extends ConsumerStatefulWidget {
   const PaymentScreen({super.key, required this.loanId});
 
@@ -149,12 +152,6 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           (double.tryParse(loan.outstandingPrincipal) ?? 0) == 0) {
         installmentAmount = null;
       } else {
-        // Net advance credit that already covers future installments.
-        // When the borrower overpaid a prior installment the backend stores
-        // the excess as unapplied_credit on the allocation but does NOT
-        // automatically update the next installment's paid_amount.  We
-        // subtract that credit here so the Due-Installment button shows the
-        // TRUE amount still owed (and hides when credit >= remaining balance).
         double remainingCredit = double.tryParse(loan.unappliedCredit) ?? 0.0;
         for (final inst in loan.installments) {
           if (inst.status == 'Paid' || inst.status == 'Cancelled') continue;
@@ -163,7 +160,6 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           final remaining = expected - paid;
           if (remaining <= 0) continue;
 
-          // Reduce remaining by any advance credit carried forward.
           final netDue = remaining - remainingCredit;
           remainingCredit = (remainingCredit - remaining).clamp(
             0.0,
@@ -174,7 +170,6 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             installmentAmount = netDue.toStringAsFixed(2);
             break;
           }
-          // Credit fully covers this installment - continue to the next one.
         }
       }
     }
@@ -199,13 +194,22 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             }
           },
         ),
-        title: const Text('Loan Payments'),
+        title: const Text('Payment Collection'),
       ),
       body: SafeArea(
         child: ListView(
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
           children: [
+            if (loan != null) ...[
+              PaymentBorrowerCard(loan: loan),
+              const SizedBox(height: 14),
+              PaymentSummaryCards(
+                loan: loan,
+                installmentAmount: installmentAmount,
+              ),
+              const SizedBox(height: 16),
+            ],
             PaymentFormCard(
               formKey: _formKey,
               amountController: _amountController,

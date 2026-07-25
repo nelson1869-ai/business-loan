@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../providers/dashboard_state.dart';
 
@@ -68,7 +69,15 @@ class DashboardHeader extends ConsumerWidget {
           ),
         ),
         _StatusBadge(isOnline: isOnline),
-        const SizedBox(width: 8),
+        const SizedBox(width: 4),
+        IconButton(
+          icon: const Badge(
+            label: Text('3'),
+            child: Icon(Icons.notifications_outlined),
+          ),
+          tooltip: 'Notifications',
+          onPressed: () => context.push('/notifications'),
+        ),
         IconButton(
           icon: const Icon(Icons.refresh),
           tooltip: 'Refresh dashboard',

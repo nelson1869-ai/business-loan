@@ -2,17 +2,29 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/utils/formatters.dart';
+import '../../../core/presentation/design_system/design_system.dart';
 import '../../dashboard/domain/dashboard_data.dart';
 import 'providers/loans_provider.dart';
+import 'widgets/collections/collection_filter_bar.dart';
+import 'widgets/collections/collection_header_card.dart';
+import 'widgets/collections/collection_summary_cards.dart';
+import 'widgets/collections/collection_task_card.dart';
 
-class TodaysCollectionsPage extends ConsumerWidget {
+/// Modernized Material 3 Collection Tasks & Follow-ups Daily Workspace.
+class TodaysCollectionsPage extends ConsumerStatefulWidget {
   const TodaysCollectionsPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TodaysCollectionsPage> createState() =>
+      _TodaysCollectionsPageState();
+}
+
+class _TodaysCollectionsPageState extends ConsumerState<TodaysCollectionsPage> {
+  String _selectedFilter = 'All';
+
+  @override
+  Widget build(BuildContext context) {
     final data = ref.watch(todaysCollectionsProvider);
-    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -26,136 +38,80 @@ class TodaysCollectionsPage extends ConsumerWidget {
             }
           },
         ),
-        title: const Text("Today's Collections"),
+        title: const Text('Collection Tasks & Follow-ups'),
       ),
       body: data.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => ListView(
+          padding: const EdgeInsets.all(16),
+          children: const [
+            AppCardSkeleton(),
+            SizedBox(height: 12),
+            AppCardSkeleton(),
+            SizedBox(height: 12),
+            AppCardSkeleton(),
+          ],
+        ),
         error: (Object e, _) => Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Could not load collections.'),
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: () => ref.invalidate(todaysCollectionsProvider),
-                icon: const Icon(Icons.refresh),
-                label: const Text('Retry'),
-              ),
-            ],
+          child: AppErrorState(
+            error: e.toString(),
+            onRetry: () => ref.invalidate(todaysCollectionsProvider),
           ),
         ),
         data: (collection) {
-          final totalDue = double.tryParse(collection.totalDueToday) ?? 0;
-          final totalCollected =
-              double.tryParse(collection.totalCollectedToday) ?? 0;
-          final pct = totalDue > 0
-              ? ((totalCollected / totalDue) * 100).clamp(0, 100)
-              : 0.0;
+          final items = _filterItems(collection.dueItems);
 
           return RefreshIndicator(
             onRefresh: () async => ref.invalidate(todaysCollectionsProvider),
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                Card(
-                  margin: EdgeInsets.zero,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.trending_up,
-                              size: 20,
-                              color: theme.colorScheme.primary,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Daily Collection Progress',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 15,
-                                color: theme.colorScheme.onSurface,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: LinearProgressIndicator(
-                            value: pct / 100,
-                            minHeight: 14,
-                            backgroundColor:
-                                theme.colorScheme.surfaceContainerHighest,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _Stat(
-                                label: 'Due Today',
-                                value: formatCurrency(collection.totalDueToday),
-                                color: theme.colorScheme.primary,
-                              ),
-                            ),
-                            Expanded(
-                              child: _Stat(
-                                label: 'Collected',
-                                value: formatCurrency(
-                                  collection.totalCollectedToday,
-                                ),
-                                color: Colors.green,
-                              ),
-                            ),
-                            Expanded(
-                              child: _Stat(
-                                label: 'Remaining',
-                                value: formatCurrency(
-                                  (totalDue - totalCollected).toStringAsFixed(
-                                    2,
-                                  ),
-                                ),
-                                color: Colors.orange,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
+                // 1. Officer Greeting & Header Card
+                CollectionHeaderCard(collection: collection),
+                const SizedBox(height: 14),
+                // 2. Summary Metric Cards
+                CollectionSummaryCards(collection: collection),
+                const SizedBox(height: 16),
+                // 3. Multi-State Filter Chips Bar
+                CollectionFilterBar(
+                  selectedFilter: _selectedFilter,
+                  onFilterChanged: (val) {
+                    setState(() => _selectedFilter = val);
+                  },
                 ),
-                const SizedBox(height: 20),
-                Text(
-                  'Scheduled Collections (${collection.dueItems.length})',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                if (collection.dueItems.isEmpty)
-                  Card(
-                    margin: EdgeInsets.zero,
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Center(
-                        child: Text(
-                          'No collections due today.',
-                          style: TextStyle(
-                            color: theme.colorScheme.onSurface.withValues(
-                              alpha: 0.5,
-                            ),
-                          ),
-                        ),
+                const SizedBox(height: 14),
+                // 4. Task List Section Header
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Daily Tasks (${items.length})',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
+                    Text(
+                      'Sorted by Due Time',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                // 5. Expandable Task List or Empty State
+                if (items.isEmpty)
+                  AppEmptyState(
+                    icon: Icons.task_alt_outlined,
+                    title: 'No Tasks Match Filter',
+                    description:
+                        'You have no scheduled collection tasks matching standard criteria.',
+                    actionLabel: 'Reset Filter',
+                    onAction: () {
+                      setState(() => _selectedFilter = 'All');
+                    },
                   )
                 else
-                  ...collection.dueItems.map(
-                    (item) => _CollectionTile(item: item),
-                  ),
+                  ...items.map((item) => CollectionTaskCard(item: item)),
               ],
             ),
           );
@@ -163,109 +119,15 @@ class TodaysCollectionsPage extends ConsumerWidget {
       ),
     );
   }
-}
 
-class _Stat extends StatelessWidget {
-  const _Stat({required this.label, required this.value, required this.color});
-
-  final String label;
-  final String value;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Text(
-            value,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-              color: color,
-            ),
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ],
-    );
-  }
-}
-
-class _CollectionTile extends StatelessWidget {
-  const _CollectionTile({required this.item});
-
-  final DashboardDueItem item;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        onTap: () => context.push('/loans/${item.loanId}/payments'),
-        leading: CircleAvatar(
-          backgroundColor: item.isOverdue
-              ? Colors.red.withValues(alpha: 0.1)
-              : theme.colorScheme.primary.withValues(alpha: 0.1),
-          child: Text(
-            item.borrowerName.isNotEmpty
-                ? item.borrowerName[0].toUpperCase()
-                : '?',
-            style: TextStyle(
-              color: item.isOverdue ? Colors.red : theme.colorScheme.primary,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        title: Text(
-          item.borrowerName,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        subtitle: Text(
-          'Installment ${item.installmentNumber}',
-          style: TextStyle(
-            fontSize: 12,
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-          ),
-        ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              formatCurrency(item.amountDue),
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: item.isOverdue ? Colors.red : null,
-              ),
-            ),
-            if (item.isOverdue)
-              Text(
-                'Overdue',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Colors.red.shade700,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
+  List<DashboardDueItem> _filterItems(List<DashboardDueItem> original) {
+    switch (_selectedFilter) {
+      case 'Overdue':
+        return original.where((i) => i.isOverdue).toList();
+      case 'Today':
+        return original.where((i) => !i.isOverdue).toList();
+      default:
+        return original;
+    }
   }
 }

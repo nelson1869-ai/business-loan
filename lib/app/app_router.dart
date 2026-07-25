@@ -25,6 +25,9 @@ import 'package:lending_nelson/features/loans/presentation/loans_list_page.dart'
 import 'package:lending_nelson/features/loans/presentation/payment_screen.dart';
 import 'package:lending_nelson/features/loans/presentation/todays_collections_page.dart';
 
+import 'package:lending_nelson/features/dashboard/pages/notifications_center_page.dart';
+import 'package:lending_nelson/features/dashboard/pages/reports_analytics_page.dart';
+
 final appRouter = GoRouter(
   initialLocation: '/',
   routes: [
@@ -54,6 +57,14 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/sync-management',
       builder: (context, state) => const SyncManagementScreen(),
+    ),
+    GoRoute(
+      path: '/notifications',
+      builder: (context, state) => const NotificationsCenterPage(),
+    ),
+    GoRoute(
+      path: '/reports',
+      builder: (context, state) => const ReportsAnalyticsPage(),
     ),
     GoRoute(
       path: '/borrowers/register',
