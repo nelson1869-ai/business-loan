@@ -1,73 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lending_nelson/core/presentation/design_system/design_system.dart';
 
-/// User Management & Branch Assignments Sheet.
-class UserManagementSheet extends StatefulWidget {
+import '../../../users/data/user_repository.dart';
+import '../../../users/providers/user_provider.dart';
+
+class UserManagementSheet extends ConsumerStatefulWidget {
   const UserManagementSheet({super.key});
 
   @override
-  State<UserManagementSheet> createState() => _UserManagementSheetState();
+  ConsumerState<UserManagementSheet> createState() =>
+      _UserManagementSheetState();
 }
 
-class _UserManagementSheetState extends State<UserManagementSheet> {
-  final _searchCtrl = TextEditingController();
+class _UserManagementSheetState extends ConsumerState<UserManagementSheet> {
+  final _searchController = TextEditingController();
   String _query = '';
-
-  final List<Map<String, String>> _users = [
-    {
-      'name': 'Nelson Officer',
-      'username': 'nelson.officer',
-      'role': 'Loan Officer',
-      'branch': 'Central Branch',
-      'status': 'Active',
-    },
-    {
-      'name': 'Sarah Jenkins',
-      'username': 'sarah.mgr',
-      'role': 'Branch Manager',
-      'branch': 'Central Branch',
-      'status': 'Active',
-    },
-    {
-      'name': 'Admin Supervisor',
-      'username': 'admin.sys',
-      'role': 'Administrator',
-      'branch': 'Headquarters',
-      'status': 'Active',
-    },
-    {
-      'name': 'Mark Santos',
-      'username': 'mark.collector',
-      'role': 'Collection Officer',
-      'branch': 'North Branch',
-      'status': 'Active',
-    },
-    {
-      'name': 'Elena Rostova',
-      'username': 'elena.cashier',
-      'role': 'Cashier',
-      'branch': 'Central Branch',
-      'status': 'Disabled',
-    },
-  ];
 
   @override
   void dispose() {
-    _searchCtrl.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    final filteredUsers = _users.where((u) {
-      if (_query.isEmpty) return true;
-      final q = _query.toLowerCase();
-      return u['name']!.toLowerCase().contains(q) ||
-          u['username']!.toLowerCase().contains(q) ||
-          u['role']!.toLowerCase().contains(q);
+    final usersAsync = ref.watch(usersProvider);
+    final users = usersAsync.valueOrNull ?? const [];
+    final filtered = users.where((user) {
+      final query = _query.toLowerCase();
+      return query.isEmpty ||
+          user.username.toLowerCase().contains(query) ||
+          user.role.toLowerCase().contains(query);
     }).toList();
 
     return DraggableScrollableSheet(
@@ -79,163 +43,175 @@ class _UserManagementSheetState extends State<UserManagementSheet> {
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         child: Column(
           children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade400,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
             Row(
               children: [
-                Icon(Icons.people_outline, color: colorScheme.primary),
+                const Icon(Icons.people_outline),
                 const SizedBox(width: 8),
-                Text(
-                  'User Management & Access Control',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    'User Management',
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            // User Summary Cards
-            Row(
-              children: const [
-                Expanded(
-                  child: AppMetricCard(
-                    label: 'Total Users',
-                    value: '5',
-                    icon: Icons.people,
-                    color: Colors.blue,
-                  ),
-                ),
-                SizedBox(width: 8),
-                Expanded(
-                  child: AppMetricCard(
-                    label: 'Active Officers',
-                    value: '4 Active',
-                    icon: Icons.check_circle_outline,
-                    color: Colors.green,
-                  ),
+                IconButton(
+                  tooltip: 'Create user',
+                  onPressed: () => _createUser(context),
+                  icon: const Icon(Icons.person_add_alt_1_outlined),
                 ),
               ],
             ),
             const SizedBox(height: 12),
             AppSearchBar(
-              controller: _searchCtrl,
-              hintText: 'Search user by name, username, or role...',
-              onChanged: (v) => setState(() => _query = v),
+              controller: _searchController,
+              hintText: 'Search username or role',
+              onChanged: (value) => setState(() => _query = value),
             ),
             const SizedBox(height: 12),
             Expanded(
-              child: filteredUsers.isEmpty
-                  ? const AppEmptyState(
-                      icon: Icons.person_off_outlined,
-                      title: 'No Users Found',
-                      description:
-                          'No active staff accounts match your search filter.',
-                    )
-                  : ListView.separated(
-                      controller: scrollController,
-                      itemCount: filteredUsers.length,
-                      separatorBuilder: (context, index) =>
-                          const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
-                        final u = filteredUsers[index];
-                        final isActive = u['status'] == 'Active';
-
-                        return AppCard(
-                          margin: EdgeInsets.zero,
-                          padding: const EdgeInsets.all(12),
-                          child: Row(
-                            children: [
-                              CircleAvatar(
-                                backgroundColor: colorScheme.primary.withValues(
-                                  alpha: 0.15,
-                                ),
-                                child: Text(
-                                  u['name']![0],
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: colorScheme.primary,
-                                  ),
-                                ),
+              child: usersAsync.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (_, _) => AppErrorState(
+                  error:
+                      'Administrator access is required. Check your connection or permissions.',
+                  onRetry: () => ref.invalidate(usersProvider),
+                ),
+                data: (_) => filtered.isEmpty
+                    ? const AppEmptyState(
+                        icon: Icons.person_off_outlined,
+                        title: 'No Users Found',
+                        description: 'No accounts match this search.',
+                      )
+                    : ListView.separated(
+                        controller: scrollController,
+                        itemCount: filtered.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
+                        itemBuilder: (_, index) {
+                          final user = filtered[index];
+                          return AppCard(
+                            margin: EdgeInsets.zero,
+                            child: ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: CircleAvatar(
+                                child: Text(user.username[0].toUpperCase()),
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      u['name']!,
-                                      style: theme.textTheme.titleSmall
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                    ),
-                                    Text(
-                                      '@${u['username']} · ${u['branch']}',
-                                      style: theme.textTheme.bodySmall
-                                          ?.copyWith(
-                                            color: colorScheme.onSurfaceVariant,
-                                          ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Row(
-                                      children: [
-                                        AppStatusChip(status: u['role']!),
-                                        const SizedBox(width: 6),
-                                        AppStatusChip(
-                                          status: u['status']!,
-                                          isCompact: true,
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
+                              title: Text(user.username),
+                              subtitle: Text(
+                                'Created ${user.createdAt.month}/${user.createdAt.day}/${user.createdAt.year}',
                               ),
-                              PopupMenuButton<String>(
-                                icon: const Icon(Icons.more_vert),
-                                onSelected: (action) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        '$action action performed for ${u['name']}',
-                                      ),
-                                    ),
-                                  );
-                                },
-                                itemBuilder: (ctx) => [
-                                  const PopupMenuItem(
-                                    value: 'Edit Role',
-                                    child: Text('Edit Role & Branch'),
-                                  ),
-                                  const PopupMenuItem(
-                                    value: 'Reset Password',
-                                    child: Text('Reset Password'),
+                              trailing: PopupMenuButton<String>(
+                                tooltip: 'Change role',
+                                onSelected: (role) =>
+                                    _updateRole(user.id, role),
+                                itemBuilder: (_) => const [
+                                  PopupMenuItem(
+                                    value: 'officer',
+                                    child: Text('Set as Officer'),
                                   ),
                                   PopupMenuItem(
-                                    value: isActive ? 'Disable' : 'Activate',
-                                    child: Text(
-                                      isActive
-                                          ? 'Disable User'
-                                          : 'Activate User',
-                                    ),
+                                    value: 'admin',
+                                    child: Text('Set as Administrator'),
                                   ),
                                 ],
+                                child: AppStatusChip(status: user.role),
                               ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _updateRole(String userId, String role) async {
+    try {
+      await ref.read(userRepositoryProvider).updateRole(userId, role);
+      ref.invalidate(usersProvider);
+    } catch (_) {
+      if (mounted) _message('Role update failed.');
+    }
+  }
+
+  Future<void> _createUser(BuildContext context) async {
+    final username = TextEditingController();
+    final password = TextEditingController();
+    var role = 'officer';
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Create user account'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: username,
+                  decoration: const InputDecoration(labelText: 'Username'),
+                ),
+                TextField(
+                  controller: password,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Temporary password',
+                    helperText: 'At least 8 characters',
+                  ),
+                ),
+                DropdownButtonFormField<String>(
+                  initialValue: role,
+                  decoration: const InputDecoration(labelText: 'Role'),
+                  items: const [
+                    DropdownMenuItem(value: 'officer', child: Text('Officer')),
+                    DropdownMenuItem(
+                      value: 'admin',
+                      child: Text('Administrator'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      setDialogState(() => role = value);
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Create'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (accepted != true || !mounted) return;
+    try {
+      await ref
+          .read(userRepositoryProvider)
+          .create(
+            username: username.text.trim(),
+            password: password.text,
+            role: role,
+          );
+      ref.invalidate(usersProvider);
+      _message('User account created.');
+    } catch (_) {
+      _message('Could not create user. Check the entered values.');
+    } finally {
+      username.dispose();
+      password.dispose();
+    }
+  }
+
+  void _message(String text) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 }

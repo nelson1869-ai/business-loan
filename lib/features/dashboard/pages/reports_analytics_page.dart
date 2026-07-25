@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:lending_nelson/core/presentation/design_system/design_system.dart';
 import '../providers/dashboard_state.dart';
+import '../providers/financial_report_provider.dart';
 import '../widgets/reports/reports_header_card.dart';
 import '../widgets/reports/reports_kpi_cards.dart';
 import '../widgets/reports/reports_officer_leaderboard.dart';
@@ -25,6 +26,7 @@ class _ReportsAnalyticsPageState extends ConsumerState<ReportsAnalyticsPage> {
   @override
   Widget build(BuildContext context) {
     final dashboardState = ref.watch(dashboardProvider);
+    final reportAsync = ref.watch(financialReportProvider(_selectedPeriod));
 
     return Scaffold(
       appBar: AppBar(
@@ -68,6 +70,8 @@ class _ReportsAnalyticsPageState extends ConsumerState<ReportsAnalyticsPage> {
                   // 1. Executive Header Card
                   ReportsHeaderCard(
                     selectedPeriod: _selectedPeriod,
+                    isOnline: dashboardState.isOnline,
+                    report: reportAsync.valueOrNull,
                     onPeriodChanged: (val) {
                       setState(() => _selectedPeriod = val);
                     },
@@ -75,16 +79,36 @@ class _ReportsAnalyticsPageState extends ConsumerState<ReportsAnalyticsPage> {
                   const SizedBox(height: 14),
                   // 2. Key Performance Indicators Grid
                   if (dashboardState.metrics != null)
-                    ReportsKpiCards(metrics: dashboardState.metrics!),
+                    reportAsync.when(
+                      loading: () => const AppCardSkeleton(),
+                      error: (error, _) => AppErrorState(
+                        error: error.toString(),
+                        onRetry: () => ref.invalidate(
+                          financialReportProvider(_selectedPeriod),
+                        ),
+                      ),
+                      data: (report) => ReportsKpiCards(
+                        metrics: dashboardState.metrics!,
+                        report: report,
+                      ),
+                    ),
                   const SizedBox(height: 16),
                   // 3. Visual Trend Charts
                   const ReportsTrendCharts(),
                   const SizedBox(height: 16),
                   // 4. Officer Leaderboard Table
-                  const ReportsOfficerLeaderboard(),
+                  reportAsync.valueOrNull == null
+                      ? const SizedBox.shrink()
+                      : ReportsOfficerLeaderboard(
+                          report: reportAsync.requireValue,
+                        ),
                   const SizedBox(height: 16),
                   // 5. Risk & PAR Aging Analysis Card
-                  const ReportsRiskAnalysisCard(),
+                  reportAsync.valueOrNull == null
+                      ? const SizedBox.shrink()
+                      : ReportsRiskAnalysisCard(
+                          report: reportAsync.requireValue,
+                        ),
                 ],
               ),
             ),

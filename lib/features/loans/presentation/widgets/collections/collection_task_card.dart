@@ -7,8 +7,15 @@ import 'collection_task_detail_sheet.dart';
 /// Modern Collection Task Card with 1-tap quick actions and detail bottom sheet trigger.
 class CollectionTaskCard extends StatelessWidget {
   final DashboardDueItem item;
+  final bool isCompleted;
+  final VoidCallback onComplete;
 
-  const CollectionTaskCard({super.key, required this.item});
+  const CollectionTaskCard({
+    super.key,
+    required this.item,
+    required this.isCompleted,
+    required this.onComplete,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -73,7 +80,11 @@ class CollectionTaskCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   AppStatusChip(
-                    status: item.isOverdue ? 'Overdue' : 'Pending',
+                    status: isCompleted
+                        ? 'Completed'
+                        : item.isOverdue
+                        ? 'Overdue'
+                        : 'Pending',
                     isCompact: true,
                   ),
                 ],
@@ -109,15 +120,7 @@ class CollectionTaskCard extends StatelessWidget {
                   IconButton.filledTonal(
                     icon: const Icon(Icons.check_outlined, size: 16),
                     tooltip: 'Mark Complete',
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Task marked completed for ${item.borrowerName}',
-                          ),
-                        ),
-                      );
-                    },
+                    onPressed: isCompleted ? null : onComplete,
                   ),
                 ],
               ),

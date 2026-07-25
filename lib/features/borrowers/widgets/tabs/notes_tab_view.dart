@@ -1,171 +1,120 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Notes Tab View displaying field officer timeline notes.
-class NotesTabView extends StatefulWidget {
-  const NotesTabView({super.key});
+import '../../../notes/notes_provider.dart';
+import '../../../notes/notes_repository.dart';
+import '../../../notes/officer_note.dart';
+
+class NotesTabView extends ConsumerWidget {
+  const NotesTabView({super.key, required this.borrowerId, this.loanId});
+  final String borrowerId;
+  final String? loanId;
 
   @override
-  State<NotesTabView> createState() => _NotesTabViewState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scope = (borrowerId: borrowerId, loanId: loanId);
+    final notes = ref.watch(notesProvider(scope));
+    return Scaffold(
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _add(context, ref, scope),
+        icon: const Icon(Icons.add_comment_outlined),
+        label: const Text('Add Note'),
+      ),
+      body: notes.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, _) => Center(
+          child: TextButton(
+            onPressed: () => ref.invalidate(notesProvider(scope)),
+            child: Text('Retry: $error'),
+          ),
+        ),
+        data: (items) => _NotesList(items: items, scope: scope),
+      ),
+    );
+  }
 
-class _NotesTabViewState extends State<NotesTabView> {
-  final List<_NoteItem> _notes = [
-    _NoteItem(
-      officer: 'Field Officer Nelson',
-      date: '2026-07-20',
-      content:
-          'Borrower requested date extension for July payment. Approved 3-day grace window.',
-    ),
-    _NoteItem(
-      officer: 'Credit Risk Officer',
-      date: '2026-06-15',
-      content:
-          'Initial credit recommendation verified. Borrower has strong repayment record.',
-    ),
-  ];
-
-  void _showAddNoteDialog() {
+  Future<void> _add(
+    BuildContext context,
+    WidgetRef ref,
+    NotesScope scope,
+  ) async {
     final controller = TextEditingController();
-    showDialog<void>(
+    final content = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Add Officer Note'),
         content: TextField(
           controller: controller,
-          maxLines: 3,
+          maxLines: 4,
+          maxLength: 4000,
+          autofocus: true,
           decoration: const InputDecoration(
-            hintText: 'Enter observation or collection notes...',
+            hintText: 'Enter an observation or collection note',
             border: OutlineInputBorder(),
           ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           FilledButton(
             onPressed: () {
-              if (controller.text.trim().isNotEmpty) {
-                setState(() {
-                  _notes.insert(
-                    0,
-                    _NoteItem(
-                      officer: 'Loan Officer',
-                      date: DateTime.now().toString().substring(0, 10),
-                      content: controller.text.trim(),
-                    ),
-                  );
-                });
-                Navigator.pop(ctx);
-              }
+              final value = controller.text.trim();
+              if (value.isNotEmpty) Navigator.pop(dialogContext, value);
             },
             child: const Text('Save Note'),
           ),
         ],
       ),
     );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showAddNoteDialog,
-        icon: const Icon(Icons.add_comment_outlined),
-        label: const Text('Add Note'),
-      ),
-      body: _notes.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.speaker_notes_off_outlined,
-                    size: 64,
-                    color: theme.colorScheme.primary.withValues(alpha: 0.5),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No Officer Notes Yet',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Tap below to record field officer observations.',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-              itemCount: _notes.length,
-              itemBuilder: (context, index) {
-                final note = _notes[index];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  elevation: 1,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Row(
-                              children: [
-                                const Icon(
-                                  Icons.person_pin,
-                                  size: 16,
-                                  color: Colors.blue,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  note.officer,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Text(
-                              note.date,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const Divider(height: 16),
-                        Text(note.content, style: theme.textTheme.bodyMedium),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-    );
+    controller.dispose();
+    if (content == null || !context.mounted) return;
+    await ref
+        .read(notesRepositoryProvider)
+        .create(
+          borrowerId,
+          loanId: scope.loanId,
+          content: content,
+          category: scope.loanId == null ? 'Borrower' : 'Loan',
+        );
+    ref.invalidate(notesProvider(scope));
   }
 }
 
-class _NoteItem {
-  final String officer;
-  final String date;
-  final String content;
+class _NotesList extends ConsumerWidget {
+  const _NotesList({required this.items, required this.scope});
+  final List<OfficerNote> items;
+  final NotesScope scope;
 
-  const _NoteItem({
-    required this.officer,
-    required this.date,
-    required this.content,
-  });
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (items.isEmpty) {
+      return const Center(child: Text('No officer notes recorded'));
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+      itemCount: items.length,
+      itemBuilder: (context, index) {
+        final note = items[index];
+        return Card(
+          child: ListTile(
+            title: Text(note.authorName),
+            subtitle: Text(note.content),
+            leading: const Icon(Icons.person_pin_outlined),
+            trailing: note.canDelete
+                ? IconButton(
+                    tooltip: 'Delete note',
+                    icon: const Icon(Icons.delete_outline),
+                    onPressed: () async {
+                      await ref.read(notesRepositoryProvider).delete(note.id);
+                      ref.invalidate(notesProvider(scope));
+                    },
+                  )
+                : null,
+          ),
+        );
+      },
+    );
+  }
 }

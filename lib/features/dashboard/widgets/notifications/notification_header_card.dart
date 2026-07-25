@@ -7,12 +7,14 @@ class NotificationHeaderCard extends StatelessWidget {
   final TextEditingController searchController;
   final ValueChanged<String> onSearchChanged;
   final VoidCallback onMarkAllRead;
+  final int unreadCount;
 
   const NotificationHeaderCard({
     super.key,
     required this.searchController,
     required this.onSearchChanged,
     required this.onMarkAllRead,
+    required this.unreadCount,
   });
 
   @override
@@ -56,7 +58,7 @@ class NotificationHeaderCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const AppStatusChip(status: '3 Unread'),
+              AppStatusChip(status: '$unreadCount Unread'),
             ],
           ),
           const SizedBox(height: 14),
@@ -67,11 +69,12 @@ class NotificationHeaderCard extends StatelessWidget {
             onChanged: onSearchChanged,
           ),
           const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
             children: [
               TextButton.icon(
-                onPressed: onMarkAllRead,
+                onPressed: unreadCount > 0 ? onMarkAllRead : null,
                 icon: const Icon(Icons.done_all, size: 16),
                 label: const Text('Mark All Read'),
               ),

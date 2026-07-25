@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:lending_nelson/core/presentation/design_system/design_system.dart';
+import '../data/notification_repository.dart';
+import '../domain/app_notification.dart';
+import '../providers/notification_provider.dart';
 import '../widgets/notifications/notification_filter_bar.dart';
 import '../widgets/notifications/notification_header_card.dart';
 import '../widgets/notifications/notification_item_card.dart';
@@ -23,58 +26,6 @@ class _NotificationsCenterPageState
   String _query = '';
   String _selectedFilter = 'All';
 
-  final List<NotificationItemModel> _notifications = [
-    NotificationItemModel(
-      id: '1',
-      title: 'Collection Due Today — Maria Santos',
-      description:
-          'Scheduled installment payment of ₱1,250.00 due today at 9:00 AM.',
-      category: 'Collections',
-      time: '10 mins ago',
-      priority: 'High',
-      borrowerId: 'b-01',
-      borrowerName: 'Maria Santos',
-      loanId: 'L-1001',
-      isRead: false,
-    ),
-    NotificationItemModel(
-      id: '2',
-      title: 'Overdue Loan Warning — Juan Dela Cruz',
-      description:
-          'Installment #3 is 14 days overdue. Outstanding balance ₱3,500.00.',
-      category: 'Overdue',
-      time: '1 hour ago',
-      priority: 'Critical',
-      borrowerId: 'b-02',
-      borrowerName: 'Juan Dela Cruz',
-      loanId: 'L-1002',
-      isRead: false,
-    ),
-    NotificationItemModel(
-      id: '3',
-      title: 'Promise To Pay Today — Pedro Penduko',
-      description:
-          'Borrower promised to pay ₱2,000.00 installment before 4:00 PM.',
-      category: 'Collections',
-      time: '3 hours ago',
-      priority: 'Medium',
-      borrowerId: 'b-03',
-      borrowerName: 'Pedro Penduko',
-      loanId: 'L-1003',
-      isRead: false,
-    ),
-    NotificationItemModel(
-      id: '4',
-      title: 'Offline Sync Completed',
-      description:
-          '4 offline payment audit logs successfully synced with server.',
-      category: 'Sync',
-      time: 'Yesterday',
-      priority: 'Low',
-      isRead: true,
-    ),
-  ];
-
   @override
   void dispose() {
     _searchCtrl.dispose();
@@ -83,7 +34,10 @@ class _NotificationsCenterPageState
 
   @override
   Widget build(BuildContext context) {
-    final filteredItems = _notifications.where((n) {
+    final notificationsAsync = ref.watch(notificationsProvider);
+    final notifications =
+        notificationsAsync.valueOrNull ?? const <AppNotification>[];
+    final filteredItems = notifications.where((n) {
       if (_selectedFilter == 'Unread' && n.isRead) {
         return false;
       }
@@ -94,12 +48,18 @@ class _NotificationsCenterPageState
       if (_query.isNotEmpty) {
         final q = _query.toLowerCase();
         final matchTitle = n.title.toLowerCase().contains(q);
-        final matchDesc = n.description.toLowerCase().contains(q);
-        final matchName = n.borrowerName?.toLowerCase().contains(q) ?? false;
-        if (!matchTitle && !matchDesc && !matchName) return false;
+        final matchDesc = n.body.toLowerCase().contains(q);
+        if (!matchTitle && !matchDesc) return false;
       }
       return true;
     }).toList();
+    final unreadCount = notifications.where((n) => !n.isRead).length;
+    final overdueCount = notifications
+        .where((n) => n.category == 'Overdue')
+        .length;
+    final highPriorityCount = notifications
+        .where((n) => n.priority == 'Critical' || n.priority == 'High')
+        .length;
 
     return Scaffold(
       appBar: AppBar(
@@ -117,7 +77,8 @@ class _NotificationsCenterPageState
       ),
       body: RefreshIndicator(
         onRefresh: () async {
-          setState(() {});
+          ref.invalidate(notificationsProvider);
+          await ref.read(notificationsProvider.future);
         },
         child: ListView(
           padding: const EdgeInsets.all(16),
@@ -126,33 +87,27 @@ class _NotificationsCenterPageState
             NotificationHeaderCard(
               searchController: _searchCtrl,
               onSearchChanged: (v) => setState(() => _query = v),
-              onMarkAllRead: () {
-                setState(() {
-                  for (var i = 0; i < _notifications.length; i++) {
-                    _notifications[i] = NotificationItemModel(
-                      id: _notifications[i].id,
-                      title: _notifications[i].title,
-                      description: _notifications[i].description,
-                      category: _notifications[i].category,
-                      time: _notifications[i].time,
-                      priority: _notifications[i].priority,
-                      borrowerId: _notifications[i].borrowerId,
-                      borrowerName: _notifications[i].borrowerName,
-                      loanId: _notifications[i].loanId,
-                      isRead: true,
-                    );
-                  }
-                });
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('All notifications marked as read'),
-                  ),
-                );
+              unreadCount: unreadCount,
+              onMarkAllRead: () async {
+                if (unreadCount == 0) return;
+                await ref.read(notificationRepositoryProvider).markAllRead();
+                ref.invalidate(notificationsProvider);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('All notifications marked as read'),
+                    ),
+                  );
+                }
               },
             ),
             const SizedBox(height: 14),
             // 2. Summary Metric Cards
-            const NotificationSummaryCards(),
+            NotificationSummaryCards(
+              unreadCount: unreadCount,
+              overdueCount: overdueCount,
+              highPriorityCount: highPriorityCount,
+            ),
             const SizedBox(height: 16),
             // 3. Multi-Category Filter Bar
             NotificationFilterBar(
@@ -179,12 +134,29 @@ class _NotificationsCenterPageState
               ],
             ),
             const SizedBox(height: 10),
-            if (filteredItems.isEmpty)
+            if (notificationsAsync.isLoading)
+              const Column(
+                children: [
+                  AppCardSkeleton(),
+                  SizedBox(height: 10),
+                  AppCardSkeleton(),
+                  SizedBox(height: 10),
+                  AppCardSkeleton(),
+                ],
+              )
+            else if (notificationsAsync.hasError)
+              AppErrorState(
+                error:
+                    'Could not load notifications. Check your connection and try again.',
+                onRetry: () => ref.invalidate(notificationsProvider),
+              )
+            else if (filteredItems.isEmpty)
               AppEmptyState(
                 icon: Icons.notifications_off_outlined,
-                title: 'No Notifications Found',
-                description:
-                    'You have no alerts matching the selected filter or search criteria.',
+                title: 'No Notifications',
+                description: _query.isNotEmpty || _selectedFilter != 'All'
+                    ? 'No notifications match the current filters.'
+                    : 'New collection alerts and reminders will appear here.',
                 actionLabel: 'Reset Filters',
                 onAction: () {
                   _searchCtrl.clear();
@@ -197,33 +169,42 @@ class _NotificationsCenterPageState
             else
               ...filteredItems.map(
                 (n) => NotificationItemCard(
-                  item: n,
-                  onMarkRead: () {
-                    setState(() {
-                      final idx = _notifications.indexWhere(
-                        (x) => x.id == n.id,
-                      );
-                      if (idx != -1) {
-                        _notifications[idx] = NotificationItemModel(
-                          id: n.id,
-                          title: n.title,
-                          description: n.description,
-                          category: n.category,
-                          time: n.time,
-                          priority: n.priority,
-                          borrowerId: n.borrowerId,
-                          borrowerName: n.borrowerName,
-                          loanId: n.loanId,
-                          isRead: true,
-                        );
-                      }
-                    });
+                  item: _toItemModel(n),
+                  onMarkRead: () async {
+                    if (n.isRead) return;
+                    await ref
+                        .read(notificationRepositoryProvider)
+                        .markRead(n.id);
+                    ref.invalidate(notificationsProvider);
                   },
                 ),
               ),
           ],
         ),
       ),
+    );
+  }
+
+  NotificationItemModel _toItemModel(AppNotification notification) {
+    final created = notification.createdAt;
+    final now = DateTime.now();
+    final time =
+        created.year == now.year &&
+            created.month == now.month &&
+            created.day == now.day
+        ? '${created.hour.toString().padLeft(2, '0')}:'
+              '${created.minute.toString().padLeft(2, '0')}'
+        : '${created.month}/${created.day}/${created.year}';
+    return NotificationItemModel(
+      id: notification.id,
+      title: notification.title,
+      description: notification.body,
+      category: notification.category,
+      time: time,
+      priority: notification.priority,
+      borrowerId: notification.borrowerId,
+      loanId: notification.loanId,
+      isRead: notification.isRead,
     );
   }
 }

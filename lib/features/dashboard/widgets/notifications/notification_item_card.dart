@@ -110,50 +110,60 @@ class NotificationItemCard extends StatelessWidget {
           ),
           if (item.borrowerName != null || item.loanId != null) ...[
             const Divider(height: 14),
-            Row(
-              children: [
-                if (item.borrowerName != null)
-                  AppStatusChip(status: item.borrowerName!, isCompact: true),
-                const SizedBox(width: 6),
-                if (item.loanId != null)
-                  AppRiskBadge(riskGrade: 'Loan #${item.loanId}'),
-                const Spacer(),
-                // Quick Actions
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (item.loanId != null)
+            LayoutBuilder(
+              builder: (context, constraints) => Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      if (item.borrowerName != null)
+                        AppStatusChip(
+                          status: item.borrowerName!,
+                          isCompact: true,
+                        ),
+                      if (item.loanId != null)
+                        AppRiskBadge(riskGrade: 'Loan #${item.loanId}'),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // Quick Actions
+                  Wrap(
+                    spacing: 4,
+                    runSpacing: 4,
+                    children: [
+                      if (item.loanId != null)
+                        IconButton.filledTonal(
+                          icon: const Icon(
+                            Icons.point_of_sale_outlined,
+                            size: 16,
+                          ),
+                          tooltip: 'Collect Payment',
+                          onPressed: () =>
+                              context.push('/loans/${item.loanId}/payments'),
+                        ),
+                      if (item.borrowerId != null)
+                        IconButton.filledTonal(
+                          icon: const Icon(Icons.person_outline, size: 16),
+                          tooltip: 'Open Borrower',
+                          onPressed: () =>
+                              context.push('/borrowers/${item.borrowerId}'),
+                        ),
                       IconButton.filledTonal(
-                        icon: const Icon(
-                          Icons.point_of_sale_outlined,
+                        icon: Icon(
+                          item.isRead
+                              ? Icons.mark_email_read_outlined
+                              : Icons.mark_email_unread_outlined,
                           size: 16,
                         ),
-                        tooltip: 'Collect Payment',
-                        onPressed: () =>
-                            context.push('/loans/${item.loanId}/payments'),
+                        tooltip: item.isRead ? 'Already Read' : 'Mark Read',
+                        onPressed: onMarkRead,
                       ),
-                    const SizedBox(width: 4),
-                    if (item.borrowerId != null)
-                      IconButton.filledTonal(
-                        icon: const Icon(Icons.person_outline, size: 16),
-                        tooltip: 'Open Borrower',
-                        onPressed: () =>
-                            context.push('/borrowers/${item.borrowerId}'),
-                      ),
-                    const SizedBox(width: 4),
-                    IconButton.filledTonal(
-                      icon: Icon(
-                        item.isRead
-                            ? Icons.mark_email_read_outlined
-                            : Icons.mark_email_unread_outlined,
-                        size: 16,
-                      ),
-                      tooltip: item.isRead ? 'Already Read' : 'Mark Read',
-                      onPressed: onMarkRead,
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
           ],
         ],

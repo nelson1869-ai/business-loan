@@ -3,7 +3,16 @@ import 'package:lending_nelson/core/presentation/design_system/design_system.dar
 
 /// Responsive Grid displaying Notification Summary Metrics.
 class NotificationSummaryCards extends StatelessWidget {
-  const NotificationSummaryCards({super.key});
+  final int unreadCount;
+  final int overdueCount;
+  final int highPriorityCount;
+
+  const NotificationSummaryCards({
+    super.key,
+    required this.unreadCount,
+    required this.overdueCount,
+    required this.highPriorityCount,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -23,27 +32,27 @@ class NotificationSummaryCards extends StatelessWidget {
           children: [
             AppMetricCard(
               label: 'Unread Alerts',
-              value: '3 Unread',
+              value: '$unreadCount Unread',
               icon: Icons.mark_email_unread_outlined,
               color: theme.colorScheme.primary,
             ),
             AppMetricCard(
               label: 'Overdue Warnings',
-              value: '2 Overdue',
+              value: '$overdueCount Overdue',
               icon: Icons.warning_amber_outlined,
               color: Colors.red,
             ),
             AppMetricCard(
               label: 'High Priority',
-              value: '1 Critical',
+              value: '$highPriorityCount High',
               icon: Icons.priority_high,
               color: Colors.orange.shade800,
             ),
             AppMetricCard(
               label: 'System Status',
-              value: 'All Systems OK',
-              icon: Icons.cloud_done_outlined,
-              color: Colors.green,
+              value: 'Unavailable',
+              icon: Icons.cloud_off_outlined,
+              color: theme.colorScheme.outline,
             ),
           ],
         );

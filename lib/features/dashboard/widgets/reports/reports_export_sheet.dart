@@ -1,82 +1,85 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:lending_nelson/core/presentation/design_system/design_system.dart';
 
-/// Draggable Bottom Sheet offering PDF, Excel, CSV export, and print functions.
-class ReportsExportSheet extends StatelessWidget {
-  const ReportsExportSheet({super.key});
+import '../../domain/financial_report.dart';
 
-  static Future<void> show(BuildContext context) {
+class ReportsExportSheet extends StatelessWidget {
+  const ReportsExportSheet({super.key, required this.report});
+
+  final FinancialReport report;
+
+  static Future<void> show(
+    BuildContext context, {
+    required FinancialReport report,
+  }) {
     return AppBottomSheet.show(
       context,
-      title: 'Export Executive Financial Report',
-      child: const ReportsExportSheet(),
+      title: 'Export Financial Report',
+      child: ReportsExportSheet(report: report),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         ListTile(
-          leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
-          title: const Text('Export Executive Summary PDF'),
-          subtitle: const Text(
-            'Includes charts, officer ratings, and PAR % analysis',
+          leading: const Icon(Icons.file_present_outlined),
+          title: const Text('Export CSV report'),
+          subtitle: Text('${report.dateFrom} through ${report.dateTo}'),
+          onTap: () => _exportCsv(context),
+        ),
+        const Padding(
+          padding: EdgeInsets.fromLTRB(16, 8, 16, 16),
+          child: Text(
+            'PDF, Excel, and printing are unavailable until verified '
+            'generation services are connected.',
           ),
-          onTap: () {
-            Navigator.pop(context);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Generating PDF Report...')),
-            );
-          },
         ),
-        const Divider(height: 1),
-        ListTile(
-          leading: const Icon(Icons.table_chart, color: Colors.green),
-          title: const Text('Export Detailed Excel (.xlsx)'),
-          subtitle: const Text(
-            'Full raw breakdown of loans, collections, and schedules',
-          ),
-          onTap: () {
-            Navigator.pop(context);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Downloading Excel spreadsheet...')),
-            );
-          },
-        ),
-        const Divider(height: 1),
-        ListTile(
-          leading: const Icon(Icons.file_present_outlined, color: Colors.blue),
-          title: const Text('Export CSV Ledger Data'),
-          subtitle: const Text(
-            'Comma-separated raw data for custom accounting tools',
-          ),
-          onTap: () {
-            Navigator.pop(context);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Exporting CSV Ledger Data...')),
-            );
-          },
-        ),
-        const Divider(height: 1),
-        ListTile(
-          leading: Icon(Icons.print_outlined, color: theme.colorScheme.primary),
-          title: const Text('Print Preview & PDF Output'),
-          subtitle: const Text('Format for thermal or standard A4 printers'),
-          onTap: () {
-            Navigator.pop(context);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Sending report to print spooler...'),
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: 12),
       ],
     );
+  }
+
+  Future<void> _exportCsv(BuildContext context) async {
+    final rows = <List<Object?>>[
+      ['Report period', '${report.dateFrom} to ${report.dateTo}'],
+      ['Outstanding portfolio', report.outstandingPortfolio],
+      ['Collections', report.collections],
+      ['Interest earned', report.interestEarned],
+      ['Principal collected', report.principalCollected],
+      ['Unapplied credits', report.unappliedCredits],
+      ['Overdue amount', report.overdueAmount],
+      ['Portfolio at risk', report.portfolioAtRisk],
+      ['Overdue loan count', report.overdueLoanCount],
+      [],
+      ['Loan aging bucket', 'Amount'],
+      ...report.loanAging.entries.map((entry) => [entry.key, entry.value]),
+      [],
+      ['Collector', 'Collections'],
+      ...report.collectorPerformance.entries.map(
+        (entry) => [entry.key, entry.value],
+      ),
+    ];
+    final csv = rows.map((row) => row.map(_escape).join(',')).join('\r\n');
+    final path = await FilePicker.platform.saveFile(
+      dialogTitle: 'Save financial report',
+      fileName: 'financial-report-${report.dateFrom}-${report.dateTo}.csv',
+      bytes: Uint8List.fromList(utf8.encode(csv)),
+    );
+    if (!context.mounted || path == null) return;
+    Navigator.pop(context);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('CSV report saved.')));
+  }
+
+  String _escape(Object? value) {
+    final text = value?.toString() ?? '';
+    return '"${text.replaceAll('"', '""')}"';
   }
 }

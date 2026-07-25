@@ -38,9 +38,9 @@ class CollectionSummaryCards extends StatelessWidget {
             ),
             AppMetricCard(
               label: 'Promise To Pay',
-              value: '2 Due',
-              icon: Icons.handshake_outlined,
-              color: Colors.teal,
+              value: 'Unavailable',
+              icon: Icons.info_outline,
+              color: theme.colorScheme.outline,
             ),
             AppMetricCard(
               label: 'Overdue Tasks',

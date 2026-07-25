@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:lending_nelson/core/presentation/design_system/design_system.dart';
+import 'package:lending_nelson/core/utils/formatters.dart';
+import '../../domain/financial_report.dart';
 
 /// Card presenting Portfolio Risk Breakdown & PAR Aging analysis.
 class ReportsRiskAnalysisCard extends StatelessWidget {
-  const ReportsRiskAnalysisCard({super.key});
+  const ReportsRiskAnalysisCard({super.key, required this.report});
+
+  final FinancialReport report;
 
   @override
   Widget build(BuildContext context) {
@@ -13,75 +17,51 @@ class ReportsRiskAnalysisCard extends StatelessWidget {
       title: 'Portfolio Risk & PAR Aging Analysis',
       icon: Icons.security_outlined,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: const [
-            _RiskStat(label: 'Low Risk', value: '82%', color: Colors.blue),
-            _RiskStat(label: 'Medium Risk', value: '12%', color: Colors.orange),
-            _RiskStat(label: 'High Risk', value: '4%', color: Colors.red),
-            _RiskStat(
-              label: 'Critical / PAR90',
-              value: '2%',
-              color: Colors.purple,
-            ),
-          ],
+        _RiskRow(
+          label: 'Current',
+          value: report.loanAging['current'] ?? '0.00',
+          color: Colors.blue,
+        ),
+        _RiskRow(
+          label: 'PAR 1–30 Days',
+          value: report.loanAging['1-30'] ?? '0.00',
+          color: Colors.amber.shade800,
+        ),
+        _RiskRow(
+          label: 'PAR 31–60 Days',
+          value: report.loanAging['31-60'] ?? '0.00',
+          color: Colors.orange,
+        ),
+        _RiskRow(
+          label: 'PAR 61–90 Days',
+          value: report.loanAging['61-90'] ?? '0.00',
+          color: Colors.red,
+        ),
+        _RiskRow(
+          label: 'PAR 91+ Days',
+          value: report.loanAging['91+'] ?? '0.00',
+          color: Colors.purple,
         ),
         const Divider(height: 20),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('PAR 30 Aging (30-59 Days)', style: theme.textTheme.bodySmall),
-            Text(
-              '₱12,500.00 (3.2%)',
-              style: theme.textTheme.bodySmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Colors.orange.shade800,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('PAR 60 Aging (60-89 Days)', style: theme.textTheme.bodySmall),
-            Text(
-              '₱4,200.00 (1.1%)',
-              style: theme.textTheme.bodySmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Colors.red,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'PAR 90+ Default Risk (90+ Days)',
-              style: theme.textTheme.bodySmall,
-            ),
-            Text(
-              '₱1,800.00 (0.5%)',
-              style: theme.textTheme.bodySmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Colors.purple,
-              ),
-            ),
-          ],
+        Text(
+          'Portfolio at Risk: ${report.portfolioAtRisk}% · '
+          '${report.overdueLoanCount} overdue '
+          '${report.overdueLoanCount == 1 ? 'loan' : 'loans'}',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ],
     );
   }
 }
 
-class _RiskStat extends StatelessWidget {
+class _RiskRow extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
 
-  const _RiskStat({
+  const _RiskRow({
     required this.label,
     required this.value,
     required this.color,
@@ -90,24 +70,20 @@ class _RiskStat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Column(
-      children: [
-        Text(
-          value,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: color,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Expanded(child: Text(label, style: theme.textTheme.bodySmall)),
+          Text(
+            formatCurrency(value),
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
           ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-            fontSize: 11,
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
