@@ -23,6 +23,47 @@ class ApiEndpoints {
   /// Offline mutation batch endpoint.
   static const String syncDrain = '/api/v1/sync/drain';
 
+  /// Database-backed financial report projection.
+  static const String financialReport = '/api/v1/reports/financial';
+
+  static String borrowerNotes(String borrowerId) =>
+      '$borrowers/$borrowerId/notes';
+
+  static String loanNotes(String borrowerId, String loanId) =>
+      '$borrowers/$borrowerId/loans/$loanId/notes';
+
+  static String note(String noteId) => '/api/v1/notes/$noteId';
+
+  static const String completedCollectionTasks =
+      '/api/v1/collection-tasks/completed';
+
+  static String completeCollectionTask(String loanId, int installmentNumber) =>
+      '/api/v1/collection-tasks/$loanId/$installmentNumber/complete';
+
+  static const String notifications = '/api/v1/notifications';
+
+  static String markNotificationRead(String notificationId) =>
+      '$notifications/$notificationId/read';
+
+  static const String markAllNotificationsRead = '$notifications/read-all';
+
+  static String borrowerDocuments(String borrowerId) =>
+      '$borrowers/$borrowerId/documents';
+
+  static String loanDocuments(String borrowerId, String loanId) =>
+      '$borrowers/$borrowerId/loans/$loanId/documents';
+
+  static String documentContent(String documentId) =>
+      '/api/v1/documents/$documentId/content';
+
+  static String document(String documentId) => '/api/v1/documents/$documentId';
+
+  static const String users = '/api/v1/users';
+
+  static String userRole(String userId) => '$users/$userId/role';
+
+  static const String businessSettings = '/api/v1/business-settings';
+
   /// Health check endpoint for server reachability verification.
   static const String health = '/health';
 }

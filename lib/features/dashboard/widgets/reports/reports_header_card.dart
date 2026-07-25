@@ -1,16 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:lending_nelson/core/presentation/design_system/design_system.dart';
+import '../../domain/financial_report.dart';
 import 'reports_export_sheet.dart';
 
 /// Executive Header Card displaying Business Name, Branch Selector, Period, and Export/Filter triggers.
 class ReportsHeaderCard extends StatelessWidget {
   final String selectedPeriod;
   final ValueChanged<String> onPeriodChanged;
+  final bool isOnline;
+  final FinancialReport? report;
 
   const ReportsHeaderCard({
     super.key,
     required this.selectedPeriod,
     required this.onPeriodChanged,
+    required this.isOnline,
+    required this.report,
   });
 
   @override
@@ -40,13 +45,13 @@ class ReportsHeaderCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Lending Nelson Microfinance',
+                      'Portfolio Analytics',
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     Text(
-                      'Branch: Central Office · Executive Analytics',
+                      'Verified financial ledger projections',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: colorScheme.onSurfaceVariant,
                       ),
@@ -54,11 +59,14 @@ class ReportsHeaderCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const AppStatusChip(status: 'Live Sync'),
+              AppStatusChip(status: isOnline ? 'Online' : 'Offline'),
             ],
           ),
           const Divider(height: 20),
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               // Period Selector Dropdown
               Container(
@@ -105,23 +113,13 @@ class ReportsHeaderCard extends StatelessWidget {
                   ),
                 ),
               ),
-              const Spacer(),
               // Export Button
               FilledButton.icon(
-                onPressed: () => ReportsExportSheet.show(context),
+                onPressed: report == null
+                    ? null
+                    : () => ReportsExportSheet.show(context, report: report!),
                 icon: const Icon(Icons.ios_share_outlined, size: 16),
                 label: const Text('Export'),
-              ),
-              const SizedBox(width: 8),
-              // Print Trigger
-              IconButton.filledTonal(
-                icon: const Icon(Icons.print_outlined, size: 18),
-                tooltip: 'Print Report',
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Opening print preview...')),
-                  );
-                },
               ),
             ],
           ),

@@ -36,35 +36,38 @@ class PaymentsTabView extends StatelessWidget {
     }
 
     if (timelineItems.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.history_outlined,
-                size: 64,
-                color: theme.colorScheme.primary.withValues(alpha: 0.5),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'No Payment Receipts',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
+      return ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.history_outlined,
+                  size: 64,
+                  color: theme.colorScheme.primary.withValues(alpha: 0.5),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'No recorded payment transactions found for this borrower.',
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+                const SizedBox(height: 16),
+                Text(
+                  'No Payment Receipts',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 8),
+                Text(
+                  'No recorded payment transactions found for this borrower.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
       );
     }
 

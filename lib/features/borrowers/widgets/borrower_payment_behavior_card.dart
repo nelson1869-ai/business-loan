@@ -50,24 +50,30 @@ class BorrowerPaymentBehaviorCard extends StatelessWidget {
                   size: 20,
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  'Payment Punctuality & Behavior Analytics',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    'Payment Punctuality & Behavior Analytics',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
             ),
             const Divider(height: 20),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Historical Punctuality Rate',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
+                Expanded(
+                  child: Text(
+                    'Historical Punctuality Rate',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
+                const SizedBox(width: 8),
                 Text(
                   '$punctualityPct%',
                   style: theme.textTheme.titleSmall?.copyWith(
@@ -89,22 +95,27 @@ class BorrowerPaymentBehaviorCard extends StatelessWidget {
             ),
             const SizedBox(height: 14),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _StatItem(
-                  label: 'On-Time Payments',
-                  value: '$onTime',
-                  color: Colors.green,
+                Expanded(
+                  child: _StatItem(
+                    label: 'On-Time Payments',
+                    value: '$onTime',
+                    color: Colors.green,
+                  ),
                 ),
-                _StatItem(
-                  label: 'Late / Overdue',
-                  value: '$late',
-                  color: late > 0 ? Colors.red : Colors.green,
+                Expanded(
+                  child: _StatItem(
+                    label: 'Late / Overdue',
+                    value: '$late',
+                    color: late > 0 ? Colors.red : Colors.green,
+                  ),
                 ),
-                _StatItem(
-                  label: 'Max Delay Days',
-                  value: maxDelay > 0 ? '$maxDelay Days' : '0 Days',
-                  color: maxDelay > 0 ? Colors.red : Colors.teal,
+                Expanded(
+                  child: _StatItem(
+                    label: 'Max Delay Days',
+                    value: maxDelay > 0 ? '$maxDelay Days' : '0 Days',
+                    color: maxDelay > 0 ? Colors.red : Colors.teal,
+                  ),
                 ),
               ],
             ),
@@ -141,6 +152,9 @@ class _StatItem extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           label,
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
             fontSize: 11,

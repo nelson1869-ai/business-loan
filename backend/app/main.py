@@ -10,7 +10,20 @@ from sqlalchemy import text
 
 from app.config import get_settings
 from app.database import AsyncSessionFactory
-from app.routers import auth, borrowers, loans, payments, projections, sync
+from app.routers import (
+    auth,
+    borrowers,
+    business_settings,
+    collection_tasks,
+    documents,
+    loans,
+    notes,
+    notifications,
+    payments,
+    projections,
+    sync,
+    users,
+)
 
 _MAX_REQUEST_BYTES = 1_048_576
 _LOGIN_WINDOW_SECONDS = 60.0
@@ -87,10 +100,16 @@ def create_app() -> FastAPI:
 
     application.include_router(auth.router)
     application.include_router(borrowers.router)
+    application.include_router(business_settings.router)
     application.include_router(loans.router)
+    application.include_router(notes.router)
+    application.include_router(notifications.router)
+    application.include_router(collection_tasks.router)
+    application.include_router(documents.router)
     application.include_router(payments.router)
     application.include_router(projections.router)
     application.include_router(sync.router)
+    application.include_router(users.router)
 
     @application.get("/health", tags=["Health"])
     async def health_check() -> dict[str, str]:

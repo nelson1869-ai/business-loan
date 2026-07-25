@@ -79,32 +79,26 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Nelson Loan Officer',
+                            'Authenticated Account',
                             style: theme.textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                           Text(
-                            'ID: OFF-1008 · Central Branch',
+                            'Profile details are provided by authentication',
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: colorScheme.onSurfaceVariant,
                             ),
                           ),
                           const SizedBox(height: 4),
-                          const AppStatusChip(status: 'Loan Officer'),
+                          const AppStatusChip(status: 'Signed In'),
                         ],
                       ),
                     ),
                     IconButton(
                       icon: const Icon(Icons.edit_outlined),
-                      tooltip: 'Edit Profile',
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Profile editing opened'),
-                          ),
-                        );
-                      },
+                      tooltip: 'Profile editing unavailable',
+                      onPressed: null,
                     ),
                   ],
                 ),
@@ -124,7 +118,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     leading: const Icon(Icons.people_outline),
                     title: const Text('User Management'),
                     subtitle: const Text(
-                      'Staff accounts, active officers, & branch assignments',
+                      'Persistent staff accounts and enforced system roles',
                     ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () {
@@ -141,7 +135,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     leading: const Icon(Icons.shield_outlined),
                     title: const Text('Roles & Permission Matrix'),
                     subtitle: const Text(
-                      'Configure capability matrix for Admins, Officers, & Cashiers',
+                      'View the roles currently enforced by the backend',
                     ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () {
@@ -162,15 +156,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   _query.toLowerCase(),
                 ))
               AppSectionCard(
-                title: 'Business & Lending Settings',
+                title: 'Business Presentation Settings',
                 icon: Icons.storefront_outlined,
                 children: [
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.tune_outlined),
-                    title: const Text('Business Profile & Loan Products'),
+                    title: const Text('Business Profile'),
                     subtitle: const Text(
-                      'Company name, currency ₱, thermal receipt footer, grace period',
+                      'Company name, ISO currency code, and receipt footer',
                     ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () {
