@@ -1,12 +1,22 @@
 """Persisted operational state for installment-derived collection tasks."""
 
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 from uuid import uuid4
 
-from datetime import date
-from decimal import Decimal
-
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, func
+from sqlalchemy import (
+    CheckConstraint,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    func,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -15,8 +25,28 @@ from app.database import Base
 class CollectionTaskState(Base):
     __tablename__ = "collection_task_states"
     __table_args__ = (
-        UniqueConstraint(
-            "loan_id", "installment_number", name="uq_collection_task_installment"
+        Index(
+            "uq_collection_task_pending_installment",
+            "loan_id",
+            "installment_number",
+            unique=True,
+            postgresql_where=text(
+                "status = 'Pending' AND installment_number IS NOT NULL"
+            ),
+        ),
+        CheckConstraint(
+            "status IN ('Pending', 'Completed', 'Cancelled')",
+            name="ck_collection_tasks_status",
+        ),
+        CheckConstraint(
+            "priority IN ('Low', 'Normal', 'High', 'Critical')",
+            name="ck_collection_tasks_priority",
+        ),
+        CheckConstraint(
+            "(task_type <> 'PromiseToPay') OR "
+            "(promised_amount > 0 AND promise_date IS NOT NULL "
+            "AND promise_status IN ('Pending', 'Kept', 'Broken', 'Cancelled'))",
+            name="ck_collection_tasks_promise",
         ),
     )
 
@@ -48,7 +78,9 @@ class CollectionTaskState(Base):
         DateTime(timezone=True), nullable=True
     )
     completion_note: Mapped[str | None] = mapped_column(Text, nullable=True)
-    promised_amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    promised_amount: Mapped[Decimal | None] = mapped_column(
+        Numeric(18, 2), nullable=True
+    )
     promise_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     promise_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
     linked_payment_id: Mapped[str | None] = mapped_column(

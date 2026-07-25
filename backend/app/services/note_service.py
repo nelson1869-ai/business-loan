@@ -17,6 +17,13 @@ from app.schemas.note import NoteCreate
 async def list_notes(
     db: AsyncSession, borrower_id: str, loan_id: str | None = None
 ) -> list[Note]:
+    borrower = await db.get(Borrower, borrower_id)
+    if borrower is None or borrower.status == "Deleted":
+        raise LookupError("Borrower not found")
+    if loan_id is not None:
+        loan = await db.get(Loan, loan_id)
+        if loan is None or loan.borrower_id != borrower_id:
+            raise LookupError("Loan not found for borrower")
     query = (
         select(Note)
         .options(selectinload(Note.author))

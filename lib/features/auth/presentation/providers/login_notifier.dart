@@ -20,9 +20,13 @@ class LoginNotifier extends StateNotifier<LoginState> {
       await _authRepository.login(username, password);
       state = const LoginState();
       return null;
-    } catch (error) {
-      final message = error.toString().replaceFirst('Exception: ', '');
+    } on AuthException catch (error) {
+      final message = error.message;
       state = LoginState(error: message);
+      return message;
+    } catch (_) {
+      const message = 'Unable to sign in. Please try again.';
+      state = const LoginState(error: message);
       return message;
     }
   }

@@ -1,8 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/network/api_client.dart';
-import '../../../../core/network/api_endpoints.dart';
 import '../../../dashboard/domain/dashboard_data.dart';
+import '../../data/repositories/collection_task_repository.dart';
 
 class CollectionFollowUp {
   const CollectionFollowUp({
@@ -55,21 +54,15 @@ class CollectionFollowUp {
 
 final collectionFollowUpsProvider =
     FutureProvider.autoDispose<List<CollectionFollowUp>>((ref) async {
-      final dio = ref.watch(apiClientProvider);
-      final response = await dio.get<List<dynamic>>('/api/v1/collection-tasks');
-      return (response.data ?? const [])
-          .cast<Map<String, dynamic>>()
-          .map(CollectionFollowUp.fromJson)
-          .toList();
+      final items = await ref.watch(collectionTaskRepositoryProvider).list();
+      return items.map(CollectionFollowUp.fromJson).toList();
     });
 
 final completedCollectionTasksProvider =
     FutureProvider.autoDispose<Set<String>>((ref) async {
-      final dio = ref.watch(apiClientProvider);
-      final response = await dio.get<List<dynamic>>(
-        ApiEndpoints.completedCollectionTasks,
-      );
-      return (response.data ?? const []).map((value) => '$value').toSet();
+      return ref
+          .watch(collectionTaskRepositoryProvider)
+          .completedInstallments();
     });
 
 Future<void> completeCollectionTask(
@@ -77,10 +70,9 @@ Future<void> completeCollectionTask(
   String loanId,
   int installmentNumber,
 ) async {
-  final dio = ref.read(apiClientProvider);
-  await dio.post<void>(
-    ApiEndpoints.completeCollectionTask(loanId, installmentNumber),
-  );
+  await ref
+      .read(collectionTaskRepositoryProvider)
+      .completeInstallment(loanId, installmentNumber);
   ref.invalidate(completedCollectionTasksProvider);
 }
 
@@ -94,33 +86,23 @@ Future<void> createCollectionFollowUp(
   String? promisedAmount,
   DateTime? promiseDate,
 }) async {
-  await ref
-      .read(apiClientProvider)
-      .post<void>(
-        '/api/v1/collection-tasks',
-        data: {
-          'borrowerId': item.borrowerId,
-          'loanId': item.loanId,
-          'installmentNumber': item.installmentNumber,
-          'taskType': taskType,
-          'priority': priority,
-          'description': description?.trim(),
-          'dueAt': dueAt.toUtc().toIso8601String(),
-          if (taskType == 'PromiseToPay') 'promisedAmount': promisedAmount,
-          if (taskType == 'PromiseToPay')
-            'promiseDate': promiseDate?.toIso8601String().substring(0, 10),
-        },
-      );
+  await ref.read(collectionTaskRepositoryProvider).create({
+    'borrowerId': item.borrowerId,
+    'loanId': item.loanId,
+    'installmentNumber': item.installmentNumber,
+    'taskType': taskType,
+    'priority': priority,
+    'description': description?.trim(),
+    'dueAt': dueAt.toUtc().toIso8601String(),
+    if (taskType == 'PromiseToPay') 'promisedAmount': promisedAmount,
+    if (taskType == 'PromiseToPay')
+      'promiseDate': promiseDate?.toIso8601String().substring(0, 10),
+  });
   ref.invalidate(collectionFollowUpsProvider);
 }
 
 Future<void> completeScheduledFollowUp(WidgetRef ref, String taskId) async {
-  await ref
-      .read(apiClientProvider)
-      .post<void>(
-        '/api/v1/collection-tasks/$taskId/complete',
-        data: const <String, dynamic>{},
-      );
+  await ref.read(collectionTaskRepositoryProvider).completeScheduled(taskId);
   ref.invalidate(collectionFollowUpsProvider);
   ref.invalidate(completedCollectionTasksProvider);
 }

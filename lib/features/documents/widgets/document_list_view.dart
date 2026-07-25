@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/presentation/design_system/design_system.dart';
+import '../../../core/network/api_error_mapper.dart';
 import '../data/document_repository.dart';
 import '../domain/app_document.dart';
 import '../providers/document_provider.dart';
@@ -33,12 +34,11 @@ class DocumentListView extends ConsumerWidget {
             AppCardSkeleton(),
           ],
         ),
-        error: (_, _) => ListView(
+        error: (error, _) => ListView(
           padding: const EdgeInsets.all(16),
           children: [
             AppErrorState(
-              error:
-                  'Could not load documents. Check your connection and try again.',
+              error: ApiErrorMapper.message(error),
               onRetry: () => ref.invalidate(documentsProvider(scope)),
             ),
           ],
@@ -117,8 +117,10 @@ class DocumentListView extends ConsumerWidget {
           );
       ref.invalidate(documentsProvider(scope));
       if (context.mounted) _message(context, 'Document uploaded.');
-    } catch (_) {
-      if (context.mounted) _message(context, 'Document upload failed.');
+    } catch (error) {
+      if (context.mounted) {
+        _message(context, ApiErrorMapper.message(error));
+      }
     }
   }
 
@@ -137,8 +139,10 @@ class DocumentListView extends ConsumerWidget {
         bytes: bytes,
       );
       if (context.mounted && path != null) _message(context, 'Document saved.');
-    } catch (_) {
-      if (context.mounted) _message(context, 'Document download failed.');
+    } catch (error) {
+      if (context.mounted) {
+        _message(context, ApiErrorMapper.message(error));
+      }
     }
   }
 
@@ -154,8 +158,14 @@ class DocumentListView extends ConsumerWidget {
       content: 'This permanently removes ${document.fileName}.',
     );
     if (confirmed != true || !context.mounted) return;
-    await ref.read(documentRepositoryProvider).delete(document.id);
-    ref.invalidate(documentsProvider(scope));
+    try {
+      await ref.read(documentRepositoryProvider).delete(document.id);
+      ref.invalidate(documentsProvider(scope));
+    } catch (error) {
+      if (context.mounted) {
+        _message(context, ApiErrorMapper.message(error));
+      }
+    }
   }
 
   void _message(BuildContext context, String text) {

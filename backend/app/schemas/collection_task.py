@@ -22,7 +22,9 @@ class CollectionTaskCreate(BaseModel):
     description: str | None = Field(default=None, max_length=2000)
     due_at: datetime
     assigned_to_user_id: str | None = None
-    promised_amount: Decimal | None = Field(default=None, gt=0, max_digits=18, decimal_places=2)
+    promised_amount: Decimal | None = Field(
+        default=None, gt=0, max_digits=18, decimal_places=2
+    )
     promise_date: date | None = None
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
@@ -35,7 +37,7 @@ class CollectionTaskComplete(BaseModel):
 
 
 class PromiseStatusUpdate(BaseModel):
-    promise_status: Literal["Pending", "Kept", "Broken", "Cancelled"]
+    promise_status: Literal["Kept", "Broken", "Cancelled"]
     linked_payment_id: str | None = None
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)

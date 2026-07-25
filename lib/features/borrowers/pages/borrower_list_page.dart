@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/network/api_error_mapper.dart';
 import '../providers/borrowers_state.dart';
 import '../widgets/borrower_card.dart';
 
@@ -109,7 +110,8 @@ class _BorrowerListPageState extends ConsumerState<BorrowerListPage> {
           Expanded(
             child: borrowersAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (err, stack) => Center(child: Text('Error: $err')),
+              error: (err, stack) =>
+                  Center(child: Text(ApiErrorMapper.message(err))),
               data: (borrowers) {
                 var filtered = borrowers;
                 if (_query.isNotEmpty) {
@@ -189,7 +191,7 @@ class _BorrowerListPageState extends ConsumerState<BorrowerListPage> {
                             if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text(error.toString()),
+                                content: Text(ApiErrorMapper.message(error)),
                                 backgroundColor: Theme.of(
                                   context,
                                 ).colorScheme.error,

@@ -53,59 +53,75 @@ class OwnerFinancialSummaryCard extends StatelessWidget {
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    maxLines: 2,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildFinancialTile(
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final tiles = <Widget>[
+                  _buildFinancialTile(
                     label: 'Active Disbursed',
                     value: _formatCurrency(totalPrincipalDisbursed),
                     subtitle: 'Active loans principal',
                     icon: Icons.payments_outlined,
                     iconColor: Colors.tealAccent,
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildFinancialTile(
+                  _buildFinancialTile(
                     label: 'Monthly Interest',
                     value: _formatCurrency(monthlyInterestIncome),
                     subtitle: 'Projected income / mo',
                     icon: Icons.trending_up,
                     iconColor: Colors.lightGreenAccent,
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildFinancialTile(
+                  _buildFinancialTile(
                     label: 'Active Outstanding',
                     value: _formatCurrency(outstandingBalance),
                     subtitle: 'Capital out in field',
                     icon: Icons.account_balance_wallet_outlined,
                     iconColor: Colors.lightBlueAccent,
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildFinancialTile(
+                  _buildFinancialTile(
                     label: 'Avg Portfolio Rate',
                     value: averageInterestRate,
                     subtitle: 'Weighted monthly yield',
                     icon: Icons.percent,
                     iconColor: Colors.amberAccent,
                   ),
-                ),
-              ],
+                ];
+                if (constraints.maxWidth < 360) {
+                  return Column(
+                    children: [
+                      for (var index = 0; index < tiles.length; index++) ...[
+                        SizedBox(width: double.infinity, child: tiles[index]),
+                        if (index != tiles.length - 1)
+                          const SizedBox(height: 12),
+                      ],
+                    ],
+                  );
+                }
+                return Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(child: tiles[0]),
+                        const SizedBox(width: 12),
+                        Expanded(child: tiles[1]),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(child: tiles[2]),
+                        const SizedBox(width: 12),
+                        Expanded(child: tiles[3]),
+                      ],
+                    ),
+                  ],
+                );
+              },
             ),
           ],
         ),
@@ -136,8 +152,7 @@ class OwnerFinancialSummaryCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  maxLines: 2,
                   style: const TextStyle(
                     color: Colors.white70,
                     fontSize: 11,
@@ -151,7 +166,7 @@ class OwnerFinancialSummaryCard extends StatelessWidget {
           Text(
             value,
             maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+            overflow: TextOverflow.fade,
             style: const TextStyle(
               color: Colors.white,
               fontSize: 16,
@@ -161,8 +176,7 @@ class OwnerFinancialSummaryCard extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             subtitle,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+            maxLines: 2,
             style: const TextStyle(color: Colors.white38, fontSize: 10),
           ),
         ],

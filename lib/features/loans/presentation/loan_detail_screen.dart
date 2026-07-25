@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../core/network/api_error_mapper.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/utils/formatters.dart';
@@ -67,7 +69,7 @@ class LoanDetailScreen extends ConsumerWidget {
                   onShareSchedule: () => _shareSchedule(context, ref),
                 ),
           error: (Object error, StackTrace stackTrace) => initialLoan == null
-              ? Center(child: Text('Could not load loan: $error'))
+              ? Center(child: Text(ApiErrorMapper.message(error)))
               : _LoanDetailContent(
                   loan: initialLoan!,
                   onRecordPayment: () =>

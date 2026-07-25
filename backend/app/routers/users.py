@@ -3,10 +3,11 @@
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from app.dependencies import CurrentUser, DbSession
+from app.models.audit_log import AuditLog
 from app.models.user import User
 from app.schemas.user import UserCreate, UserResponse, UserRoleUpdate
 from app.services.auth_service import hash_password
@@ -19,10 +20,21 @@ def _require_admin(current_user: CurrentUser) -> None:
         raise HTTPException(status_code=403, detail="Administrator access required")
 
 
+def _audit(db: DbSession, user_id: str, action: str, target_id: str) -> None:
+    db.add(
+        AuditLog(
+            id=str(uuid4()),
+            user_id=user_id,
+            action=action,
+            entity_name="user",
+            entity_id=target_id,
+            new_state_json='{"credentials":"[REDACTED]"}',
+        )
+    )
+
+
 @router.get("", response_model=list[UserResponse])
-async def list_users(
-    db: DbSession, current_user: CurrentUser
-) -> list[User]:
+async def list_users(db: DbSession, current_user: CurrentUser) -> list[User]:
     _require_admin(current_user)
     return list(
         (await db.execute(select(User).order_by(User.username.asc()))).scalars()
@@ -45,11 +57,14 @@ async def create_user(
         role=payload.role,
     )
     db.add(user)
+    _audit(db, current_user.id, "create_user", user.id)
     try:
         await db.commit()
     except IntegrityError as error:
         await db.rollback()
-        raise HTTPException(status_code=409, detail="Username already exists") from error
+        raise HTTPException(
+            status_code=409, detail="Username already exists"
+        ) from error
     await db.refresh(user)
     return user
 
@@ -66,8 +81,20 @@ async def update_user_role(
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     if user.id == current_user.id and payload.role != "admin":
-        raise HTTPException(status_code=409, detail="You cannot remove your own administrator role")
+        raise HTTPException(
+            status_code=409, detail="You cannot remove your own administrator role"
+        )
+    if user.role == "admin" and payload.role != "admin":
+        administrator_count = await db.scalar(
+            select(func.count()).select_from(User).where(User.role == "admin")
+        )
+        if (administrator_count or 0) <= 1:
+            raise HTTPException(
+                status_code=409,
+                detail="The last administrator cannot be demoted",
+            )
     user.role = payload.role
+    _audit(db, current_user.id, "update_user_role", user.id)
     await db.commit()
     await db.refresh(user)
     return user

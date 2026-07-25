@@ -100,8 +100,11 @@ class _UserManagementSheetState extends ConsumerState<UserManagementSheet> {
                               ),
                               trailing: PopupMenuButton<String>(
                                 tooltip: 'Change role',
-                                onSelected: (role) =>
-                                    _updateRole(user.id, role),
+                                onSelected: (role) => _confirmRoleChange(
+                                  user.id,
+                                  user.username,
+                                  role,
+                                ),
                                 itemBuilder: (_) => const [
                                   PopupMenuItem(
                                     value: 'officer',
@@ -135,6 +138,24 @@ class _UserManagementSheetState extends ConsumerState<UserManagementSheet> {
     }
   }
 
+  Future<void> _confirmRoleChange(
+    String userId,
+    String username,
+    String role,
+  ) async {
+    final confirmed = await AppConfirmationDialog.show(
+      context,
+      title: 'Change user role?',
+      content:
+          'Change $username to ${role == 'admin' ? 'Administrator' : 'Officer'}? '
+          'This changes the account’s backend permissions.',
+      confirmLabel: 'Change Role',
+    );
+    if (confirmed == true && mounted) {
+      await _updateRole(userId, role);
+    }
+  }
+
   Future<void> _createUser(BuildContext context) async {
     final username = TextEditingController();
     final password = TextEditingController();
@@ -157,7 +178,7 @@ class _UserManagementSheetState extends ConsumerState<UserManagementSheet> {
                   obscureText: true,
                   decoration: const InputDecoration(
                     labelText: 'Temporary password',
-                    helperText: 'At least 8 characters',
+                    helperText: 'At least 12 characters',
                   ),
                 ),
                 DropdownButtonFormField<String>(
@@ -193,6 +214,14 @@ class _UserManagementSheetState extends ConsumerState<UserManagementSheet> {
       ),
     );
     if (accepted != true || !mounted) return;
+    if (username.text.trim().length < 3 || password.text.length < 12) {
+      _message(
+        'Enter a valid username and a password of at least 12 characters.',
+      );
+      username.dispose();
+      password.dispose();
+      return;
+    }
     try {
       await ref
           .read(userRepositoryProvider)

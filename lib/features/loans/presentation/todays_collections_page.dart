@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/presentation/design_system/design_system.dart';
+import '../../../core/network/api_error_mapper.dart';
+import '../../../core/utils/formatters.dart';
 import '../../dashboard/domain/dashboard_data.dart';
 import 'providers/loans_provider.dart';
 import 'providers/collection_task_state_provider.dart';
@@ -56,7 +58,7 @@ class _TodaysCollectionsPageState extends ConsumerState<TodaysCollectionsPage> {
         ),
         error: (Object e, _) => Center(
           child: AppErrorState(
-            error: e.toString(),
+            error: ApiErrorMapper.message(e),
             onRetry: () => ref.invalidate(todaysCollectionsProvider),
           ),
         ),
@@ -148,8 +150,7 @@ class _TodaysCollectionsPageState extends ConsumerState<TodaysCollectionsPage> {
                 const SizedBox(height: 8),
                 followUps.when(
                   loading: () => const LinearProgressIndicator(),
-                  error: (error, _) =>
-                      Text('Unable to load follow-ups: $error'),
+                  error: (error, _) => Text(ApiErrorMapper.message(error)),
                   data: (tasks) => tasks.isEmpty
                       ? const Text('No scheduled follow-ups')
                       : Column(
@@ -161,8 +162,9 @@ class _TodaysCollectionsPageState extends ConsumerState<TodaysCollectionsPage> {
                                   '${task.taskType} · ${task.priority}',
                                 ),
                                 subtitle: Text(
-                                  '${task.dueAt.toLocal()}'
-                                  '${task.promisedAmount == null ? '' : '\nPromise: ${task.promisedAmount} on ${task.promiseDate?.toLocal().toString().substring(0, 10)} · ${task.promiseStatus}'}'
+                                  '${formatDateOnly(task.dueAt.toLocal())} '
+                                  '${TimeOfDay.fromDateTime(task.dueAt.toLocal()).format(context)}'
+                                  '${task.promisedAmount == null ? '' : '\nPromise: ${task.promisedAmount} on ${formatDateOnly(task.promiseDate!.toLocal())} · ${task.promiseStatus}'}'
                                   '${task.description == null ? '' : '\n${task.description}'}',
                                 ),
                                 trailing: task.status == 'Completed'
@@ -198,6 +200,9 @@ class _TodaysCollectionsPageState extends ConsumerState<TodaysCollectionsPage> {
     var selected = items.first;
     var taskType = 'Call';
     var priority = 'Normal';
+    DateTime? followUpDate;
+    TimeOfDay? followUpTime;
+    DateTime? promiseDate;
     final description = TextEditingController();
     final promisedAmount = TextEditingController();
     final result = await showDialog<bool>(
@@ -249,6 +254,53 @@ class _TodaysCollectionsPageState extends ConsumerState<TodaysCollectionsPage> {
                   onChanged: (value) =>
                       setDialogState(() => taskType = value ?? taskType),
                 ),
+                const ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.assignment_ind_outlined),
+                  title: Text('Assigned to you'),
+                  subtitle: Text(
+                    'Only administrators may assign another officer.',
+                  ),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.event_outlined),
+                  title: Text(
+                    followUpDate == null
+                        ? 'Select follow-up date'
+                        : formatDateOnly(followUpDate!),
+                  ),
+                  onTap: () async {
+                    final now = DateTime.now();
+                    final value = await showDatePicker(
+                      context: context,
+                      initialDate: followUpDate ?? now,
+                      firstDate: DateTime(now.year, now.month, now.day),
+                      lastDate: DateTime(now.year + 2),
+                    );
+                    if (value != null) {
+                      setDialogState(() => followUpDate = value);
+                    }
+                  },
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.schedule_outlined),
+                  title: Text(
+                    followUpTime == null
+                        ? 'Select follow-up time'
+                        : followUpTime!.format(context),
+                  ),
+                  onTap: () async {
+                    final value = await showTimePicker(
+                      context: context,
+                      initialTime: followUpTime ?? TimeOfDay.now(),
+                    );
+                    if (value != null) {
+                      setDialogState(() => followUpTime = value);
+                    }
+                  },
+                ),
                 DropdownButtonFormField<String>(
                   initialValue: priority,
                   decoration: const InputDecoration(labelText: 'Priority'),
@@ -267,7 +319,7 @@ class _TodaysCollectionsPageState extends ConsumerState<TodaysCollectionsPage> {
                   maxLines: 3,
                   decoration: const InputDecoration(labelText: 'Description'),
                 ),
-                if (taskType == 'PromiseToPay')
+                if (taskType == 'PromiseToPay') ...[
                   TextField(
                     controller: promisedAmount,
                     keyboardType: const TextInputType.numberWithOptions(
@@ -277,6 +329,28 @@ class _TodaysCollectionsPageState extends ConsumerState<TodaysCollectionsPage> {
                       labelText: 'Promised amount',
                     ),
                   ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.event_available_outlined),
+                    title: Text(
+                      promiseDate == null
+                          ? 'Select promise date'
+                          : formatDateOnly(promiseDate!),
+                    ),
+                    onTap: () async {
+                      final now = DateTime.now();
+                      final value = await showDatePicker(
+                        context: context,
+                        initialDate: promiseDate ?? now,
+                        firstDate: DateTime(now.year, now.month, now.day),
+                        lastDate: DateTime(now.year + 2),
+                      );
+                      if (value != null) {
+                        setDialogState(() => promiseDate = value);
+                      }
+                    },
+                  ),
+                ],
               ],
             ),
           ),
@@ -295,10 +369,20 @@ class _TodaysCollectionsPageState extends ConsumerState<TodaysCollectionsPage> {
     );
     if (result == true && context.mounted) {
       final promiseValue = double.tryParse(promisedAmount.text.trim());
-      if (taskType == 'PromiseToPay' &&
-          (promiseValue == null || promiseValue <= 0)) {
+      if (followUpDate == null || followUpTime == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Enter a valid promised amount.')),
+          const SnackBar(content: Text('Select the follow-up date and time.')),
+        );
+        description.dispose();
+        promisedAmount.dispose();
+        return;
+      }
+      if (taskType == 'PromiseToPay' &&
+          (promiseValue == null || promiseValue <= 0 || promiseDate == null)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Enter an amount and select the promise date.'),
+          ),
         );
         description.dispose();
         promisedAmount.dispose();
@@ -309,10 +393,16 @@ class _TodaysCollectionsPageState extends ConsumerState<TodaysCollectionsPage> {
         item: selected,
         taskType: taskType,
         priority: priority,
-        dueAt: DateTime.now().add(const Duration(hours: 1)),
+        dueAt: DateTime(
+          followUpDate!.year,
+          followUpDate!.month,
+          followUpDate!.day,
+          followUpTime!.hour,
+          followUpTime!.minute,
+        ),
         description: description.text,
         promisedAmount: promisedAmount.text,
-        promiseDate: DateTime.now().add(const Duration(days: 7)),
+        promiseDate: promiseDate,
       );
     }
     description.dispose();

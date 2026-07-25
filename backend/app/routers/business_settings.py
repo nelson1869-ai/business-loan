@@ -1,8 +1,11 @@
 """Persistent non-financial business presentation settings."""
 
+from uuid import uuid4
+
 from fastapi import APIRouter, HTTPException
 
 from app.dependencies import CurrentUser, DbSession
+from app.models.audit_log import AuditLog
 from app.models.business_setting import BusinessSetting
 from app.schemas.business_setting import BusinessSettingResponse, BusinessSettingUpdate
 
@@ -35,6 +38,16 @@ async def update_business_settings(
     settings.business_name = payload.business_name.strip()
     settings.currency_code = payload.currency_code.upper()
     settings.receipt_footer = payload.receipt_footer.strip()
+    db.add(
+        AuditLog(
+            id=str(uuid4()),
+            user_id=current_user.id,
+            action="update_business_settings",
+            entity_name="business_setting",
+            entity_id=_SETTINGS_ID,
+            new_state_json='{"values":"[REDACTED]"}',
+        )
+    )
     await db.commit()
     await db.refresh(settings)
     return settings

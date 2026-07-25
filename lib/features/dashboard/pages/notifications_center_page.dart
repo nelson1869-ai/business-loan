@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:lending_nelson/core/presentation/design_system/design_system.dart';
+import 'package:lending_nelson/core/network/api_error_mapper.dart';
 import '../data/notification_repository.dart';
 import '../domain/app_notification.dart';
 import '../providers/notification_provider.dart';
@@ -146,8 +147,7 @@ class _NotificationsCenterPageState
               )
             else if (notificationsAsync.hasError)
               AppErrorState(
-                error:
-                    'Could not load notifications. Check your connection and try again.',
+                error: ApiErrorMapper.message(notificationsAsync.error!),
                 onRetry: () => ref.invalidate(notificationsProvider),
               )
             else if (filteredItems.isEmpty)

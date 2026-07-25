@@ -37,6 +37,14 @@ class ApiEndpoints {
   static const String completedCollectionTasks =
       '/api/v1/collection-tasks/completed';
 
+  static const String collectionTasks = '/api/v1/collection-tasks';
+
+  static String completeScheduledCollectionTask(String taskId) =>
+      '$collectionTasks/$taskId/complete';
+
+  static String collectionPromiseStatus(String taskId) =>
+      '$collectionTasks/$taskId/promise-status';
+
   static String completeCollectionTask(String loanId, int installmentNumber) =>
       '/api/v1/collection-tasks/$loanId/$installmentNumber/complete';
 

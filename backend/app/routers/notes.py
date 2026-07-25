@@ -20,7 +20,8 @@ def _response(note: Note, current_user: CurrentUser) -> NoteResponse:
         category=note.category,
         content=note.content,
         created_at=note.created_at,
-        can_delete=note.author_user_id == current_user.id or current_user.role == "admin",
+        can_delete=note.author_user_id == current_user.id
+        or current_user.role == "admin",
     )
 
 
@@ -28,7 +29,10 @@ def _response(note: Note, current_user: CurrentUser) -> NoteResponse:
 async def borrower_notes(
     borrower_id: str, db: DbSession, current_user: CurrentUser
 ) -> list[NoteResponse]:
-    notes = await note_service.list_notes(db, borrower_id)
+    try:
+        notes = await note_service.list_notes(db, borrower_id)
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
     return [_response(note, current_user) for note in notes]
 
 
@@ -46,9 +50,7 @@ async def add_borrower_note(
     try:
         note = await note_service.create_note(db, borrower_id, payload, current_user)
         await db.commit()
-        note = (
-            await note_service.list_notes(db, borrower_id)
-        )[0]
+        note = (await note_service.list_notes(db, borrower_id))[0]
         return _response(note, current_user)
     except LookupError as error:
         await db.rollback()
@@ -62,7 +64,10 @@ async def add_borrower_note(
 async def loan_notes(
     borrower_id: str, loan_id: str, db: DbSession, current_user: CurrentUser
 ) -> list[NoteResponse]:
-    notes = await note_service.list_notes(db, borrower_id, loan_id)
+    try:
+        notes = await note_service.list_notes(db, borrower_id, loan_id)
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
     return [_response(note, current_user) for note in notes]
 
 
@@ -79,9 +84,7 @@ async def add_loan_note(
     current_user: CurrentUser,
 ) -> NoteResponse:
     try:
-        await note_service.create_note(
-            db, borrower_id, payload, current_user, loan_id
-        )
+        await note_service.create_note(db, borrower_id, payload, current_user, loan_id)
         await db.commit()
         note = (await note_service.list_notes(db, borrower_id, loan_id))[0]
         return _response(note, current_user)

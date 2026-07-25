@@ -6,6 +6,14 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 // Core network
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_endpoints.dart';
+import '../../../core/network/api_error_mapper.dart';
+
+/// A user-safe authentication failure.
+class AuthException implements Exception {
+  const AuthException(this.message);
+
+  final String message;
+}
 
 /// Handles remote authentication and secure JWT persistence.
 class AuthRepository {
@@ -50,9 +58,11 @@ class AuthRepository {
         ),
       ]);
     } on DioException catch (error) {
-      throw Exception(_apiErrorMessage(error, 'Unable to sign in'));
-    } on FormatException catch (error) {
-      throw Exception(error.message);
+      throw AuthException(ApiErrorMapper.message(error));
+    } on FormatException {
+      throw const AuthException(
+        'The server returned an invalid sign-in response.',
+      );
     }
   }
 
@@ -62,14 +72,6 @@ class AuthRepository {
       _secureStorage.delete(key: TokenStorageKeys.accessToken),
       _secureStorage.delete(key: TokenStorageKeys.refreshToken),
     ]);
-  }
-
-  String _apiErrorMessage(DioException error, String fallback) {
-    final data = error.response?.data;
-    if (data is Map<String, dynamic> && data['detail'] is String) {
-      return data['detail'] as String;
-    }
-    return error.message ?? fallback;
   }
 }
 

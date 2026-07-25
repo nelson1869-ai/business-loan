@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../notes/notes_provider.dart';
 import '../../../notes/notes_repository.dart';
 import '../../../notes/officer_note.dart';
+import '../../../../core/network/api_error_mapper.dart';
+import '../../../../core/presentation/design_system/design_system.dart';
 
 class NotesTabView extends ConsumerWidget {
   const NotesTabView({super.key, required this.borrowerId, this.loanId});
@@ -25,7 +27,7 @@ class NotesTabView extends ConsumerWidget {
         error: (error, _) => Center(
           child: TextButton(
             onPressed: () => ref.invalidate(notesProvider(scope)),
-            child: Text('Retry: $error'),
+            child: Text('${ApiErrorMapper.message(error)} Retry'),
           ),
         ),
         data: (items) => _NotesList(items: items, scope: scope),
@@ -70,15 +72,23 @@ class NotesTabView extends ConsumerWidget {
     );
     controller.dispose();
     if (content == null || !context.mounted) return;
-    await ref
-        .read(notesRepositoryProvider)
-        .create(
-          borrowerId,
-          loanId: scope.loanId,
-          content: content,
-          category: scope.loanId == null ? 'Borrower' : 'Loan',
-        );
-    ref.invalidate(notesProvider(scope));
+    try {
+      await ref
+          .read(notesRepositoryProvider)
+          .create(
+            borrowerId,
+            loanId: scope.loanId,
+            content: content,
+            category: scope.loanId == null ? 'Borrower' : 'Loan',
+          );
+      ref.invalidate(notesProvider(scope));
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(ApiErrorMapper.message(error))));
+      }
+    }
   }
 }
 
@@ -107,8 +117,25 @@ class _NotesList extends ConsumerWidget {
                     tooltip: 'Delete note',
                     icon: const Icon(Icons.delete_outline),
                     onPressed: () async {
-                      await ref.read(notesRepositoryProvider).delete(note.id);
-                      ref.invalidate(notesProvider(scope));
+                      final confirmed = await AppDeleteDialog.show(
+                        context,
+                        title: 'Delete note?',
+                        content:
+                            'This permanently removes the selected officer note.',
+                      );
+                      if (confirmed != true || !context.mounted) return;
+                      try {
+                        await ref.read(notesRepositoryProvider).delete(note.id);
+                        ref.invalidate(notesProvider(scope));
+                      } catch (error) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(ApiErrorMapper.message(error)),
+                            ),
+                          );
+                        }
+                      }
                     },
                   )
                 : null,

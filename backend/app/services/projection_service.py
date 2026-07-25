@@ -29,6 +29,19 @@ def _money(value: Decimal) -> Decimal:
     return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
+def _overdue_installment_amount(loans: list[Loan], as_of: date) -> Decimal:
+    """Return unpaid scheduled amounts strictly overdue at the snapshot date."""
+    return sum(
+        (
+            max(item.expected_payment - item.paid_amount, ZERO)
+            for loan in loans
+            for item in loan.installments
+            if item.due_date < as_of and item.status not in {"Paid", "Cancelled"}
+        ),
+        ZERO,
+    )
+
+
 async def get_receipt(db: AsyncSession, payment_id: str) -> ReceiptProjection | None:
     """Return one immutable receipt without recalculating its allocation."""
     result = await db.execute(
@@ -73,7 +86,9 @@ async def get_receipt(db: AsyncSession, payment_id: str) -> ReceiptProjection | 
         reversal_status=(
             "Reversal"
             if payment.entry_type == "Reversal"
-            else "Reversed" if payment.reversal else "Original"
+            else "Reversed"
+            if payment.reversal
+            else "Original"
         ),
         reversal_reason=reason,
     )
@@ -312,7 +327,11 @@ async def financial_report(
             else (
                 "1-30"
                 if days <= 30
-                else "31-60" if days <= 60 else "61-90" if days <= 90 else "91+"
+                else "31-60"
+                if days <= 60
+                else "61-90"
+                if days <= 90
+                else "91+"
             )
         )
         aging[band] += loan.outstanding_principal
@@ -336,7 +355,7 @@ async def financial_report(
         unapplied_credits=sum(
             (sign(p) * p.allocation.unapplied_credit for p in payments), ZERO
         ),
-        overdue_amount=at_risk,
+        overdue_amount=_overdue_installment_amount(loans, date_to),
         portfolio_at_risk=(
             ZERO
             if outstanding == ZERO

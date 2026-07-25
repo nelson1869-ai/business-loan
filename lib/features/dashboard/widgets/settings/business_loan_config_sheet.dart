@@ -22,6 +22,20 @@ class _BusinessLoanConfigSheetState
   bool _saving = false;
 
   @override
+  void initState() {
+    super.initState();
+    ref.listenManual(businessSettingProvider, (_, next) {
+      next.whenData((settings) {
+        if (_initialized) return;
+        _initialized = true;
+        _businessName.text = settings.businessName;
+        _currencyCode.text = settings.currencyCode;
+        _receiptFooter.text = settings.receiptFooter;
+      });
+    }, fireImmediately: true);
+  }
+
+  @override
   void dispose() {
     _businessName.dispose();
     _currencyCode.dispose();
@@ -32,13 +46,6 @@ class _BusinessLoanConfigSheetState
   @override
   Widget build(BuildContext context) {
     final settingsAsync = ref.watch(businessSettingProvider);
-    final settings = settingsAsync.valueOrNull;
-    if (settings != null && !_initialized) {
-      _initialized = true;
-      _businessName.text = settings.businessName;
-      _currencyCode.text = settings.currencyCode;
-      _receiptFooter.text = settings.receiptFooter;
-    }
 
     return DraggableScrollableSheet(
       initialChildSize: 0.78,

@@ -12,6 +12,7 @@ from app.models.borrower import Borrower
 from app.models.collection_task import CollectionTaskState
 from app.models.loan import Installment, Loan
 from app.models.notification import Notification
+from app.models.payment import Payment
 from app.models.user import User
 from app.schemas.collection_task import (
     CollectionTaskComplete,
@@ -23,7 +24,17 @@ from app.schemas.collection_task import (
 router = APIRouter(prefix="/api/v1/collection-tasks", tags=["Collection Tasks"])
 
 
-def _audit(db: DbSession, user_id: str, action: str, task_id: str, status_value: str) -> None:
+async def _locked_task(db: DbSession, task_id: str) -> CollectionTaskState | None:
+    return await db.scalar(
+        select(CollectionTaskState)
+        .where(CollectionTaskState.id == task_id)
+        .with_for_update()
+    )
+
+
+def _audit(
+    db: DbSession, user_id: str, action: str, task_id: str, status_value: str
+) -> None:
     db.add(
         AuditLog(
             id=str(uuid4()),
@@ -44,9 +55,7 @@ async def list_tasks(
 ) -> list[CollectionTaskState]:
     query = select(CollectionTaskState).order_by(CollectionTaskState.due_at)
     if current_user.role != "admin":
-        query = query.where(
-            CollectionTaskState.assigned_to_user_id == current_user.id
-        )
+        query = query.where(CollectionTaskState.assigned_to_user_id == current_user.id)
     if task_status:
         query = query.where(CollectionTaskState.status == task_status)
     return list((await db.execute(query)).scalars())
@@ -72,6 +81,21 @@ async def create_task(
         raise HTTPException(status_code=404, detail="Loan not found for borrower")
     if assignee is None:
         raise HTTPException(status_code=404, detail="Assigned officer not found")
+    if assignee_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Only administrators may assign tasks to another user",
+        )
+    now = datetime.now(UTC)
+    due_at = (
+        payload.due_at.replace(tzinfo=UTC)
+        if payload.due_at.tzinfo is None
+        else payload.due_at.astimezone(UTC)
+    )
+    if due_at <= now:
+        raise HTTPException(
+            status_code=422, detail="Follow-up date must be in the future"
+        )
     if payload.installment_number is not None:
         installment = await db.scalar(
             select(Installment).where(
@@ -88,6 +112,14 @@ async def create_task(
             status_code=422,
             detail="Promise-to-pay requires promisedAmount and promiseDate",
         )
+    if (
+        payload.task_type == "PromiseToPay"
+        and payload.promise_date is not None
+        and payload.promise_date < now.date()
+    ):
+        raise HTTPException(
+            status_code=422, detail="Promise date cannot be in the past"
+        )
     task = CollectionTaskState(
         borrower_id=borrower.id,
         loan_id=loan.id,
@@ -95,7 +127,7 @@ async def create_task(
         task_type=payload.task_type,
         priority=payload.priority,
         description=payload.description.strip() if payload.description else None,
-        due_at=payload.due_at,
+        due_at=due_at,
         created_by_user_id=current_user.id,
         assigned_to_user_id=assignee_id,
         promised_amount=payload.promised_amount,
@@ -131,11 +163,33 @@ async def update_promise_status(
     db: DbSession,
     current_user: CurrentUser,
 ) -> CollectionTaskState:
-    task = await db.get(CollectionTaskState, task_id)
+    task = await _locked_task(db, task_id)
     if task is None or task.task_type != "PromiseToPay":
         raise HTTPException(status_code=404, detail="Promise-to-pay task not found")
     if task.assigned_to_user_id != current_user.id and current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Task is assigned to another officer")
+        raise HTTPException(
+            status_code=403, detail="Task is assigned to another officer"
+        )
+    if task.promise_status != "Pending":
+        raise HTTPException(status_code=409, detail="Promise status is already final")
+    linked_payment = None
+    if payload.linked_payment_id is not None:
+        linked_payment = await db.get(Payment, payload.linked_payment_id)
+    if payload.promise_status == "Kept":
+        if (
+            linked_payment is None
+            or linked_payment.loan_id != task.loan_id
+            or linked_payment.entry_type != "Payment"
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail="A kept promise requires a payment from the same loan",
+            )
+    elif payload.linked_payment_id is not None:
+        raise HTTPException(
+            status_code=422,
+            detail="Only a kept promise may link a payment",
+        )
     task.promise_status = payload.promise_status
     task.linked_payment_id = payload.linked_payment_id
     if payload.promise_status == "Broken":
@@ -150,7 +204,9 @@ async def update_promise_status(
                 loan_id=task.loan_id,
             )
         )
-    _audit(db, current_user.id, "update_promise_status", task.id, payload.promise_status)
+    _audit(
+        db, current_user.id, "update_promise_status", task.id, payload.promise_status
+    )
     await db.commit()
     await db.refresh(task)
     return task
@@ -166,11 +222,13 @@ async def complete_scheduled_task(
     db: DbSession,
     current_user: CurrentUser,
 ) -> CollectionTaskState:
-    task = await db.get(CollectionTaskState, task_id)
+    task = await _locked_task(db, task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Collection task not found")
     if task.assigned_to_user_id != current_user.id and current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Task is assigned to another officer")
+        raise HTTPException(
+            status_code=403, detail="Task is assigned to another officer"
+        )
     if task.status != "Completed":
         task.status = "Completed"
         task.completed_by_user_id = current_user.id
@@ -193,9 +251,7 @@ async def completed_installment_tasks(
         CollectionTaskState.installment_number.is_not(None),
     )
     if current_user.role != "admin":
-        query = query.where(
-            CollectionTaskState.assigned_to_user_id == current_user.id
-        )
+        query = query.where(CollectionTaskState.assigned_to_user_id == current_user.id)
     rows = (await db.execute(query)).scalars()
     return [f"{row.loan_id}:{row.installment_number}" for row in rows]
 
@@ -220,11 +276,23 @@ async def complete_installment_task(
     if installment is None or loan is None:
         raise HTTPException(status_code=404, detail="Installment not found")
     task = await db.scalar(
-        select(CollectionTaskState).where(
+        select(CollectionTaskState)
+        .where(
             CollectionTaskState.loan_id == loan_id,
             CollectionTaskState.installment_number == installment_number,
+            CollectionTaskState.status == "Pending",
         )
+        .with_for_update()
     )
+    if (
+        task is not None
+        and task.assigned_to_user_id != current_user.id
+        and current_user.role != "admin"
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Task is assigned to another officer",
+        )
     if task is None:
         task = CollectionTaskState(
             borrower_id=loan.borrower_id,
@@ -242,5 +310,10 @@ async def complete_installment_task(
         db.add(task)
         await db.flush()
         _audit(db, current_user.id, "complete_collection_task", task.id, "Completed")
-        await db.commit()
+    else:
+        task.status = "Completed"
+        task.completed_by_user_id = current_user.id
+        task.completed_at = datetime.now(UTC)
+        _audit(db, current_user.id, "complete_collection_task", task.id, "Completed")
+    await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

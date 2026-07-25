@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/network/api_error_mapper.dart';
 import '../../../core/utils/formatters.dart';
 import '../domain/models/payment.dart';
 import 'providers/loans_provider.dart';
@@ -240,7 +241,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
               error: (error, _) => Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Text('Could not load payments: $error'),
+                  child: Text(ApiErrorMapper.message(error)),
                 ),
               ),
               data: (payments) => payments.isEmpty

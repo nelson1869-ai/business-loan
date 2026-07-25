@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/network/api_error_mapper.dart';
 import '../../../core/utils/formatters.dart';
 import '../../borrowers/domain/borrower_model.dart';
 import '../domain/models/loan.dart';
@@ -49,7 +50,7 @@ class BorrowerLoansSection extends ConsumerWidget {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: <Widget>[
-                  Text('Could not load loans: $error'),
+                  Text(ApiErrorMapper.message(error)),
                   TextButton(
                     onPressed: () =>
                         ref.invalidate(borrowerLoansProvider(borrower.id)),

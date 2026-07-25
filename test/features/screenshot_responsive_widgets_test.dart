@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lending_nelson/features/borrowers/widgets/borrower_payment_behavior_card.dart';
 import 'package:lending_nelson/features/borrowers/widgets/tabs/payments_tab_view.dart';
 import 'package:lending_nelson/features/dashboard/widgets/notifications/notification_header_card.dart';
+import 'package:lending_nelson/features/dashboard/widgets/owner_financial_summary_card.dart';
 import 'package:lending_nelson/features/dashboard/widgets/reports/reports_header_card.dart';
 import 'package:lending_nelson/features/dashboard/widgets/reports/reports_trend_charts.dart';
 
@@ -144,6 +145,36 @@ void main() {
 
     expect(find.text('Monthly Trend Unavailable'), findsOneWidget);
     expect(find.textContaining('₱52k'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('portfolio metrics remain readable at narrow Android width', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(360, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      _testApp(
+        size: const Size(360, 640),
+        textScale: 1.3,
+        brightness: Brightness.dark,
+        child: const Padding(
+          padding: EdgeInsets.all(32),
+          child: OwnerFinancialSummaryCard(
+            totalPrincipalDisbursed: '123456789.00',
+            monthlyInterestIncome: '9876543.21',
+            outstandingBalance: '87654321.00',
+            averageInterestRate: '12.5%',
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Active Disbursed'), findsOneWidget);
+    expect(find.text('Monthly Interest'), findsOneWidget);
+    expect(find.text('Active Outstanding'), findsOneWidget);
+    expect(find.text('Avg Portfolio Rate'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
