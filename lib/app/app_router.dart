@@ -152,11 +152,8 @@ class _MainShellState extends ConsumerState<MainShell> {
     }
 
     final serverStatus = ref.watch(serverStatusNotifierProvider);
-    final pendingCount = ref.watch(offlineSyncPendingCountProvider);
-
-    final showBanner =
-        serverStatus != ServerStatus.serverReady || pendingCount > 0;
-    final bannerConfig = _bannerConfig(serverStatus, pendingCount);
+    final queueState = ref.watch(offlineSyncQueueNotifierProvider);
+    final bannerConfig = _bannerConfig(serverStatus, queueState);
 
     return PopScope<Object?>(
       canPop: false,
@@ -166,8 +163,11 @@ class _MainShellState extends ConsumerState<MainShell> {
       child: Scaffold(
         body: Column(
           children: [
-            if (showBanner)
-              InkWell(
+            Semantics(
+              liveRegion: true,
+              label: bannerConfig.message,
+              button: true,
+              child: InkWell(
                 onTap: () => context.push('/sync-management'),
                 child: Container(
                   width: double.infinity,
@@ -179,23 +179,36 @@ class _MainShellState extends ConsumerState<MainShell> {
                   child: SafeArea(
                     bottom: false,
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(bannerConfig.icon, size: 16, color: Colors.white),
                         const SizedBox(width: 8),
-                        Text(
-                          bannerConfig.message,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
+                        Expanded(
+                          child: Text(
+                            bannerConfig.message,
+                            maxLines: 2,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
+                        if (bannerConfig.canRetry)
+                          IconButton(
+                            tooltip: 'Retry synchronization',
+                            visualDensity: VisualDensity.compact,
+                            color: Colors.white,
+                            onPressed: () => ref
+                                .read(offlineSyncServiceProvider)
+                                .drainQueue(),
+                            icon: const Icon(Icons.refresh, size: 18),
+                          ),
                       ],
                     ),
                   ),
                 ),
               ),
+            ),
             Expanded(child: widget.child),
           ],
         ),
@@ -233,33 +246,62 @@ class _MainShellState extends ConsumerState<MainShell> {
     );
   }
 
-  _BannerData _bannerConfig(ServerStatus status, int pendingCount) {
+  _BannerData _bannerConfig(ServerStatus status, OfflineQueueState queueState) {
+    final pendingCount = queueState.pendingCount;
+    final failed =
+        queueState.retryableFailedCount +
+        queueState.permanentlyFailedCount +
+        queueState.conflictCount;
+    final lastSync = queueState.lastSyncedAt?.toLocal();
+    final lastSyncLabel = lastSync == null
+        ? 'No completed sync yet'
+        : 'Last sync ${lastSync.hour.toString().padLeft(2, '0')}:'
+              '${lastSync.minute.toString().padLeft(2, '0')}';
+    if (failed > 0) {
+      return _BannerData(
+        backgroundColor: Colors.red.shade800,
+        icon: Icons.sync_problem,
+        message: 'Sync failed · $failed need attention · $lastSyncLabel',
+        canRetry: true,
+      );
+    }
+    if (queueState.isSyncing) {
+      return _BannerData(
+        backgroundColor: Colors.blue.shade800,
+        icon: Icons.sync,
+        message:
+            'Syncing ${queueState.processedCount}/${queueState.processingTotal}'
+            ' · $pendingCount queued',
+      );
+    }
     switch (status) {
       case ServerStatus.offline:
         return _BannerData(
           backgroundColor: Colors.amber.shade900,
           icon: Icons.wifi_off,
           message: pendingCount > 0
-              ? 'Working Offline - $pendingCount items queued (Tap for details)'
-              : 'Working Offline (Saved on device)',
+              ? 'Offline · $pendingCount queued · $lastSyncLabel'
+              : 'Offline · $lastSyncLabel',
         );
       case ServerStatus.networkAvailable:
         return _BannerData(
           backgroundColor: Colors.blue.shade800,
           icon: Icons.sync,
-          message: 'Server Connecting...',
+          message: 'Waiting for server · $pendingCount queued · $lastSyncLabel',
         );
       case ServerStatus.serverUnavailable:
         return _BannerData(
           backgroundColor: Colors.deepOrange.shade800,
           icon: Icons.cloud_off,
-          message: 'Server Unreachable - Saved on Device',
+          message: 'Waiting for server · $pendingCount queued · $lastSyncLabel',
         );
       case ServerStatus.serverReady:
         return _BannerData(
           backgroundColor: Colors.teal.shade800,
           icon: Icons.cloud_done,
-          message: 'Online - Syncing $pendingCount items',
+          message: pendingCount > 0
+              ? 'Online · $pendingCount waiting to sync · $lastSyncLabel'
+              : 'Online · Queue clear · $lastSyncLabel',
         );
     }
   }
@@ -270,9 +312,11 @@ class _BannerData {
     required this.backgroundColor,
     required this.icon,
     required this.message,
+    this.canRetry = false,
   });
 
   final Color backgroundColor;
   final IconData icon;
   final String message;
+  final bool canRetry;
 }

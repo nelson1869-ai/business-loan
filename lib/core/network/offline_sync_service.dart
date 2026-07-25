@@ -23,6 +23,7 @@ enum QueueItemStatus {
   retryableFailed,
   permanentlyFailed,
   conflict,
+  cancelled,
 }
 
 extension QueueItemStatusX on QueueItemStatus {
@@ -38,6 +39,8 @@ extension QueueItemStatusX on QueueItemStatus {
         return 'permanentlyFailed';
       case QueueItemStatus.conflict:
         return 'conflict';
+      case QueueItemStatus.cancelled:
+        return 'cancelled';
     }
   }
 
@@ -51,6 +54,8 @@ extension QueueItemStatusX on QueueItemStatus {
         return QueueItemStatus.permanentlyFailed;
       case 'conflict':
         return QueueItemStatus.conflict;
+      case 'cancelled':
+        return QueueItemStatus.cancelled;
       case 'pending':
       default:
         return QueueItemStatus.pending;
@@ -133,6 +138,9 @@ class OfflineQueueState {
     this.items = const [],
     this.conflicts = const [],
     this.lastSyncedAt,
+    this.isSyncing = false,
+    this.processedCount = 0,
+    this.processingTotal = 0,
   });
 
   final int pendingCount;
@@ -143,6 +151,9 @@ class OfflineQueueState {
   final List<OfflineQueueItemModel> items;
   final List<SyncConflictModel> conflicts;
   final DateTime? lastSyncedAt;
+  final bool isSyncing;
+  final int processedCount;
+  final int processingTotal;
 }
 
 /// Watches network changes and manages offline mutation replay lifecycle.
@@ -168,6 +179,8 @@ class OfflineSyncService {
 
   StreamSubscription<List<ConnectivityResult>>? _subscription;
   bool _isDraining = false;
+  int _processedCount = 0;
+  int _processingTotal = 0;
   void Function()? onQueueChanged;
 
   /// Starts listening for network changes and recovers crash-interrupted records.
@@ -214,6 +227,37 @@ class OfflineSyncService {
     final encodedPayload = jsonEncode(payload);
     final encryptedPayload = await _encryptionService.encrypt(encodedPayload);
     final transactionUuid = _uuid.v4();
+
+    if (entityLocalId != null) {
+      final existing = await database.query(
+        'offline_sync_queue',
+        columns: ['id'],
+        where:
+            'entity_type = ? AND entity_local_id = ? AND operation_type = ? '
+            "AND status IN ('pending', 'retryableFailed', 'syncing')",
+        whereArgs: [entityType, entityLocalId, operationType],
+        limit: 1,
+      );
+      if (existing.isNotEmpty) {
+        await database.update(
+          'offline_sync_queue',
+          {
+            'endpoint': endpoint,
+            'method': method,
+            'payload_json': encryptedPayload,
+            'dependency_ids_json': jsonEncode(dependencyIds),
+            'status': QueueItemStatus.pending.toDbValue(),
+            'next_retry_at': null,
+            'last_error_code': null,
+            'last_error_message': null,
+          },
+          where: 'id = ?',
+          whereArgs: [existing.first['id']],
+        );
+        onQueueChanged?.call();
+        return;
+      }
+    }
 
     await database.insert('offline_sync_queue', {
       'id': _uuid.v4(),
@@ -295,6 +339,8 @@ class OfflineSyncService {
       if (eligibleRows.isEmpty) return;
 
       final sortedRows = _sortRowsByDependency(eligibleRows);
+      _processingTotal = sortedRows.length;
+      _processedCount = 0;
 
       final transactionUuids = sortedRows
           .map((r) => r['transaction_uuid'] as String)
@@ -367,6 +413,7 @@ class OfflineSyncService {
             where: 'transaction_uuid = ?',
             whereArgs: [uuid],
           );
+          _processedCount++;
         }
 
         // Process failure items
@@ -412,6 +459,26 @@ class OfflineSyncService {
               where: 'transaction_uuid = ?',
               whereArgs: [uuid],
             );
+            _processedCount++;
+
+            if (newStatus == QueueItemStatus.conflict) {
+              await txn.insert('sync_conflicts', {
+                'id': _uuid.v4(),
+                'entity_type': existing['entity_type'] ?? 'unknown',
+                'local_id': existing['entity_local_id'] ?? uuid,
+                'server_id': null,
+                'local_data_json': jsonEncode({
+                  'redacted': true,
+                  'operation': existing['operation_type'] ?? 'unknown',
+                }),
+                'server_data_json': jsonEncode({
+                  'redacted': true,
+                  'errorCode': code,
+                }),
+                'detected_at': now.toIso8601String(),
+                'status': 'unresolved',
+              }, conflictAlgorithm: ConflictAlgorithm.ignore);
+            }
 
             if (existing.isNotEmpty) {
               final entityType = existing['entity_type'] as String?;
@@ -529,6 +596,8 @@ class OfflineSyncService {
         case QueueItemStatus.conflict:
           conflict++;
           break;
+        case QueueItemStatus.cancelled:
+          break;
       }
 
       final safePayload = <String, dynamic>{
@@ -611,6 +680,9 @@ class OfflineSyncService {
       items: items,
       conflicts: conflicts,
       lastSyncedAt: lastSyncedAt,
+      isSyncing: _isDraining,
+      processedCount: _processedCount,
+      processingTotal: _processingTotal,
     );
   }
 
@@ -634,6 +706,56 @@ class OfflineSyncService {
       'offline_sync_queue',
       where: 'transaction_uuid = ?',
       whereArgs: [transactionUuid],
+    );
+    onQueueChanged?.call();
+  }
+
+  /// Cancels a queued operation without deleting its audit trail.
+  Future<void> cancelItem(String transactionUuid) async {
+    final database = await _databaseService.database;
+    await database.update(
+      'offline_sync_queue',
+      {
+        'status': QueueItemStatus.cancelled.toDbValue(),
+        'next_retry_at': null,
+        'last_error_code': 'CANCELLED_BY_USER',
+        'last_error_message': 'Cancelled on this device',
+      },
+      where: "transaction_uuid = ? AND status != 'syncing'",
+      whereArgs: [transactionUuid],
+    );
+    onQueueChanged?.call();
+  }
+
+  /// Resolves a recorded conflict without silently overwriting financial data.
+  Future<void> resolveConflict(
+    String conflictId, {
+    required String strategy,
+  }) async {
+    const supported = {'serverWins', 'clientWins', 'manual'};
+    if (!supported.contains(strategy)) {
+      throw ArgumentError.value(strategy, 'strategy');
+    }
+    final database = await _databaseService.database;
+    final rows = await database.query(
+      'sync_conflicts',
+      where: 'id = ?',
+      whereArgs: [conflictId],
+      limit: 1,
+    );
+    if (rows.isEmpty) return;
+    final entityType = rows.first['entity_type'] as String;
+    if (strategy == 'clientWins' &&
+        {'loan', 'repayment', 'payment'}.contains(entityType)) {
+      throw StateError(
+        'Financial conflicts require manual review or server-wins resolution.',
+      );
+    }
+    await database.update(
+      'sync_conflicts',
+      {'status': strategy == 'manual' ? 'manualReview' : 'resolved:$strategy'},
+      where: 'id = ?',
+      whereArgs: [conflictId],
     );
     onQueueChanged?.call();
   }
@@ -682,9 +804,14 @@ class OfflineSyncQueueNotifier extends StateNotifier<OfflineQueueState> {
 
   /// Reload queue state from local SQLite database.
   Future<void> refreshQueueState() async {
-    final newState = await _service.getQueueState();
-    if (mounted) {
-      state = newState;
+    try {
+      final newState = await _service.getQueueState();
+      if (mounted) {
+        state = newState;
+      }
+    } catch (_) {
+      // Keep the last known queue summary when local storage is temporarily
+      // unavailable. Queue mutations still report their own actionable errors.
     }
   }
 }

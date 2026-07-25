@@ -31,6 +31,19 @@ class ApiErrorMapper {
     };
   }
 
+  /// Returns true only for transport failures safe to defer to the offline
+  /// queue. HTTP validation and authorization failures must never be queued.
+  static bool isOfflineFailure(Object error) {
+    return error is DioException &&
+        error.response == null &&
+        {
+          DioExceptionType.connectionError,
+          DioExceptionType.connectionTimeout,
+          DioExceptionType.receiveTimeout,
+          DioExceptionType.sendTimeout,
+        }.contains(error.type);
+  }
+
   static String? _safeDetail(DioException error) {
     final data = error.response?.data;
     if (data is! Map) return null;

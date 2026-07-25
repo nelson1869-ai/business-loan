@@ -59,25 +59,48 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 function Test-BackendHealth {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$HealthUrl
+    )
     try {
-        $response = Invoke-RestMethod -Uri "${ApiUrl}/health" -TimeoutSec 2
+        $response = Invoke-RestMethod -Uri "${HealthUrl}/health" -TimeoutSec 2
         return $response.status -eq "ok"
     } catch {
         return $false
     }
 }
 
-if (-not (Test-BackendHealth)) {
+function Stop-OwnedBackendOnPort {
+    param ([int]$PortNumber)
+
+    $connections = Get-NetTCPConnection -State Listen -LocalPort $PortNumber -ErrorAction SilentlyContinue
+    foreach ($processId in @($connections | Select-Object -ExpandProperty OwningProcess -Unique)) {
+        $process = Get-CimInstance Win32_Process -Filter "ProcessId = $processId" -ErrorAction SilentlyContinue
+        $backendPath = [regex]::Escape($BackendDir)
+        $isOwnedBackend = $process -and
+            $process.CommandLine -match "(?i)uvicorn" -and
+            ($process.CommandLine -match $backendPath -or $process.ExecutablePath -match $backendPath)
+        if (-not $isOwnedBackend) {
+            throw "Port $PortNumber is already owned by another process (PID $processId). Stop it manually or use -Port with a free port."
+        }
+        Write-Host "[STOP] Restarting Lending Nelson backend PID $processId for phone access..." -ForegroundColor Yellow
+        Stop-Process -Id $processId -Force
+    }
+}
+
+if (-not (Test-BackendHealth -HealthUrl $ApiUrl)) {
     if (-not (Test-Path -LiteralPath $VenvPython -PathType Leaf)) {
         throw "Backend is unavailable and virtual-environment Python was not found at $VenvPython"
     }
+    Stop-OwnedBackendOnPort -PortNumber $Port
     $backendArguments = @("-NoExit", "-Command", "Set-Location '$BackendDir'; & '$VenvPython' -m uvicorn app.main:app --host 0.0.0.0 --port $Port")
     $backendProcess = Start-Process powershell -ArgumentList $backendArguments -PassThru
 
     $healthy = $false
     for ($attempt = 1; $attempt -le 15; $attempt++) {
         Start-Sleep -Milliseconds 800
-        if (Test-BackendHealth) {
+        if (Test-BackendHealth -HealthUrl "http://127.0.0.1:${Port}") {
             $healthy = $true
             break
         }
@@ -88,7 +111,14 @@ if (-not (Test-BackendHealth)) {
         }
         throw "Backend health check failed; Flutter was not started."
     }
+    if (-not (Test-BackendHealth -HealthUrl $ApiUrl)) {
+        throw "Backend is healthy locally but $ApiUrl is unreachable. Allow inbound TCP port $Port through Windows Defender Firewall for the trusted Private network, then retry."
+    }
+    Write-Host "[OK] Backend is reachable from the LAN address." -ForegroundColor Green
 }
 
 Set-Location -LiteralPath $ProjectRoot
 flutter run -d $PhoneAddress --dart-define="API_BASE_URL=$ApiUrl"
+if ($LASTEXITCODE -ne 0) {
+    throw "Flutter failed to build or launch on $PhoneAddress (exit code $LASTEXITCODE)."
+}

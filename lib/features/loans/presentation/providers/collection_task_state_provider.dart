@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../dashboard/domain/dashboard_data.dart';
 import '../../data/repositories/collection_task_repository.dart';
+import '../../../../core/notifications/local_notification_service.dart';
 
 class CollectionFollowUp {
   const CollectionFollowUp({
@@ -98,7 +99,32 @@ Future<void> createCollectionFollowUp(
     if (taskType == 'PromiseToPay')
       'promiseDate': promiseDate?.toIso8601String().substring(0, 10),
   });
+  final reminderAt = taskType == 'PromiseToPay' && promiseDate != null
+      ? DateTime(promiseDate.year, promiseDate.month, promiseDate.day, 8)
+      : dueAt;
+  await ref
+      .read(localNotificationServiceProvider)
+      .schedule(
+        id: _stableReminderId(
+          '${item.loanId}:${item.installmentNumber}:$taskType',
+        ),
+        title: taskType == 'PromiseToPay'
+            ? 'Promise-to-pay reminder'
+            : 'Collection follow-up',
+        body: 'An assigned lending task requires attention.',
+        at: reminderAt,
+        navigationPath: '/collections/today',
+        category: taskType == 'PromiseToPay'
+            ? ReminderCategory.promises
+            : ReminderCategory.collections,
+      );
   ref.invalidate(collectionFollowUpsProvider);
+}
+
+int _stableReminderId(String value) {
+  return value.codeUnits.fold<int>(17, (hash, code) {
+    return ((hash * 31) + code) & 0x7fffffff;
+  });
 }
 
 Future<void> completeScheduledFollowUp(WidgetRef ref, String taskId) async {

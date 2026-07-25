@@ -1,7 +1,11 @@
 // ignore_for_file: prefer_initializing_formals
 
+import 'dart:io';
+
 // Third-party packages
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -57,6 +61,7 @@ class ApiClient {
         headers: const {'Accept': 'application/json'},
       ),
     );
+    _configureCertificatePinning(dio);
     dio.interceptors.add(
       JwtInterceptor(
         dio: dio,
@@ -68,6 +73,22 @@ class ApiClient {
 
   /// Shared configured Dio instance.
   late final Dio dio;
+
+  void _configureCertificatePinning(Dio client) {
+    const configuredPin = String.fromEnvironment('CERTIFICATE_SHA256');
+    if (configuredPin.isEmpty) return;
+    final expected = configuredPin.replaceAll(':', '').toLowerCase();
+    if (!RegExp(r'^[0-9a-f]{64}$').hasMatch(expected)) {
+      throw StateError('CERTIFICATE_SHA256 must be a SHA-256 hex digest');
+    }
+    client.httpClientAdapter = IOHttpClientAdapter(
+      createHttpClient: HttpClient.new,
+      validateCertificate: (certificate, host, port) {
+        if (certificate == null) return false;
+        return sha256.convert(certificate.der).toString() == expected;
+      },
+    );
+  }
 }
 
 /// Adds JWT access tokens and performs one refresh/retry after a 401 response.

@@ -2,16 +2,20 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_endpoints.dart';
+import '../../../core/network/api_error_mapper.dart';
+import '../../../core/network/offline_sync_service.dart';
 import '../domain/app_document.dart';
 
 class DocumentRepository {
-  const DocumentRepository(this._dio);
+  const DocumentRepository(this._dio, this._sync);
 
   final Dio _dio;
+  final OfflineSyncService _sync;
 
   Future<List<AppDocument>> load({
     required String borrowerId,
@@ -40,15 +44,27 @@ class DocumentRepository {
     final endpoint = loanId == null
         ? ApiEndpoints.borrowerDocuments(borrowerId)
         : ApiEndpoints.loanDocuments(borrowerId, loanId);
-    await _dio.post<void>(
-      endpoint,
-      data: {
-        'title': title,
-        'fileName': fileName,
-        'contentType': contentType,
-        'contentBase64': base64Encode(bytes),
-      },
-    );
+    final payload = {
+      'title': title,
+      'fileName': fileName,
+      'contentType': contentType,
+      'contentBase64': base64Encode(bytes),
+    };
+    try {
+      await _dio.post<void>(endpoint, data: payload);
+    } catch (error) {
+      if (!ApiErrorMapper.isOfflineFailure(error)) rethrow;
+      await _sync.enqueue(
+        endpoint: endpoint,
+        method: 'POST',
+        payload: payload,
+        entityType: 'document',
+        entityLocalId:
+            '${borrowerId}_${loanId ?? 'borrower'}_${sha256.convert(bytes)}',
+        operationType: 'create',
+        dependencyIds: [borrowerId, ?loanId],
+      );
+    }
   }
 
   Future<Uint8List> download(String documentId) async {
@@ -60,10 +76,26 @@ class DocumentRepository {
   }
 
   Future<void> delete(String documentId) async {
-    await _dio.delete<void>(ApiEndpoints.document(documentId));
+    final endpoint = ApiEndpoints.document(documentId);
+    try {
+      await _dio.delete<void>(endpoint);
+    } catch (error) {
+      if (!ApiErrorMapper.isOfflineFailure(error)) rethrow;
+      await _sync.enqueue(
+        endpoint: endpoint,
+        method: 'DELETE',
+        payload: const {},
+        entityType: 'document',
+        entityLocalId: documentId,
+        operationType: 'delete',
+      );
+    }
   }
 }
 
 final documentRepositoryProvider = Provider<DocumentRepository>((ref) {
-  return DocumentRepository(ref.watch(apiClientProvider));
+  return DocumentRepository(
+    ref.watch(apiClientProvider),
+    ref.watch(offlineSyncServiceProvider),
+  );
 });
