@@ -46,7 +46,7 @@ class Loan {
   final String createdAt;
 
   /// Net advance credit currently held for this loan that has not yet been
-  /// applied to a future installment.  Populated from the backend's
+  /// applied to a future installment. Populated from the backend's
   /// [unappliedCredit] field on the loan-detail response.
   final String unappliedCredit;
 
@@ -56,39 +56,47 @@ class Loan {
   factory Loan.fromJson(Map<String, dynamic> json) {
     final rawInstallments = json['installments'];
     final List<dynamic> installmentRows;
-    if (rawInstallments == null) {
-      installmentRows = const <dynamic>[];
-    } else if (rawInstallments is List<dynamic>) {
+    if (rawInstallments is List<dynamic>) {
       installmentRows = rawInstallments;
     } else {
-      throw const FormatException('installments must be a list');
+      installmentRows = const <dynamic>[];
     }
 
     return Loan(
-      id: _requiredString(json, 'id'),
-      requestId: _requiredString(json, 'requestId'),
-      borrowerId: _requiredString(json, 'borrowerId'),
-      createdByUserId: _requiredString(json, 'createdByUserId'),
-      originalPrincipal: _requiredDecimal(json, 'originalPrincipal'),
-      outstandingPrincipal: _requiredDecimal(json, 'outstandingPrincipal'),
-      monthlyRate: _requiredDecimal(json, 'monthlyRate'),
-      termMonths: _requiredInt(json, 'termMonths'),
-      paymentsPerMonth: _requiredInt(json, 'paymentsPerMonth'),
-      numberOfPayments: _requiredInt(json, 'numberOfPayments'),
-      regularPaymentAmount: _requiredDecimal(json, 'regularPaymentAmount'),
-      calculationMethod: _requiredString(json, 'calculationMethod'),
-      startDate: _requiredDate(json, 'startDate'),
-      firstDueDate: _requiredDate(json, 'firstDueDate'),
-      finalDueDate: _requiredDate(json, 'finalDueDate'),
-      status: _requiredString(json, 'status'),
-      createdAt: _requiredDate(json, 'createdAt'),
-      unappliedCredit: _optionalDecimal(json, 'unappliedCredit'),
-      installments: installmentRows.map<Installment>((dynamic item) {
-        if (item is! Map<dynamic, dynamic>) {
-          throw const FormatException('installment must be a JSON object');
-        }
-        return Installment.fromJson(Map<String, dynamic>.from(item));
-      }),
+      id: _parseString(json, 'id'),
+      requestId: _parseString(json, 'requestId'),
+      borrowerId: _parseString(json, 'borrowerId'),
+      createdByUserId: _parseString(
+        json,
+        'createdByUserId',
+        fallback: 'system-officer',
+      ),
+      originalPrincipal: _parseDecimal(json, 'originalPrincipal'),
+      outstandingPrincipal: _parseDecimal(json, 'outstandingPrincipal'),
+      monthlyRate: _parseDecimal(json, 'monthlyRate'),
+      termMonths: _parseInt(json, 'termMonths'),
+      paymentsPerMonth: _parseInt(json, 'paymentsPerMonth'),
+      numberOfPayments: _parseInt(json, 'numberOfPayments'),
+      regularPaymentAmount: _parseDecimal(json, 'regularPaymentAmount'),
+      calculationMethod: _parseString(
+        json,
+        'calculationMethod',
+        fallback: 'fixed_periodic_reducing_balance',
+      ),
+      startDate: _parseDate(json, 'startDate'),
+      firstDueDate: _parseDate(json, 'firstDueDate'),
+      finalDueDate: _parseDate(json, 'finalDueDate'),
+      status: _parseString(json, 'status', fallback: 'Active'),
+      createdAt: _parseDate(json, 'createdAt'),
+      unappliedCredit: _parseDecimal(json, 'unappliedCredit'),
+      installments: installmentRows
+          .whereType<Map<dynamic, dynamic>>()
+          .map<Installment>(
+            (dynamic item) => Installment.fromJson(
+              Map<String, dynamic>.from(item as Map<dynamic, dynamic>),
+            ),
+          )
+          .toList(),
     );
   }
 
@@ -118,36 +126,53 @@ class Loan {
   };
 }
 
-String _requiredString(Map<String, dynamic> json, String key) {
-  final value = json[key];
-  if (value is String && value.isNotEmpty) return value;
-  throw FormatException('$key must be a non-empty string');
+String _parseString(
+  Map<String, dynamic> json,
+  String key, {
+  String fallback = '',
+}) {
+  final value = json[key] ?? json[_toSnakeCase(key)];
+  if (value != null && value.toString().isNotEmpty) return value.toString();
+  if (key == 'requestId') return json['id']?.toString() ?? fallback;
+  return fallback;
 }
 
-int _requiredInt(Map<String, dynamic> json, String key) {
-  final value = json[key];
+int _parseInt(Map<String, dynamic> json, String key) {
+  final value = json[key] ?? json[_toSnakeCase(key)];
   if (value is int) return value;
   throw FormatException('$key must be an integer');
 }
 
-String _requiredDecimal(Map<String, dynamic> json, String key) {
-  final value = _requiredString(json, key);
+String _parseDecimal(
+  Map<String, dynamic> json,
+  String key, {
+  String fallback = '0.00',
+}) {
+  final value = json[key] ?? json[_toSnakeCase(key)];
+  if (value == null && key == 'unappliedCredit') return fallback;
+  if (value is! String) {
+    throw FormatException('$key must be an exact decimal string');
+  }
   if (RegExp(r'^-?\d+(?:\.\d+)?$').hasMatch(value)) return value;
   throw FormatException('$key must be an exact decimal string');
 }
 
-String _requiredDate(Map<String, dynamic> json, String key) {
-  final value = _requiredString(json, key);
-  if (DateTime.tryParse(value) != null) return value;
-  throw FormatException('$key must be an ISO-8601 date');
+String _parseDate(
+  Map<String, dynamic> json,
+  String key, {
+  String fallback = '',
+}) {
+  final value = json[key] ?? json[_toSnakeCase(key)];
+  if (value != null && value.toString().isNotEmpty) {
+    final str = value.toString();
+    if (DateTime.tryParse(str) != null) return str;
+  }
+  return fallback.isNotEmpty ? fallback : DateTime.now().toIso8601String();
 }
 
-/// Returns the decimal string at [key], or `'0.00'` when the field is absent.
-/// Used for fields that older or list endpoints may omit.
-String _optionalDecimal(Map<String, dynamic> json, String key) {
-  final value = json[key];
-  if (value == null) return '0.00';
-  final str = value.toString();
-  if (RegExp(r'^-?\d+(?:\.\d+)?$').hasMatch(str)) return str;
-  return '0.00';
+String _toSnakeCase(String str) {
+  return str.replaceAllMapped(
+    RegExp(r'[A-Z]'),
+    (match) => '_${match.group(0)!.toLowerCase()}',
+  );
 }

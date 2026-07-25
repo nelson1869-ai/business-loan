@@ -6,6 +6,9 @@ class DashboardMetrics {
   final int overdueLoanCount;
   final String overdueAmount;
   final int totalActiveLoanCount;
+  final String totalPrincipalDisbursed;
+  final String monthlyInterestIncome;
+  final String weightedAverageRate;
 
   const DashboardMetrics({
     required this.activeBorrowers,
@@ -15,6 +18,9 @@ class DashboardMetrics {
     required this.overdueLoanCount,
     required this.overdueAmount,
     required this.totalActiveLoanCount,
+    this.totalPrincipalDisbursed = '0.00',
+    this.monthlyInterestIncome = '0.00',
+    this.weightedAverageRate = '0.0%',
   });
 }
 

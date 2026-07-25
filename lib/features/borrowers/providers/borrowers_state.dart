@@ -43,6 +43,9 @@ class BorrowersNotifier extends AsyncNotifier<List<Borrower>> {
         endpoint: ApiEndpoints.borrowers,
         method: 'POST',
         payload: borrower.toJson(),
+        entityType: 'borrower',
+        entityLocalId: borrower.id,
+        operationType: 'create',
       );
 
       final updatedList = [
@@ -73,6 +76,9 @@ class BorrowersNotifier extends AsyncNotifier<List<Borrower>> {
         endpoint: '${ApiEndpoints.borrowers}/${borrower.id}',
         method: 'PUT',
         payload: borrower.toJson(),
+        entityType: 'borrower',
+        entityLocalId: borrower.id,
+        operationType: 'update',
       );
 
       final updatedList = currentList.map((item) {
@@ -88,7 +94,7 @@ class BorrowersNotifier extends AsyncNotifier<List<Borrower>> {
 
     state = const AsyncLoading<List<Borrower>>().copyWithPrevious(state);
 
-    state = await AsyncValue.guard(() async {
+    try {
       await _runMutation(
         remoteAction: (repository) => repository.deleteBorrower(id),
         localAction: (repository) => repository.deleteBorrower(id),
@@ -96,12 +102,16 @@ class BorrowersNotifier extends AsyncNotifier<List<Borrower>> {
         method: 'DELETE',
         payload: const <String, dynamic>{},
         acceptNotFound: true,
+        entityType: 'borrower',
+        entityLocalId: id,
+        operationType: 'delete',
       );
 
-      final updatedList = currentList.where((item) => item.id != id).toList();
-
-      return updatedList;
-    });
+      state = AsyncData(currentList.where((item) => item.id != id).toList());
+    } catch (error, stackTrace) {
+      state = AsyncData(currentList);
+      Error.throwWithStackTrace(error, stackTrace);
+    }
   }
 
   Future<void> _runMutation({
@@ -110,6 +120,9 @@ class BorrowersNotifier extends AsyncNotifier<List<Borrower>> {
     required String endpoint,
     required String method,
     required Map<String, dynamic> payload,
+    required String entityType,
+    required String entityLocalId,
+    required String operationType,
     bool acceptNotFound = false,
   }) async {
     final localRepository = ref.read(borrowerRepositoryProvider);
@@ -122,6 +135,9 @@ class BorrowersNotifier extends AsyncNotifier<List<Borrower>> {
         endpoint: endpoint,
         method: method,
         payload: payload,
+        entityType: entityType,
+        entityLocalId: entityLocalId,
+        operationType: operationType,
       );
       return;
     }
@@ -140,6 +156,20 @@ class BorrowersNotifier extends AsyncNotifier<List<Borrower>> {
         endpoint: endpoint,
         method: method,
         payload: payload,
+        entityType: entityType,
+        entityLocalId: entityLocalId,
+        operationType: operationType,
+      );
+    } catch (_) {
+      // Any network error during remote mutation triggers offline fallback
+      await localAction(localRepository);
+      await syncService.enqueue(
+        endpoint: endpoint,
+        method: method,
+        payload: payload,
+        entityType: entityType,
+        entityLocalId: entityLocalId,
+        operationType: operationType,
       );
     }
   }

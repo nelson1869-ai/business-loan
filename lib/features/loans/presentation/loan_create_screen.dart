@@ -4,8 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../borrowers/domain/borrower_model.dart';
+import '../../borrowers/providers/borrower_recommendation_provider.dart';
+import '../../borrowers/widgets/borrower_recommendation_card.dart';
 import 'providers/loan_create_notifier.dart';
-import 'providers/loans_provider.dart';
 import 'widgets/loan_date_field.dart';
 
 class LoanCreateScreen extends ConsumerStatefulWidget {
@@ -162,54 +163,46 @@ class _LoanCreateScreenState extends ConsumerState<LoanCreateScreen> {
           children: [
             Consumer(
               builder: (context, ref, child) {
-                final loansAsync = ref.watch(
-                  borrowerLoansProvider(widget.borrowerId),
+                final recommendationAsync = ref.watch(
+                  borrowerRecommendationProvider(widget.borrowerId),
                 );
-                final loans = loansAsync.asData?.value ?? const [];
-                final activeLoans = loans
-                    .where((l) => l.status.toUpperCase() == 'ACTIVE')
-                    .toList();
-                if (activeLoans.isEmpty) return const SizedBox.shrink();
-
-                final totalBalance = activeLoans.fold(
-                  0.0,
-                  (sum, l) =>
-                      sum + (double.tryParse(l.outstandingPrincipal) ?? 0.0),
-                );
-
-                return Card(
-                  color: Colors.amber.shade900.withValues(alpha: 0.15),
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.shield_outlined,
-                          color: Colors.amber.shade400,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Borrower Exposure Risk',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.amber.shade300,
+                return recommendationAsync.when(
+                  data: (rec) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12.0),
+                    child: BorrowerRecommendationCard(
+                      recommendation: rec,
+                      onApplyRecommended: isSubmitting
+                          ? null
+                          : () {
+                              setState(() {
+                                _principalController.text =
+                                    rec.maxRecommendedPrincipal;
+                                final rateVal =
+                                    (double.tryParse(
+                                          rec.suggestedMonthlyRate,
+                                        ) ??
+                                        0.03) *
+                                    100;
+                                _rateController.text = rateVal.toStringAsFixed(
+                                  rateVal.truncateToDouble() == rateVal ? 0 : 1,
+                                );
+                              });
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Applied recommended loan principal & interest rate!',
+                                  ),
+                                  duration: Duration(seconds: 2),
                                 ),
-                              ),
-                              Text(
-                                '${activeLoans.length} Active Loan(s) · \$${totalBalance.toStringAsFixed(2)} Total Outstanding',
-                                style: const TextStyle(fontSize: 12),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                              );
+                            },
                     ),
                   ),
+                  loading: () => const Padding(
+                    padding: EdgeInsets.all(8.0),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                  error: (_, _) => const SizedBox.shrink(),
                 );
               },
             ),

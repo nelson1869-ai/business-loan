@@ -80,4 +80,37 @@ void main() {
       expect(states, isNot(contains('12345678')));
     }
   });
+
+  test('does not delete a borrower with an open cached loan', () async {
+    const borrower = Borrower(
+      id: '00000000-0000-4000-8000-000000000002',
+      firstName: 'John',
+      lastName: 'Doe',
+      nationalId: '87654321',
+      phone: '+254700000000',
+      dateOfBirth: '1990-01-01',
+      status: 'Active',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    );
+    await repository.saveBorrower(borrower);
+    final database = await databaseService.database;
+    await database.insert('loans', {
+      'id': '00000000-0000-4000-8000-000000000003',
+      'borrower_id': borrower.id,
+      'data_json': '{"status":"Active"}',
+      'cached_at': '2026-01-01T00:00:00.000Z',
+    });
+
+    await expectLater(
+      repository.deleteBorrower(borrower.id),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          contains('loans remain open'),
+        ),
+      ),
+    );
+    expect(await repository.getBorrower(borrower.id), isNotNull);
+  });
 }

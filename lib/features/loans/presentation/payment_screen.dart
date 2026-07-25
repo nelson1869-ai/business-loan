@@ -174,7 +174,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             installmentAmount = netDue.toStringAsFixed(2);
             break;
           }
-          // Credit fully covers this installment – continue to the next one.
+          // Credit fully covers this installment - continue to the next one.
         }
       }
     }
@@ -201,56 +201,59 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         ),
         title: const Text('Loan Payments'),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          PaymentFormCard(
-            formKey: _formKey,
-            amountController: _amountController,
-            noteController: _noteController,
-            dateLabel: _date,
-            working: working,
-            theme: theme,
-            installmentAmount: installmentAmount,
-            outstandingPrincipal: outstandingPrincipal,
-            onPickDate: _pickDate,
-            onPreview: _loadPreview,
-            onFieldChange: () =>
-                ref.read(paymentNotifierProvider.notifier).resetPreview(),
-          ),
-          if (paymentState.preview case final preview?) ...[
-            const SizedBox(height: 12),
-            PaymentPreviewCard(
-              preview: preview,
+      body: SafeArea(
+        child: ListView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          children: [
+            PaymentFormCard(
+              formKey: _formKey,
+              amountController: _amountController,
+              noteController: _noteController,
+              dateLabel: _date,
               working: working,
-              onConfirm: _confirm,
+              theme: theme,
+              installmentAmount: installmentAmount,
+              outstandingPrincipal: outstandingPrincipal,
+              onPickDate: _pickDate,
+              onPreview: _loadPreview,
+              onFieldChange: () =>
+                  ref.read(paymentNotifierProvider.notifier).resetPreview(),
+            ),
+            if (paymentState.preview case final preview?) ...[
+              const SizedBox(height: 12),
+              PaymentPreviewCard(
+                preview: preview,
+                working: working,
+                onConfirm: _confirm,
+              ),
+            ],
+            const SizedBox(height: 24),
+            Text('Payment History', style: theme.textTheme.titleLarge),
+            const SizedBox(height: 8),
+            history.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, _) => Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text('Could not load payments: $error'),
+                ),
+              ),
+              data: (payments) => payments.isEmpty
+                  ? const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text('No payments recorded yet.'),
+                      ),
+                    )
+                  : PaymentHistorySection(
+                      payments: payments,
+                      working: working,
+                      onReverse: _reversePayment,
+                    ),
             ),
           ],
-          const SizedBox(height: 24),
-          Text('Payment History', style: theme.textTheme.titleLarge),
-          const SizedBox(height: 8),
-          history.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text('Could not load payments: $error'),
-              ),
-            ),
-            data: (payments) => payments.isEmpty
-                ? const Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Text('No payments recorded yet.'),
-                    ),
-                  )
-                : PaymentHistorySection(
-                    payments: payments,
-                    working: working,
-                    onReverse: _reversePayment,
-                  ),
-          ),
-        ],
+        ),
       ),
     );
   }

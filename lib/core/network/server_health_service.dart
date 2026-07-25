@@ -33,18 +33,27 @@ enum ServerStatus { offline, networkAvailable, serverUnavailable, serverReady }
 /// File: `lib/core/network/server_health_service.dart`
 class ServerHealthService {
   /// Creates the service using a shared [Connectivity] instance.
-  ServerHealthService(this._connectivity, {this.isServerReachableOverride});
+  ServerHealthService(
+    this._connectivity, {
+    this.isServerReachableOverride,
+    this.isForcedOffline,
+  });
 
   final Connectivity _connectivity;
 
   /// Optional override callback for testing environment.
   final Future<bool> Function()? isServerReachableOverride;
+  final bool Function()? isForcedOffline;
 
   bool _isChecking = false;
   DateTime? _lastCheckAt;
 
   /// Evaluates exact device network connectivity and server readiness.
   Future<ServerStatus> checkStatus() async {
+    if (isForcedOffline?.call() ?? false) {
+      return ServerStatus.offline;
+    }
+
     if (isServerReachableOverride != null) {
       final reachable = await isServerReachableOverride!();
       return reachable
@@ -149,7 +158,10 @@ class ServerStatusNotifier extends StateNotifier<ServerStatus> {
 
 /// Provider for [ServerHealthService].
 final serverHealthServiceProvider = Provider<ServerHealthService>((ref) {
-  return ServerHealthService(ref.watch(connectivityProvider));
+  return ServerHealthService(
+    ref.watch(connectivityProvider),
+    isForcedOffline: () => ref.read(forcedOfflineModeProvider),
+  );
 });
 
 /// Reactive provider for process-wide [ServerStatus].

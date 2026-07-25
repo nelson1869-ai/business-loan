@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.audit_log import AuditLog
 from app.models.borrower import Borrower
+from app.models.loan import Loan
 from app.models.user import User
 from app.schemas.borrower import BorrowerCreate, BorrowerUpdate
 
@@ -114,8 +115,24 @@ async def update_borrower(
     return borrower
 
 
+class BorrowerHasOpenLoansError(Exception):
+    """Raised when deletion would orphan an open lending account."""
+
+
 async def delete_borrower(db: AsyncSession, borrower: Borrower, user: User) -> Borrower:
-    """Soft-delete a borrower and stage a redacted audit entry."""
+    """Soft-delete a borrower only when all lending accounts are closed."""
+    open_loan_count = await db.scalar(
+        select(func.count())
+        .select_from(Loan)
+        .where(
+            Loan.borrower_id == borrower.id,
+            Loan.status.not_in({"Paid", "Cancelled"}),
+        )
+    )
+    if open_loan_count:
+        raise BorrowerHasOpenLoansError(
+            "Borrower cannot be deleted while loans remain open"
+        )
     old_state = _audit_state(borrower)
     borrower.status = "Deleted"
     _add_audit_log(

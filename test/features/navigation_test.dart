@@ -69,8 +69,27 @@ class FakeBorrowerRepository extends BorrowerRepository {
     : super(DatabaseService(), EncryptionService(const FlutterSecureStorage()));
 
   @override
-  Future<void> saveBorrower(Borrower borrower) async {
+  Future<void> saveBorrower(
+    Borrower borrower, {
+    String syncStatus = 'pending',
+  }) async {
     _borrowers.add(borrower);
+  }
+
+  @override
+  Future<void> updateBorrower(
+    Borrower borrower, {
+    String syncStatus = 'pending',
+  }) async {
+    final idx = _borrowers.indexWhere((b) => b.id == borrower.id);
+    if (idx != -1) {
+      _borrowers[idx] = borrower;
+    }
+  }
+
+  @override
+  Future<void> deleteBorrower(String id, {bool softDeleteOnly = false}) async {
+    _borrowers.removeWhere((b) => b.id == id);
   }
 
   @override
@@ -142,9 +161,6 @@ void main() {
 
         // 4. Continue with the fake authentication repository.
         await tester.tap(find.widgetWithText(ElevatedButton, 'Login'));
-        // Use pump with a small duration instead of pumpAndSettle because
-        // the dashboard provider starts async network calls that never complete
-        // in the test environment.
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 100));
 

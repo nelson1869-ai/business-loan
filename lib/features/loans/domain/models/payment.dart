@@ -90,21 +90,28 @@ class LoanPayment {
   final String createdAt;
   final PaymentAllocation allocation;
 
-  factory LoanPayment.fromJson(Map<String, dynamic> json) => LoanPayment(
-    id: _string(json, 'id'),
-    requestId: _string(json, 'requestId'),
-    loanId: _string(json, 'loanId'),
-    installmentId: json['installmentId'] as String?,
-    entryType: _string(json, 'entryType'),
-    reversalOfPaymentId: json['reversalOfPaymentId'] as String?,
-    amount: _decimal(json, 'amount'),
-    effectiveDate: _string(json, 'effectiveDate'),
-    note: json['note'] as String?,
-    createdAt: _string(json, 'createdAt'),
-    allocation: PaymentAllocation.fromJson(
-      Map<String, dynamic>.from(json['allocation'] as Map),
-    ),
-  );
+  factory LoanPayment.fromJson(Map<String, dynamic> json) {
+    final rawAlloc = json['allocation'];
+    final allocMap = rawAlloc is Map
+        ? Map<String, dynamic>.from(rawAlloc)
+        : const <String, dynamic>{};
+    return LoanPayment(
+      id: _string(json, 'id'),
+      requestId: _string(json, 'requestId'),
+      loanId: _string(json, 'loanId'),
+      installmentId: (json['installmentId'] ?? json['installment_id'])
+          ?.toString(),
+      entryType: _string(json, 'entryType', fallback: 'Payment'),
+      reversalOfPaymentId:
+          (json['reversalOfPaymentId'] ?? json['reversal_of_payment_id'])
+              ?.toString(),
+      amount: _decimal(json, 'amount'),
+      effectiveDate: _string(json, 'effectiveDate'),
+      note: json['note']?.toString(),
+      createdAt: _string(json, 'createdAt'),
+      allocation: PaymentAllocation.fromJson(allocMap),
+    );
+  }
 }
 
 class PaymentAllocation {
@@ -135,26 +142,45 @@ class PaymentAllocation {
       );
 }
 
-String _string(Map<String, dynamic> json, String key) {
-  final value = json[key];
-  if (value is String && value.isNotEmpty) return value;
-  throw FormatException('$key must be a non-empty string');
+String _string(Map<String, dynamic> json, String key, {String fallback = ''}) {
+  final value = json[key] ?? json[_toSnake(key)];
+  if (value != null && value.toString().isNotEmpty) return value.toString();
+  if (key == 'requestId') return json['id']?.toString() ?? fallback;
+  return fallback;
 }
 
-String _decimal(Map<String, dynamic> json, String key) {
-  final value = _string(json, key);
-  if (RegExp(r'^\d+(?:\.\d+)?$').hasMatch(value)) return value;
-  throw FormatException('$key must be an exact decimal string');
+String _decimal(
+  Map<String, dynamic> json,
+  String key, {
+  String fallback = '0.00',
+}) {
+  final value = json[key] ?? json[_toSnake(key)];
+  if (value != null) {
+    final str = value.toString();
+    if (RegExp(r'^-?\d+(?:\.\d+)?$').hasMatch(str)) return str;
+    final parsed = double.tryParse(str);
+    if (parsed != null) return parsed.toStringAsFixed(2);
+  }
+  return fallback;
 }
 
-int _integer(Map<String, dynamic> json, String key) {
-  final value = json[key];
-  if (value is int) return value;
-  throw FormatException('$key must be an integer');
+int _integer(Map<String, dynamic> json, String key, {int fallback = 0}) {
+  final value = json[key] ?? json[_toSnake(key)];
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value) ?? fallback;
+  return fallback;
 }
 
-bool _boolean(Map<String, dynamic> json, String key) {
-  final value = json[key];
+bool _boolean(Map<String, dynamic> json, String key, {bool fallback = false}) {
+  final value = json[key] ?? json[_toSnake(key)];
   if (value is bool) return value;
-  throw FormatException('$key must be a boolean');
+  if (value is String) return value.toLowerCase() == 'true';
+  return fallback;
+}
+
+String _toSnake(String str) {
+  return str.replaceAllMapped(
+    RegExp(r'[A-Z]'),
+    (match) => '_${match.group(0)!.toLowerCase()}',
+  );
 }

@@ -17,14 +17,21 @@ class BorrowerRepository {
 
   BorrowerRepository(this._dbService, this._encryption);
 
-  Future<void> saveBorrower(Borrower borrower) async {
+  Future<void> saveBorrower(
+    Borrower borrower, {
+    String syncStatus = 'pending',
+  }) async {
     final db = await _dbService.database;
     final encryptedBorrower = await _encryptBorrower(borrower);
+
+    final map = encryptedBorrower.toMap();
+    map['sync_status'] = syncStatus;
+    map['updated_at'] = DateTime.now().toUtc().toIso8601String();
 
     await db.transaction((txn) async {
       await txn.insert(
         'borrowers',
-        encryptedBorrower.toMap(),
+        map,
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
 
@@ -42,7 +49,13 @@ class BorrowerRepository {
   Future<void> syncRemoteBorrowers(List<Borrower> remote) async {
     final db = await _dbService.database;
     final remoteIds = remote.map((b) => b.id).toSet();
-    final localMaps = await db.query('borrowers', columns: ['id']);
+
+    // Only delete local borrowers that are already marked 'synced' and missing from remote
+    final localMaps = await db.query(
+      'borrowers',
+      columns: ['id'],
+      where: "sync_status = 'synced'",
+    );
     for (final map in localMaps) {
       final id = map['id'] as String;
       if (!remoteIds.contains(id)) {
@@ -51,15 +64,22 @@ class BorrowerRepository {
     }
     for (final borrower in remote) {
       final encryptedBorrower = await _encryptBorrower(borrower);
+      final map = encryptedBorrower.toMap();
+      map['sync_status'] = 'synced';
+      map['last_synced_at'] = DateTime.now().toUtc().toIso8601String();
+
       await db.insert(
         'borrowers',
-        encryptedBorrower.toMap(),
+        map,
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
     }
   }
 
-  Future<void> updateBorrower(Borrower borrower) async {
+  Future<void> updateBorrower(
+    Borrower borrower, {
+    String syncStatus = 'pending',
+  }) async {
     final db = await _dbService.database;
 
     final existingList = await db.query(
@@ -70,11 +90,14 @@ class BorrowerRepository {
 
     final oldStateJson = _existingRedactedState(existingList);
     final encryptedBorrower = await _encryptBorrower(borrower);
+    final map = encryptedBorrower.toMap();
+    map['sync_status'] = syncStatus;
+    map['updated_at'] = DateTime.now().toUtc().toIso8601String();
 
     await db.transaction((txn) async {
       await txn.update(
         'borrowers',
-        encryptedBorrower.toMap(),
+        map,
         where: 'id = ?',
         whereArgs: [borrower.id],
       );
@@ -91,8 +114,24 @@ class BorrowerRepository {
     });
   }
 
-  Future<void> deleteBorrower(String id) async {
+  Future<void> deleteBorrower(String id, {bool softDeleteOnly = false}) async {
     final db = await _dbService.database;
+
+    final loanRows = await db.query(
+      'loans',
+      columns: ['data_json'],
+      where: 'borrower_id = ?',
+      whereArgs: [id],
+    );
+    final hasOpenLoan = loanRows.any((row) {
+      final dataStr = row['data_json'] as String?;
+      if (dataStr == null) return false;
+      final loan = jsonDecode(dataStr) as Map<String, dynamic>;
+      return loan['status'] != 'Paid' && loan['status'] != 'Cancelled';
+    });
+    if (hasOpenLoan) {
+      throw StateError('Borrower cannot be deleted while loans remain open');
+    }
 
     final existingList = await db.query(
       'borrowers',
@@ -101,9 +140,20 @@ class BorrowerRepository {
     );
 
     final oldStateJson = _existingRedactedState(existingList);
+    final now = DateTime.now().toUtc().toIso8601String();
 
     await db.transaction((txn) async {
-      await txn.delete('borrowers', where: 'id = ?', whereArgs: [id]);
+      if (softDeleteOnly) {
+        await txn.update(
+          'borrowers',
+          {'deleted_at': now, 'sync_status': 'pending'},
+          where: 'id = ?',
+          whereArgs: [id],
+        );
+      } else {
+        await txn.delete('borrowers', where: 'id = ?', whereArgs: [id]);
+      }
+
       await txn.insert(
         'audit_logs',
         _auditLog(
@@ -119,7 +169,7 @@ class BorrowerRepository {
     final db = await _dbService.database;
     final maps = await db.query(
       'borrowers',
-      where: 'id = ?',
+      where: 'id = ? AND deleted_at IS NULL',
       whereArgs: [id],
       limit: 1,
     );
@@ -144,7 +194,11 @@ class BorrowerRepository {
   Future<List<Borrower>> getBorrowers() async {
     final db = await _dbService.database;
 
-    final maps = await db.query('borrowers', orderBy: 'created_at DESC');
+    final maps = await db.query(
+      'borrowers',
+      where: 'deleted_at IS NULL',
+      orderBy: 'created_at DESC',
+    );
 
     final List<Borrower> decryptedList = [];
     for (final map in maps) {

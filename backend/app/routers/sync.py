@@ -112,7 +112,14 @@ async def _replay_item(
     borrower = await borrower_service.get_borrower(db, borrower_id)
     if item.method == "DELETE":
         if borrower is not None:
-            await borrower_service.delete_borrower(db, borrower, current_user)
+            try:
+                await borrower_service.delete_borrower(db, borrower, current_user)
+            except borrower_service.BorrowerHasOpenLoansError as error:
+                raise SyncReplayError(
+                    "INVALID_WORKFLOW_STATE",
+                    str(error),
+                    retryable=False,
+                ) from error
         return
 
     if borrower is None:

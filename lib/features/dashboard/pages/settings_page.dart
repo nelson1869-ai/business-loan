@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/app_theme.dart';
 import '../../../core/database/database_provider.dart';
 import '../../../core/network/offline_sync_service.dart';
+import '../../../core/network/server_health_service.dart';
 import '../../auth/data/auth_repository.dart';
 
 /// Settings screen for officer profile, data synchronization, audit logs, and authentication.
@@ -15,6 +16,7 @@ class SettingsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final offlineSyncService = ref.watch(offlineSyncServiceProvider);
     final pendingCount = ref.watch(offlineSyncPendingCountProvider);
+    final forcedOffline = ref.watch(forcedOfflineModeProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -27,6 +29,33 @@ class SettingsPage extends ConsumerWidget {
               margin: EdgeInsets.zero,
               child: Column(
                 children: [
+                  SwitchListTile(
+                    secondary: const Icon(Icons.cloud_off_outlined),
+                    title: const Text('Force offline mode'),
+                    subtitle: Text(
+                      forcedOffline
+                          ? 'Offline testing is active; syncing is paused'
+                          : 'Use the server normally',
+                    ),
+                    value: forcedOffline,
+                    onChanged: (value) async {
+                      ref.read(forcedOfflineModeProvider.notifier).state =
+                          value;
+                      await ref
+                          .read(serverStatusNotifierProvider.notifier)
+                          .refreshStatus();
+                      if (!value) {
+                        await ref.read(offlineSyncServiceProvider).drainQueue();
+                        ref.invalidate(offlineSyncPendingCountProvider);
+                      }
+                    },
+                  ),
+                  Divider(
+                    height: 1,
+                    indent: 16,
+                    endIndent: 16,
+                    color: Theme.of(context).dividerTheme.color,
+                  ),
                   ListTile(
                     leading: Badge.count(
                       count: pendingCount,
@@ -40,44 +69,46 @@ class SettingsPage extends ConsumerWidget {
                           : 'All local data is fully synced with server',
                     ),
                     trailing: const Icon(Icons.chevron_right),
-                    onTap: () async {
-                      final countBefore = await offlineSyncService
-                          .getPendingCount();
-                      if (countBefore == 0) {
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'No pending offline items. All data is up to date!',
-                            ),
-                          ),
-                        );
-                        return;
-                      }
-                      if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Syncing $countBefore offline item${countBefore > 1 ? 's' : ''}...',
-                          ),
-                        ),
-                      );
-                      await offlineSyncService.drainQueue();
-                      ref.invalidate(offlineSyncPendingCountProvider);
-                      final countAfter = await offlineSyncService
-                          .getPendingCount();
-                      final syncedCount = countBefore - countAfter;
-                      if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            syncedCount > 0
-                                ? 'Successfully synced $syncedCount item${syncedCount > 1 ? 's' : ''} to server!'
-                                : 'Server unreachable. Will retry automatically when online.',
-                          ),
-                        ),
-                      );
-                    },
+                    onTap: forcedOffline
+                        ? null
+                        : () async {
+                            final countBefore = await offlineSyncService
+                                .getPendingCount();
+                            if (countBefore == 0) {
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'No pending offline items. All data is up to date!',
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Syncing $countBefore offline item${countBefore > 1 ? 's' : ''}...',
+                                ),
+                              ),
+                            );
+                            await offlineSyncService.drainQueue();
+                            ref.invalidate(offlineSyncPendingCountProvider);
+                            final countAfter = await offlineSyncService
+                                .getPendingCount();
+                            final syncedCount = countBefore - countAfter;
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  syncedCount > 0
+                                      ? 'Successfully synced $syncedCount item${syncedCount > 1 ? 's' : ''} to server!'
+                                      : 'Server unreachable. Will retry automatically when online.',
+                                ),
+                              ),
+                            );
+                          },
                   ),
                   Divider(
                     height: 1,
@@ -184,12 +215,6 @@ class SettingsPage extends ConsumerWidget {
                         ),
                       );
                     },
-                  ),
-                  Divider(
-                    height: 1,
-                    indent: 16,
-                    endIndent: 16,
-                    color: Theme.of(context).dividerTheme.color,
                   ),
                   Divider(
                     height: 1,

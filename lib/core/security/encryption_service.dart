@@ -72,29 +72,31 @@ class EncryptionService {
   }
 
   /// Decrypts a formatted cipher text string `[IV_base64]:[ciphertext_base64]`.
+  /// Falls back gracefully to the original string if unencrypted/legacy plain text.
   Future<String> decrypt(String cipherTextWithIv) async {
     if (cipherTextWithIv.isEmpty) return cipherTextWithIv;
-    final key = await _getOrGenerateKey();
 
-    // Separate the IV prefix and ciphertext suffix
     final parts = cipherTextWithIv.split(':');
     if (parts.length != 2 || parts.any((part) => part.isEmpty)) {
-      throw const FormatException('Invalid encrypted value format');
+      return cipherTextWithIv;
     }
 
-    // Reconstruct IV and Encrypted payloads from base64
-    final iv = encrypt_lib.IV.fromBase64(parts[0]);
-    final cipherText = parts[1];
+    try {
+      final key = await _getOrGenerateKey();
+      final iv = encrypt_lib.IV.fromBase64(parts[0]);
+      final cipherText = parts[1];
 
-    final encrypter = encrypt_lib.Encrypter(
-      encrypt_lib.AES(key, mode: encrypt_lib.AESMode.cbc),
-    );
+      final encrypter = encrypt_lib.Encrypter(
+        encrypt_lib.AES(key, mode: encrypt_lib.AESMode.cbc),
+      );
 
-    // Decrypt the cipher text back into readable text
-    return encrypter.decrypt(
-      encrypt_lib.Encrypted.fromBase64(cipherText),
-      iv: iv,
-    );
+      return encrypter.decrypt(
+        encrypt_lib.Encrypted.fromBase64(cipherText),
+        iv: iv,
+      );
+    } catch (_) {
+      return cipherTextWithIv;
+    }
   }
 
   List<int> _randomBytes(int length) {

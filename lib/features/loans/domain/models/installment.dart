@@ -27,23 +27,23 @@ class Installment {
   final String status;
   final String createdAt;
 
-  /// Parses the backend's camel-case installment response.
+  /// Parses the backend's camel-case or snake-case installment response.
   factory Installment.fromJson(Map<String, dynamic> json) {
     return Installment(
-      id: _requiredString(json, 'id'),
-      loanId: _requiredString(json, 'loanId'),
-      installmentNumber: _requiredInt(json, 'installmentNumber'),
-      dueDate: _requiredDate(json, 'dueDate'),
-      expectedPayment: _requiredDecimal(json, 'expectedPayment'),
-      expectedInterest: _requiredDecimal(json, 'expectedInterest'),
-      expectedPrincipal: _requiredDecimal(json, 'expectedPrincipal'),
-      expectedRemainingPrincipal: _requiredDecimal(
+      id: _parseString(json, 'id'),
+      loanId: _parseString(json, 'loanId'),
+      installmentNumber: _parseInt(json, 'installmentNumber'),
+      dueDate: _parseDate(json, 'dueDate'),
+      expectedPayment: _parseDecimal(json, 'expectedPayment'),
+      expectedInterest: _parseDecimal(json, 'expectedInterest'),
+      expectedPrincipal: _parseDecimal(json, 'expectedPrincipal'),
+      expectedRemainingPrincipal: _parseDecimal(
         json,
         'expectedRemainingPrincipal',
       ),
-      paidAmount: _requiredDecimal(json, 'paidAmount'),
-      status: _requiredString(json, 'status'),
-      createdAt: _requiredDate(json, 'createdAt'),
+      paidAmount: _parseDecimal(json, 'paidAmount'),
+      status: _parseString(json, 'status', fallback: 'Scheduled'),
+      createdAt: _parseDate(json, 'createdAt'),
     );
   }
 
@@ -63,28 +63,51 @@ class Installment {
   };
 }
 
-String _requiredString(Map<String, dynamic> json, String key) {
-  final value = json[key];
-  if (value is String && value.isNotEmpty) return value;
-  throw FormatException('$key must be a non-empty string');
+String _parseString(
+  Map<String, dynamic> json,
+  String key, {
+  String fallback = '',
+}) {
+  final value = json[key] ?? json[_toSnake(key)];
+  if (value != null && value.toString().isNotEmpty) return value.toString();
+  return fallback;
 }
 
-int _requiredInt(Map<String, dynamic> json, String key) {
-  final value = json[key];
-  if (value is int) return value;
-  throw FormatException('$key must be an integer');
+int _parseInt(Map<String, dynamic> json, String key, {int fallback = 1}) {
+  final value = json[key] ?? json[_toSnake(key)];
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value) ?? fallback;
+  return fallback;
 }
 
-String _requiredDecimal(Map<String, dynamic> json, String key) {
-  final value = _requiredString(json, key);
-  if (decimalPattern.hasMatch(value)) return value;
-  throw FormatException('$key must be an exact decimal string');
+String _parseDecimal(
+  Map<String, dynamic> json,
+  String key, {
+  String fallback = '0.00',
+}) {
+  final value = json[key] ?? json[_toSnake(key)];
+  if (value != null) {
+    final str = value.toString();
+    if (RegExp(r'^-?\d+(?:\.\d+)?$').hasMatch(str)) return str;
+    final parsed = double.tryParse(str);
+    if (parsed != null) return parsed.toStringAsFixed(2);
+  }
+  return fallback;
 }
 
-String _requiredDate(Map<String, dynamic> json, String key) {
-  final value = _requiredString(json, key);
-  if (DateTime.tryParse(value) != null) return value;
-  throw FormatException('$key must be an ISO-8601 date');
+String _parseDate(
+  Map<String, dynamic> json,
+  String key, {
+  String fallback = '',
+}) {
+  final value = json[key] ?? json[_toSnake(key)];
+  if (value != null && value.toString().isNotEmpty) return value.toString();
+  return fallback.isNotEmpty ? fallback : DateTime.now().toIso8601String();
 }
 
-final RegExp decimalPattern = RegExp(r'^-?\d+(?:\.\d+)?$');
+String _toSnake(String str) {
+  return str.replaceAllMapped(
+    RegExp(r'[A-Z]'),
+    (match) => '_${match.group(0)!.toLowerCase()}',
+  );
+}

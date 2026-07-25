@@ -1,53 +1,119 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../borrowers/data/borrower_repository.dart';
+import '../../data/repositories/local_loan_repository.dart';
 import '../../data/repositories/remote_loan_repository.dart';
 import '../../domain/models/loan.dart';
 import '../../domain/models/overdue_loan_item.dart';
 import '../../domain/models/payment.dart';
 import '../../data/repositories/remote_payment_repository.dart';
 import '../../../dashboard/domain/dashboard_data.dart';
+import '../../../../core/network/server_health_service.dart';
 
-/// Loads backend loan summaries for one borrower.
+/// Loads backend/local loan summaries for one borrower (offline-first).
 final borrowerLoansProvider = FutureProvider.autoDispose
     .family<List<Loan>, String>((ref, borrowerId) async {
-      final repository = ref.watch(remoteLoanRepositoryProvider);
-      return repository.getLoans(borrowerId: borrowerId);
+      final localRepo = ref.watch(localLoanRepositoryProvider);
+      final remoteRepo = ref.watch(remoteLoanRepositoryProvider);
+      final healthService = ref.watch(serverHealthServiceProvider);
+
+      List<Loan> localLoans = const [];
+      try {
+        localLoans = await localRepo.getLoans(borrowerId: borrowerId);
+      } catch (_) {
+        localLoans = const [];
+      }
+
+      try {
+        if (await healthService.isServerReachable()) {
+          final remote = await remoteRepo.getLoans(borrowerId: borrowerId);
+          await localRepo.saveLoans(remote);
+          return remote;
+        }
+      } catch (_) {}
+
+      return localLoans;
     });
 
-/// Loads one backend loan together with its persisted installment schedule.
+/// Loads one loan together with its persisted installment schedule (offline-first).
 final loanDetailProvider = FutureProvider.autoDispose.family<Loan, String>((
   ref,
   loanId,
-) {
-  return ref.watch(remoteLoanRepositoryProvider).getLoan(loanId);
+) async {
+  final localRepo = ref.watch(localLoanRepositoryProvider);
+  final remoteRepo = ref.watch(remoteLoanRepositoryProvider);
+  final healthService = ref.watch(serverHealthServiceProvider);
+
+  Loan? localLoan;
+  try {
+    localLoan = await localRepo.getLoan(loanId);
+  } catch (_) {}
+
+  try {
+    if (await healthService.isServerReachable()) {
+      final remote = await remoteRepo.getLoan(loanId);
+      await localRepo.saveLoan(remote);
+      return remote;
+    }
+  } catch (_) {}
+
+  if (localLoan != null) return localLoan;
+  throw StateError('Loan #$loanId not found locally or on server');
 });
 
-/// Loads the immutable payment ledger for one loan.
+/// Loads the immutable payment ledger for one loan (offline-first).
 final loanPaymentsProvider = FutureProvider.autoDispose
-    .family<List<LoanPayment>, String>((ref, loanId) {
-      return ref.watch(remotePaymentRepositoryProvider).history(loanId);
+    .family<List<LoanPayment>, String>((ref, loanId) async {
+      final localRepo = ref.watch(localLoanRepositoryProvider);
+      final remoteRepo = ref.watch(remotePaymentRepositoryProvider);
+      final healthService = ref.watch(serverHealthServiceProvider);
+
+      List<LoanPayment> localPayments = const [];
+      try {
+        localPayments = await localRepo.getPayments(loanId);
+      } catch (_) {}
+
+      try {
+        if (await healthService.isServerReachable()) {
+          final remote = await remoteRepo.history(loanId);
+          await localRepo.savePayments(loanId, remote);
+          return remote;
+        }
+      } catch (_) {}
+
+      return localPayments;
     });
 
-/// All overdue loans with resolved borrower names and computed fields.
+/// All overdue loans with resolved borrower names and computed fields (offline-first).
 final overdueLoansProvider = FutureProvider.autoDispose<List<OverdueLoanItem>>((
   ref,
 ) async {
-  final loanRepo = ref.watch(remoteLoanRepositoryProvider);
+  final localLoanRepo = ref.watch(localLoanRepositoryProvider);
   final borrowerRepo = ref.watch(borrowerRepositoryProvider);
 
-  final loans = await loanRepo.getLoans(status: 'Overdue');
+  List<Loan> loans = const [];
+  try {
+    loans = await localLoanRepo.getLoans(status: 'Overdue');
+  } catch (_) {
+    loans = const [];
+  }
+
   final borrowerMap = <String, String>{};
   final results = <OverdueLoanItem>[];
 
   for (final loan in loans) {
-    final name = borrowerMap[loan.borrowerId];
-    if (name == null) {
-      final borrower = await borrowerRepo.getBorrower(loan.borrowerId);
-      final resolved = borrower?.fullName ?? loan.borrowerId;
-      borrowerMap[loan.borrowerId] = resolved;
+    var borrowerName = borrowerMap[loan.borrowerId];
+    if (borrowerName == null) {
+      try {
+        final borrower = await borrowerRepo.getBorrower(loan.borrowerId);
+        if (borrower != null && borrower.fullName.trim().isNotEmpty) {
+          borrowerName = borrower.fullName;
+        }
+      } catch (_) {}
+      borrowerName ??=
+          'Borrower #${loan.borrowerId.length >= 8 ? loan.borrowerId.substring(0, 8) : loan.borrowerId}';
+      borrowerMap[loan.borrowerId] = borrowerName;
     }
-    final borrowerName = borrowerMap[loan.borrowerId]!;
 
     final dueDate = DateTime.tryParse(
       loan.finalDueDate.isNotEmpty ? loan.finalDueDate : loan.firstDueDate,
@@ -72,14 +138,20 @@ final overdueLoansProvider = FutureProvider.autoDispose<List<OverdueLoanItem>>((
   return results;
 });
 
-/// Today's due collection items with progress totals.
+/// Today's due collection items with progress totals (offline-first).
 final todaysCollectionsProvider = FutureProvider.autoDispose<TodaysCollectionData>((
   ref,
 ) async {
-  final loanRepo = ref.watch(remoteLoanRepositoryProvider);
+  final localLoanRepo = ref.watch(localLoanRepositoryProvider);
   final borrowerRepo = ref.watch(borrowerRepositoryProvider);
 
-  final allLoans = await loanRepo.getLoans();
+  List<Loan> allLoans = const [];
+  try {
+    allLoans = await localLoanRepo.getLoans();
+  } catch (_) {
+    allLoans = const [];
+  }
+
   final activeLoans = allLoans
       .where((l) => l.status == 'Active' || l.status == 'Overdue')
       .toList();
@@ -101,15 +173,28 @@ final todaysCollectionsProvider = FutureProvider.autoDispose<TodaysCollectionDat
   Future<String> resolveName(String borrowerId) async {
     final name = borrowerMap[borrowerId];
     if (name != null) return name;
-    final borrower = await borrowerRepo.getBorrower(borrowerId);
-    final resolved = borrower?.fullName ?? borrowerId;
-    borrowerMap[borrowerId] = resolved;
-    return resolved;
+    try {
+      final borrower = await borrowerRepo.getBorrower(borrowerId);
+      if (borrower != null && borrower.fullName.trim().isNotEmpty) {
+        borrowerMap[borrowerId] = borrower.fullName;
+        return borrower.fullName;
+      }
+    } catch (_) {}
+    final shortId = borrowerId.length >= 8
+        ? borrowerId.substring(0, 8)
+        : borrowerId;
+    final fallback = 'Borrower #$shortId';
+    borrowerMap[borrowerId] = fallback;
+    return fallback;
   }
 
   for (final loan in activeLoans.take(50)) {
     try {
-      final detail = await loanRepo.getLoan(loan.id);
+      Loan? detail;
+      try {
+        detail = await localLoanRepo.getLoan(loan.id);
+      } catch (_) {}
+      detail ??= loan;
 
       for (final inst in detail.installments) {
         final dueDateStr = inst.dueDate.length >= 10
@@ -151,25 +236,42 @@ final todaysCollectionsProvider = FutureProvider.autoDispose<TodaysCollectionDat
   );
 });
 
-/// All loans with resolved borrower names.
+/// All loans with resolved borrower names (offline-first).
 final allLoansProvider = FutureProvider.autoDispose<List<LoanWithBorrower>>((
   ref,
 ) async {
-  final loanRepo = ref.watch(remoteLoanRepositoryProvider);
+  final localLoanRepo = ref.watch(localLoanRepositoryProvider);
+  final remoteLoanRepo = ref.watch(remoteLoanRepositoryProvider);
   final borrowerRepo = ref.watch(borrowerRepositoryProvider);
+  final healthService = ref.watch(serverHealthServiceProvider);
 
-  final loans = await loanRepo.getLoans();
+  List<Loan> loans = const [];
+  try {
+    loans = await localLoanRepo.getLoans();
+  } catch (_) {}
+
+  try {
+    if (await healthService.isServerReachable()) {
+      final remote = await remoteLoanRepo.getLoans();
+      await localLoanRepo.saveLoans(remote);
+      loans = remote;
+    }
+  } catch (_) {}
+
   final borrowerMap = <String, String>{};
   final results = <LoanWithBorrower>[];
 
   for (final loan in loans) {
     var name = borrowerMap[loan.borrowerId];
     if (name == null) {
-      final borrower = await borrowerRepo.getBorrower(loan.borrowerId);
-      final rawName = borrower?.fullName;
-      if (rawName != null && rawName.trim().isNotEmpty) {
-        name = rawName;
-      } else {
+      try {
+        final borrower = await borrowerRepo.getBorrower(loan.borrowerId);
+        final rawName = borrower?.fullName;
+        if (rawName != null && rawName.trim().isNotEmpty) {
+          name = rawName;
+        }
+      } catch (_) {}
+      if (name == null) {
         final shortId = loan.id.length >= 8 ? loan.id.substring(0, 8) : loan.id;
         name = 'Loan #$shortId';
       }

@@ -57,5 +57,22 @@ void main() {
         expect(status, equals(ServerStatus.serverUnavailable));
       },
     );
+
+    test(
+      'forced offline mode takes precedence over a reachable server',
+      () async {
+        final fakeConnectivity = FakeConnectivity([ConnectivityResult.wifi]);
+        final service = ServerHealthService(
+          fakeConnectivity,
+          isServerReachableOverride: () async => true,
+          isForcedOffline: () => true,
+        );
+
+        final status = await service.checkStatus();
+
+        expect(status, equals(ServerStatus.offline));
+        expect(await service.isServerReachable(), isFalse);
+      },
+    );
   });
 }

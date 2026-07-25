@@ -8,7 +8,7 @@ class Borrower {
   final String status;
   final String createdAt;
 
-  String get fullName => '$firstName $lastName';
+  String get fullName => '$firstName $lastName'.trim();
 
   const Borrower({
     required this.id,
@@ -23,27 +23,29 @@ class Borrower {
 
   factory Borrower.fromJson(Map<String, dynamic> json) {
     return Borrower(
-      id: json['id'] as String,
-      firstName: json['firstName'] as String,
-      lastName: json['lastName'] as String,
-      nationalId: json['nationalId'] as String,
-      phone: json['phone'] as String,
-      dateOfBirth: json['dateOfBirth'] as String,
-      status: json['status'] as String,
-      createdAt: json['createdAt'] as String,
+      id: (json['id'] ?? '').toString(),
+      firstName: (json['firstName'] ?? json['first_name'] ?? '').toString(),
+      lastName: (json['lastName'] ?? json['last_name'] ?? '').toString(),
+      nationalId: (json['nationalId'] ?? json['national_id'] ?? '').toString(),
+      phone: (json['phone'] ?? '').toString(),
+      dateOfBirth: (json['dateOfBirth'] ?? json['date_of_birth'] ?? '')
+          .toString(),
+      status: (json['status'] ?? 'Active').toString(),
+      createdAt: (json['createdAt'] ?? json['created_at'] ?? '').toString(),
     );
   }
 
   factory Borrower.fromMap(Map<String, dynamic> map) {
     return Borrower(
-      id: map['id'] as String,
-      firstName: map['first_name'] as String,
-      lastName: map['last_name'] as String,
-      nationalId: map['national_id'] as String,
-      phone: map['phone'] as String,
-      dateOfBirth: map['date_of_birth'] as String,
-      status: map['status'] as String,
-      createdAt: map['created_at'] as String,
+      id: (map['id'] ?? '').toString(),
+      firstName: (map['first_name'] ?? map['firstName'] ?? '').toString(),
+      lastName: (map['last_name'] ?? map['lastName'] ?? '').toString(),
+      nationalId: (map['national_id'] ?? map['nationalId'] ?? '').toString(),
+      phone: (map['phone'] ?? '').toString(),
+      dateOfBirth: (map['date_of_birth'] ?? map['dateOfBirth'] ?? '')
+          .toString(),
+      status: (map['status'] ?? 'Active').toString(),
+      createdAt: (map['created_at'] ?? map['createdAt'] ?? '').toString(),
     );
   }
 

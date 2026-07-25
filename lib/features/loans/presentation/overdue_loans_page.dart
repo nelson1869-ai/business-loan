@@ -164,6 +164,47 @@ class _OverdueLoanTile extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: isOver30
+                    ? Colors.red.withValues(alpha: 0.08)
+                    : Colors.amber.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isOver30
+                      ? Colors.red.withValues(alpha: 0.3)
+                      : Colors.amber.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.auto_awesome,
+                    size: 16,
+                    color: isOver30 ? Colors.red : Colors.amber.shade900,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      isOver30
+                          ? 'Recommended: Escalate to Senior Collector & Offer Restructure Plan'
+                          : (item.daysOverdue >= 14
+                                ? 'Recommended: Issue Formal Written Notice & Schedule Call'
+                                : 'Recommended: Send Friendly Payment Reminder via Call / SMS'),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: isOver30
+                            ? Colors.red.shade900
+                            : Colors.amber.shade900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
             Row(
               children: [
                 Expanded(

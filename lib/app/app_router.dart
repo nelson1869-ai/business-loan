@@ -12,6 +12,7 @@ import 'package:lending_nelson/core/network/server_health_service.dart';
 import 'package:lending_nelson/features/auth/presentation/login_screen.dart';
 import 'package:lending_nelson/features/dashboard/pages/dashboard_page.dart';
 import 'package:lending_nelson/features/dashboard/pages/settings_page.dart';
+import 'package:lending_nelson/features/dashboard/pages/sync_management_screen.dart';
 import 'package:lending_nelson/features/borrowers/pages/borrower_list_page.dart';
 import 'package:lending_nelson/features/borrowers/pages/borrower_detail_page.dart';
 import 'package:lending_nelson/features/borrowers/pages/borrower_registration_page.dart';
@@ -24,20 +25,6 @@ import 'package:lending_nelson/features/loans/presentation/loans_list_page.dart'
 import 'package:lending_nelson/features/loans/presentation/payment_screen.dart';
 import 'package:lending_nelson/features/loans/presentation/todays_collections_page.dart';
 
-/// Defines the application's routes and the shared navigation shell.
-///
-/// File: `lib/app/app_router.dart`
-///
-/// Data Flow Diagram:
-/// ```text
-///  +------------+     +-----------------+     +-----------------------+
-///  |  app.dart  | --> | app_router.dart | --> | splash_screen.dart    |
-///  +------------+     +--------+--------+     | login_screen.dart     |
-///                              |              | dashboard_screen.dart |
-///                              +------------> | borrower_*.dart       |
-///                                             | settings_screen.dart  |
-///                                             +-----------------------+
-/// ```
 final appRouter = GoRouter(
   initialLocation: '/',
   routes: [
@@ -63,6 +50,10 @@ final appRouter = GoRouter(
           builder: (context, state) => const SettingsPage(),
         ),
       ],
+    ),
+    GoRoute(
+      path: '/sync-management',
+      builder: (context, state) => const SyncManagementScreen(),
     ),
     GoRoute(
       path: '/borrowers/register',
@@ -165,29 +156,32 @@ class _MainShellState extends ConsumerState<MainShell> {
         body: Column(
           children: [
             if (showBanner)
-              Container(
-                width: double.infinity,
-                color: bannerConfig.backgroundColor,
-                padding: const EdgeInsets.symmetric(
-                  vertical: 4,
-                  horizontal: 16,
-                ),
-                child: SafeArea(
-                  bottom: false,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(bannerConfig.icon, size: 16, color: Colors.white),
-                      const SizedBox(width: 8),
-                      Text(
-                        bannerConfig.message,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
+              InkWell(
+                onTap: () => context.push('/sync-management'),
+                child: Container(
+                  width: double.infinity,
+                  color: bannerConfig.backgroundColor,
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 4,
+                    horizontal: 16,
+                  ),
+                  child: SafeArea(
+                    bottom: false,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(bannerConfig.icon, size: 16, color: Colors.white),
+                        const SizedBox(width: 8),
+                        Text(
+                          bannerConfig.message,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -235,26 +229,26 @@ class _MainShellState extends ConsumerState<MainShell> {
           backgroundColor: Colors.amber.shade900,
           icon: Icons.wifi_off,
           message: pendingCount > 0
-              ? 'Working Offline ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â $pendingCount items queued'
-              : 'Working Offline',
+              ? 'Working Offline - $pendingCount items queued (Tap for details)'
+              : 'Working Offline (Saved on device)',
         );
       case ServerStatus.networkAvailable:
         return _BannerData(
           backgroundColor: Colors.blue.shade800,
           icon: Icons.sync,
-          message: 'Server ConnectingÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦',
+          message: 'Server Connecting...',
         );
       case ServerStatus.serverUnavailable:
         return _BannerData(
           backgroundColor: Colors.deepOrange.shade800,
           icon: Icons.cloud_off,
-          message: 'Network Available ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Server Unreachable',
+          message: 'Server Unreachable - Saved on Device',
         );
       case ServerStatus.serverReady:
         return _BannerData(
           backgroundColor: Colors.teal.shade800,
           icon: Icons.cloud_done,
-          message: 'Online ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Syncing $pendingCount items',
+          message: 'Online - Syncing $pendingCount items',
         );
     }
   }

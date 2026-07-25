@@ -2,57 +2,71 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../loans/presentation/borrower_loans_section.dart';
+import '../../loans/domain/models/loan.dart';
 import '../../loans/presentation/providers/loans_provider.dart';
 import '../domain/borrower_model.dart';
+import '../providers/borrower_recommendation_provider.dart';
 import '../providers/borrowers_state.dart';
-import '../widgets/borrower_action_buttons.dart';
-import '../widgets/borrower_profile_card.dart';
-import '../widgets/emergency_contact_card.dart';
-import '../widgets/payment_history_section.dart';
+import '../widgets/borrower_active_loan_card.dart';
+import '../widgets/borrower_alert_banner.dart';
+import '../widgets/borrower_financial_metrics.dart';
+import '../widgets/borrower_header_card.dart';
+import '../widgets/borrower_quick_actions.dart';
+import '../widgets/borrower_recommendation_card.dart';
+import '../widgets/borrower_skeleton_loader.dart';
+import '../widgets/tabs/activity_tab_view.dart';
+import '../widgets/tabs/documents_tab_view.dart';
+import '../widgets/tabs/loans_tab_view.dart';
+import '../widgets/tabs/notes_tab_view.dart';
+import '../widgets/tabs/overview_tab_view.dart';
+import '../widgets/tabs/payments_tab_view.dart';
 
+/// Redesigned Material 3 Borrower Profile Page.
 class BorrowerDetailPage extends ConsumerWidget {
+  final String borrowerId;
+  final Borrower? initialBorrower;
+
   const BorrowerDetailPage({
     super.key,
     required this.borrowerId,
     this.initialBorrower,
   });
 
-  final String borrowerId;
-  final Borrower? initialBorrower;
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go('/borrowers');
-            }
-          },
+    return DefaultTabController(
+      length: 6,
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go('/borrowers');
+              }
+            },
+          ),
+          title: Text(initialBorrower?.fullName ?? 'Borrower Profile'),
         ),
-        title: Text(initialBorrower?.fullName ?? 'Borrower'),
-      ),
-      body: _BorrowerDetailContent(
-        borrowerId: borrowerId,
-        initialBorrower: initialBorrower,
+        body: _BorrowerDetailContent(
+          borrowerId: borrowerId,
+          initialBorrower: initialBorrower,
+        ),
       ),
     );
   }
 }
 
 class _BorrowerDetailContent extends ConsumerWidget {
+  final String borrowerId;
+  final Borrower? initialBorrower;
+
   const _BorrowerDetailContent({
     required this.borrowerId,
     this.initialBorrower,
   });
-
-  final String borrowerId;
-  final Borrower? initialBorrower;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -64,39 +78,191 @@ class _BorrowerDetailContent extends ConsumerWidget {
         initialBorrower;
 
     if (borrower == null) {
-      return const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Loading borrower...'),
-          ],
-        ),
-      );
+      return const BorrowerSkeletonLoader();
     }
 
     final loansAsync = ref.watch(borrowerLoansProvider(borrowerId));
+    final recommendationAsync = ref.watch(
+      borrowerRecommendationProvider(borrowerId),
+    );
     final theme = Theme.of(context);
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
+    final loans = loansAsync.valueOrNull ?? const <Loan>[];
+    final activeLoan = loans
+        .where((l) => l.status == 'Active' || l.status == 'Overdue')
+        .firstOrNull;
+
+    // Check overdue status
+    int daysOverdue = 0;
+    double overdueAmount = 0;
+    for (final loan in loans) {
+      if (loan.status == 'Overdue') {
+        final outstanding = double.tryParse(loan.outstandingPrincipal) ?? 0;
+        overdueAmount += outstanding;
+        for (final inst in loan.installments) {
+          if (inst.status == 'Overdue') {
+            final due = DateTime.tryParse(inst.dueDate);
+            if (due != null) {
+              final diff = DateTime.now().difference(due).inDays;
+              if (diff > daysOverdue) daysOverdue = diff;
+            }
+          }
+        }
+      }
+    }
+
+    return Column(
       children: [
-        BorrowerProfileCard(borrower: borrower, loansAsync: loansAsync),
-        const SizedBox(height: 20),
-        BorrowerActionButtons(borrower: borrower),
-        const SizedBox(height: 16),
-        EmergencyContactCard(borrower: borrower),
-        const SizedBox(height: 24),
-        BorrowerLoansSection(borrower: borrower),
-        const SizedBox(height: 24),
-        PaymentHistorySection(
-          borrowerId: borrowerId,
-          loansAsync: loansAsync,
-          theme: theme,
+        // Fixed Top Header & Key Details (Scrollable Header Section)
+        Expanded(
+          child: NestedScrollView(
+            headerSliverBuilder: (context, innerBoxIsScrolled) {
+              return [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Material 3 Header Card
+                        recommendationAsync.when(
+                          data: (rec) => BorrowerHeaderCard(
+                            borrower: borrower,
+                            recommendation: rec,
+                          ),
+                          loading: () => BorrowerHeaderCard(borrower: borrower),
+                          error: (_, _) =>
+                              BorrowerHeaderCard(borrower: borrower),
+                        ),
+                        if (overdueAmount > 0) ...[
+                          const SizedBox(height: 12),
+                          BorrowerAlertBanner(
+                            daysOverdue: daysOverdue > 0 ? daysOverdue : 1,
+                            overdueAmount: overdueAmount.toStringAsFixed(2),
+                            recommendedNextAction:
+                                'Contact borrower for payment agreement',
+                            onTakeAction: () {
+                              if (activeLoan != null) {
+                                context.push(
+                                  '/loans/${activeLoan.id}/payments',
+                                );
+                              }
+                            },
+                          ),
+                        ],
+                        const SizedBox(height: 14),
+                        // Quick Action Buttons
+                        BorrowerQuickActions(
+                          borrower: borrower,
+                          activeLoanId: activeLoan?.id,
+                        ),
+                        const SizedBox(height: 16),
+                        // Financial Metrics Grid
+                        BorrowerFinancialMetrics(loans: loans),
+                        const SizedBox(height: 16),
+                        // Active Loan Card (if exists)
+                        if (activeLoan != null)
+                          BorrowerActiveLoanCard(loan: activeLoan),
+                        const SizedBox(height: 16),
+                        // AI Credit Recommendation Widget
+                        recommendationAsync.when(
+                          data: (rec) => BorrowerRecommendationCard(
+                            recommendation: rec,
+                            onApplyRecommended: () {
+                              context.push(
+                                '/borrowers/$borrowerId/loans/new',
+                                extra: borrower,
+                              );
+                            },
+                          ),
+                          loading: () => const SizedBox.shrink(),
+                          error: (_, _) => const SizedBox.shrink(),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                SliverPersistentHeader(
+                  pinned: true,
+                  delegate: _SliverTabBarDelegate(
+                    TabBar(
+                      isScrollable: true,
+                      tabAlignment: TabAlignment.start,
+                      labelColor: theme.colorScheme.primary,
+                      unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+                      indicatorColor: theme.colorScheme.primary,
+                      tabs: const [
+                        Tab(
+                          text: 'Overview',
+                          icon: Icon(Icons.person_outline, size: 20),
+                        ),
+                        Tab(
+                          text: 'Loans',
+                          icon: Icon(Icons.credit_card_outlined, size: 20),
+                        ),
+                        Tab(
+                          text: 'Payments',
+                          icon: Icon(Icons.history_outlined, size: 20),
+                        ),
+                        Tab(
+                          text: 'Documents',
+                          icon: Icon(Icons.folder_open_outlined, size: 20),
+                        ),
+                        Tab(
+                          text: 'Notes',
+                          icon: Icon(Icons.note_alt_outlined, size: 20),
+                        ),
+                        Tab(
+                          text: 'Activity',
+                          icon: Icon(Icons.timeline_outlined, size: 20),
+                        ),
+                      ],
+                    ),
+                    theme.colorScheme.surface,
+                  ),
+                ),
+              ];
+            },
+            body: TabBarView(
+              children: [
+                OverviewTabView(borrower: borrower),
+                LoansTabView(borrower: borrower, loans: loans),
+                PaymentsTabView(loans: loans),
+                const DocumentsTabView(),
+                const NotesTabView(),
+                ActivityTabView(borrower: borrower),
+              ],
+            ),
+          ),
         ),
-        const SizedBox(height: 32),
       ],
     );
+  }
+}
+
+class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
+  final TabBar tabBar;
+  final Color backgroundColor;
+
+  _SliverTabBarDelegate(this.tabBar, this.backgroundColor);
+
+  @override
+  double get minExtent => tabBar.preferredSize.height;
+
+  @override
+  double get maxExtent => tabBar.preferredSize.height;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return Container(color: backgroundColor, child: tabBar);
+  }
+
+  @override
+  bool shouldRebuild(_SliverTabBarDelegate oldDelegate) {
+    return false;
   }
 }

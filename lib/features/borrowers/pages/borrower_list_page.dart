@@ -181,9 +181,21 @@ class _BorrowerListPageState extends ConsumerState<BorrowerListPage> {
                         );
 
                         if (confirmed == true) {
-                          await ref
-                              .read(borrowersNotifierProvider.notifier)
-                              .deleteBorrower(borrower.id);
+                          try {
+                            await ref
+                                .read(borrowersNotifierProvider.notifier)
+                                .deleteBorrower(borrower.id);
+                          } catch (error) {
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(error.toString()),
+                                backgroundColor: Theme.of(
+                                  context,
+                                ).colorScheme.error,
+                              ),
+                            );
+                          }
                         }
                       },
                     );

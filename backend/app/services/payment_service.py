@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.audit_log import AuditLog
+from app.models.borrower import Borrower
 from app.models.loan import Installment, Loan
 from app.models.payment import Payment, PaymentAllocation
 from app.models.user import User
@@ -176,6 +177,11 @@ async def reverse_latest_payment(
     loan = loan_result.scalar_one_or_none()
     if loan is None:
         raise LoanCalculationError("loan not found")
+    borrower_status = await db.scalar(
+        select(Borrower.status).where(Borrower.id == loan.borrower_id)
+    )
+    if borrower_status is None or borrower_status == "Deleted":
+        raise LoanCalculationError("borrower does not accept payments")
 
     ledger_result = await db.execute(
         select(Payment)
@@ -361,6 +367,11 @@ async def _locked_context(
     loan = result.scalar_one_or_none()
     if loan is None:
         raise LoanCalculationError("loan not found")
+    borrower_status = await db.scalar(
+        select(Borrower.status).where(Borrower.id == loan.borrower_id)
+    )
+    if borrower_status is None or borrower_status == "Deleted":
+        raise LoanCalculationError("borrower does not accept payments")
     if loan.status not in {"Active", "Overdue"}:
         raise LoanCalculationError("loan does not accept payments")
 

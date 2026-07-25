@@ -1,0 +1,308 @@
+{
+  "scenarios": [
+    {
+      "id": "scenario_low_risk",
+      "name": "Jane Smith — Low Risk / Pre-Approved",
+      "expectedRiskTier": "lowRisk",
+      "expectedEligibilityStatus": "approved",
+      "expectedMinScore": 85,
+      "borrower": {
+        "id": "10000000-0000-0000-0000-000000000001",
+        "firstName": "Jane",
+        "lastName": "Smith",
+        "nationalId": "NAT-10001",
+        "phone": "09171112233",
+        "dateOfBirth": "1992-05-15",
+        "status": "Active",
+        "createdAt": "2024-01-10T08:00:00Z"
+      },
+      "loans": [
+        {
+          "id": "20000000-0000-0000-0000-000000000001",
+          "requestId": "30000000-0000-0000-0000-000000000001",
+          "borrowerId": "10000000-0000-0000-0000-000000000001",
+          "createdByUserId": "officer_1",
+          "originalPrincipal": "15000.00",
+          "outstandingPrincipal": "0.00",
+          "monthlyRate": "0.025",
+          "termMonths": 6,
+          "paymentsPerMonth": 1,
+          "numberOfPayments": 6,
+          "regularPaymentAmount": "2875.00",
+          "calculationMethod": "fixed_periodic_reducing_balance",
+          "startDate": "2024-01-15T00:00:00Z",
+          "firstDueDate": "2024-02-15T00:00:00Z",
+          "finalDueDate": "2024-07-15T00:00:00Z",
+          "status": "Closed",
+          "createdAt": "2024-01-15T00:00:00Z",
+          "unappliedCredit": "0.00",
+          "installments": [
+            {
+              "id": "40000000-0000-0000-0000-000000000001",
+              "loanId": "20000000-0000-0000-0000-000000000001",
+              "installmentNumber": 1,
+              "dueDate": "2024-02-15T00:00:00Z",
+              "expectedPayment": "2875.00",
+              "expectedInterest": "375.00",
+              "expectedPrincipal": "2500.00",
+              "expectedRemainingPrincipal": "12500.00",
+              "paidAmount": "2875.00",
+              "status": "Paid",
+              "createdAt": "2024-01-15T00:00:00Z"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "scenario_medium_risk",
+      "name": "Robert Johnson — Medium Risk / Conditional Approval",
+      "expectedRiskTier": "mediumRisk",
+      "expectedEligibilityStatus": "conditional",
+      "expectedMinScore": 65,
+      "borrower": {
+        "id": "10000000-0000-0000-0000-000000000002",
+        "firstName": "Robert",
+        "lastName": "Johnson",
+        "nationalId": "NAT-10002",
+        "phone": "09172223344",
+        "dateOfBirth": "1988-11-20",
+        "status": "Active",
+        "createdAt": "2025-03-01T09:30:00Z"
+      },
+      "loans": [
+        {
+          "id": "20000000-0000-0000-0000-000000000002",
+          "requestId": "30000000-0000-0000-0000-000000000002",
+          "borrowerId": "10000000-0000-0000-0000-000000000002",
+          "createdByUserId": "officer_1",
+          "originalPrincipal": "10000.00",
+          "outstandingPrincipal": "5000.00",
+          "monthlyRate": "0.03",
+          "termMonths": 4,
+          "paymentsPerMonth": 1,
+          "numberOfPayments": 4,
+          "regularPaymentAmount": "2800.00",
+          "calculationMethod": "fixed_periodic_reducing_balance",
+          "startDate": "2026-05-01T00:00:00Z",
+          "firstDueDate": "2026-06-01T00:00:00Z",
+          "finalDueDate": "2026-09-01T00:00:00Z",
+          "status": "Active",
+          "createdAt": "2026-05-01T00:00:00Z",
+          "unappliedCredit": "0.00",
+          "installments": [
+            {
+              "id": "40000000-0000-0000-0000-000000000002",
+              "loanId": "20000000-0000-0000-0000-000000000002",
+              "installmentNumber": 1,
+              "dueDate": "2026-06-01T00:00:00Z",
+              "expectedPayment": "2800.00",
+              "expectedInterest": "300.00",
+              "expectedPrincipal": "2500.00",
+              "expectedRemainingPrincipal": "7500.00",
+              "paidAmount": "2800.00",
+              "status": "Paid",
+              "createdAt": "2026-05-01T00:00:00Z"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "scenario_high_risk",
+      "name": "Alice Davis — High Risk / Requires Senior Review",
+      "expectedRiskTier": "highRisk",
+      "expectedEligibilityStatus": "requiresReview",
+      "expectedMinScore": 40,
+      "borrower": {
+        "id": "10000000-0000-0000-0000-000000000003",
+        "firstName": "Alice",
+        "lastName": "Davis",
+        "nationalId": "NAT-10003",
+        "phone": "09173334455",
+        "dateOfBirth": "1995-03-12",
+        "status": "Active",
+        "createdAt": "2025-06-01T10:00:00Z"
+      },
+      "loans": [
+        {
+          "id": "20000000-0000-0000-0000-000000000003",
+          "requestId": "30000000-0000-0000-0000-000000000003",
+          "borrowerId": "10000000-0000-0000-0000-000000000003",
+          "createdByUserId": "officer_2",
+          "originalPrincipal": "12000.00",
+          "outstandingPrincipal": "9000.00",
+          "monthlyRate": "0.04",
+          "termMonths": 6,
+          "paymentsPerMonth": 1,
+          "numberOfPayments": 6,
+          "regularPaymentAmount": "2480.00",
+          "calculationMethod": "fixed_periodic_reducing_balance",
+          "startDate": "2026-04-01T00:00:00Z",
+          "firstDueDate": "2026-05-01T00:00:00Z",
+          "finalDueDate": "2026-10-01T00:00:00Z",
+          "status": "Active",
+          "createdAt": "2026-04-01T00:00:00Z",
+          "unappliedCredit": "0.00",
+          "installments": [
+            {
+              "id": "40000000-0000-0000-0000-000000000003",
+              "loanId": "20000000-0000-0000-0000-000000000003",
+              "installmentNumber": 2,
+              "dueDate": "2026-06-01T00:00:00Z",
+              "expectedPayment": "2480.00",
+              "expectedInterest": "480.00",
+              "expectedPrincipal": "2000.00",
+              "expectedRemainingPrincipal": "7000.00",
+              "paidAmount": "0.00",
+              "status": "Overdue",
+              "createdAt": "2026-04-01T00:00:00Z"
+            },
+            {
+              "id": "40000000-0000-0000-0000-000000000004",
+              "loanId": "20000000-0000-0000-0000-000000000003",
+              "installmentNumber": 3,
+              "dueDate": "2026-07-01T00:00:00Z",
+              "expectedPayment": "2480.00",
+              "expectedInterest": "480.00",
+              "expectedPrincipal": "2000.00",
+              "expectedRemainingPrincipal": "5000.00",
+              "paidAmount": "0.00",
+              "status": "Overdue",
+              "createdAt": "2026-04-01T00:00:00Z"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "scenario_critical_risk",
+      "name": "Charlie Brown — Critical Risk / Declined",
+      "expectedRiskTier": "criticalRisk",
+      "expectedEligibilityStatus": "declined",
+      "expectedMaxScore": 39,
+      "borrower": {
+        "id": "10000000-0000-0000-0000-000000000004",
+        "firstName": "Charlie",
+        "lastName": "Brown",
+        "nationalId": "NAT-10004",
+        "phone": "09174445566",
+        "dateOfBirth": "1983-09-09",
+        "status": "Active",
+        "createdAt": "2023-01-01T00:00:00Z"
+      },
+      "loans": [
+        {
+          "id": "20000000-0000-0000-0000-000000000004",
+          "requestId": "30000000-0000-0000-0000-000000000004",
+          "borrowerId": "10000000-0000-0000-0000-000000000004",
+          "createdByUserId": "officer_2",
+          "originalPrincipal": "25000.00",
+          "outstandingPrincipal": "25000.00",
+          "monthlyRate": "0.05",
+          "termMonths": 12,
+          "paymentsPerMonth": 1,
+          "numberOfPayments": 12,
+          "regularPaymentAmount": "2780.00",
+          "calculationMethod": "fixed_periodic_reducing_balance",
+          "startDate": "2025-01-01T00:00:00Z",
+          "firstDueDate": "2025-02-01T00:00:00Z",
+          "finalDueDate": "2026-01-01T00:00:00Z",
+          "status": "Active",
+          "createdAt": "2025-01-01T00:00:00Z",
+          "unappliedCredit": "0.00",
+          "installments": [
+            {
+              "id": "40000000-0000-0000-0000-000000000005",
+              "loanId": "20000000-0000-0000-0000-000000000004",
+              "installmentNumber": 1,
+              "dueDate": "2025-02-01T00:00:00Z",
+              "expectedPayment": "2780.00",
+              "expectedInterest": "1250.00",
+              "expectedPrincipal": "1530.00",
+              "expectedRemainingPrincipal": "23470.00",
+              "paidAmount": "0.00",
+              "status": "Overdue",
+              "createdAt": "2025-01-01T00:00:00Z"
+            },
+            {
+              "id": "40000000-0000-0000-0000-000000000006",
+              "loanId": "20000000-0000-0000-0000-000000000004",
+              "installmentNumber": 2,
+              "dueDate": "2025-03-01T00:00:00Z",
+              "expectedPayment": "2780.00",
+              "expectedInterest": "1250.00",
+              "expectedPrincipal": "1530.00",
+              "expectedRemainingPrincipal": "21940.00",
+              "paidAmount": "0.00",
+              "status": "Overdue",
+              "createdAt": "2025-01-01T00:00:00Z"
+            },
+            {
+              "id": "40000000-0000-0000-0000-000000000007",
+              "loanId": "20000000-0000-0000-0000-000000000004",
+              "installmentNumber": 3,
+              "dueDate": "2025-04-01T00:00:00Z",
+              "expectedPayment": "2780.00",
+              "expectedInterest": "1250.00",
+              "expectedPrincipal": "1530.00",
+              "expectedRemainingPrincipal": "20410.00",
+              "paidAmount": "0.00",
+              "status": "Overdue",
+              "createdAt": "2025-01-01T00:00:00Z"
+            },
+            {
+              "id": "40000000-0000-0000-0000-000000000008",
+              "loanId": "20000000-0000-0000-0000-000000000004",
+              "installmentNumber": 4,
+              "dueDate": "2025-05-01T00:00:00Z",
+              "expectedPayment": "2780.00",
+              "expectedInterest": "1250.00",
+              "expectedPrincipal": "1530.00",
+              "expectedRemainingPrincipal": "18880.00",
+              "paidAmount": "0.00",
+              "status": "Overdue",
+              "createdAt": "2025-01-01T00:00:00Z"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "scenario_new_borrower",
+      "name": "David Miller — New Borrower (No History)",
+      "expectedRiskTier": "newBorrower",
+      "expectedEligibilityStatus": "conditional",
+      "expectedMinScore": 70,
+      "borrower": {
+        "id": "10000000-0000-0000-0000-000000000005",
+        "firstName": "David",
+        "lastName": "Miller",
+        "nationalId": "NAT-10005",
+        "phone": "09175556677",
+        "dateOfBirth": "1998-07-07",
+        "status": "Active",
+        "createdAt": "2026-07-20T12:00:00Z"
+      },
+      "loans": []
+    },
+    {
+      "id": "scenario_blocked_borrower",
+      "name": "Eva Green — Blocked Account Profile",
+      "expectedRiskTier": "criticalRisk",
+      "expectedEligibilityStatus": "declined",
+      "expectedMaxScore": 0,
+      "borrower": {
+        "id": "10000000-0000-0000-0000-000000000006",
+        "firstName": "Eva",
+        "lastName": "Green",
+        "nationalId": "NAT-10006",
+        "phone": "09176667788",
+        "dateOfBirth": "1991-12-12",
+        "status": "Blocked",
+        "createdAt": "2023-05-05T00:00:00Z"
+      },
+      "loans": []
+    }
+  ]
+}

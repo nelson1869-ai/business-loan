@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -26,35 +25,6 @@ class _BorrowerRegistrationPageState
   final _nationalIdController = TextEditingController();
   final _phoneController = TextEditingController();
   DateTime? _selectedDateOfBirth;
-
-  static const _firstNames = [
-    'James',
-    'Mary',
-    'John',
-    'Patricia',
-    'Robert',
-    'Jennifer',
-    'Michael',
-    'Linda',
-    'William',
-    'Elizabeth',
-    'David',
-    'Barbara',
-  ];
-  static const _lastNames = [
-    'Smith',
-    'Johnson',
-    'Williams',
-    'Brown',
-    'Jones',
-    'Miller',
-    'Davis',
-    'Garcia',
-    'Rodriguez',
-    'Wilson',
-    'Martinez',
-    'Anderson',
-  ];
 
   @override
   void initState() {
@@ -86,20 +56,6 @@ class _BorrowerRegistrationPageState
       age--;
     }
     return age >= 18;
-  }
-
-  void _autoFillRandomData() {
-    final random = Random();
-    final ageInDays = 18 * 365 + random.nextInt((65 - 18) * 365);
-    setState(() {
-      _firstNameController.text =
-          _firstNames[random.nextInt(_firstNames.length)];
-      _lastNameController.text = _lastNames[random.nextInt(_lastNames.length)];
-      _nationalIdController.text = (10000000 + random.nextInt(90000000))
-          .toString();
-      _phoneController.text = '+2547${10000000 + random.nextInt(90000000)}';
-      _selectedDateOfBirth = DateTime.now().subtract(Duration(days: ageInDays));
-    });
   }
 
   Future<void> _submitForm() async {
@@ -184,13 +140,6 @@ class _BorrowerRegistrationPageState
         title: Text(
           widget.borrower != null ? 'Edit Borrower' : 'Register Borrower',
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.casino_outlined),
-            onPressed: _autoFillRandomData,
-            tooltip: 'Auto Fill (Dev)',
-          ),
-        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),

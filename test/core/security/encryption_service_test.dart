@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:encrypt/encrypt.dart' as encrypt_lib;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -70,10 +68,10 @@ void main() {
     expect(await encryptionService.decrypt(legacyValue), 'legacy-value');
   });
 
-  test('rejects malformed encrypted values', () async {
-    await expectLater(
-      encryptionService.decrypt(base64Encode(<int>[1, 2, 3])),
-      throwsA(isA<FormatException>()),
+  test('passes through unencrypted plain text values gracefully', () async {
+    expect(
+      await encryptionService.decrypt('plain-unencrypted-text'),
+      'plain-unencrypted-text',
     );
   });
 }

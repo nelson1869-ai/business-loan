@@ -11,6 +11,8 @@ import '../widgets/quick_actions_section.dart';
 import '../widgets/todays_collections_section.dart';
 import '../widgets/recent_activity_section.dart';
 
+import '../widgets/owner_financial_summary_card.dart';
+
 class DashboardPage extends ConsumerStatefulWidget {
   const DashboardPage({super.key});
 
@@ -108,7 +110,14 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         DashboardHeader(
           onRefresh: () => ref.read(dashboardProvider.notifier).loadDashboard(),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
+        OwnerFinancialSummaryCard(
+          totalPrincipalDisbursed: metrics.totalPrincipalDisbursed,
+          monthlyInterestIncome: metrics.monthlyInterestIncome,
+          outstandingBalance: metrics.outstandingBalance,
+          averageInterestRate: metrics.weightedAverageRate,
+        ),
+        const SizedBox(height: 20),
         PortfolioSummaryCards(
           activeBorrowers: metrics.activeBorrowers,
           outstandingBalance: metrics.outstandingBalance,

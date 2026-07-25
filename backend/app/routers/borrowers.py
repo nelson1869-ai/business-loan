@@ -108,6 +108,13 @@ async def remove_borrower(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Borrower not found"
         )
-    await borrower_service.delete_borrower(db, borrower, current_user)
+    try:
+        await borrower_service.delete_borrower(db, borrower, current_user)
+    except borrower_service.BorrowerHasOpenLoansError as error:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(error),
+        ) from error
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
