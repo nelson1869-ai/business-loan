@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../borrowers/data/borrower_repository.dart';
@@ -24,13 +26,13 @@ final borrowerLoansProvider = FutureProvider.autoDispose
         localLoans = const [];
       }
 
-      try {
-        if (await healthService.isServerReachable()) {
+      unawaited(() async {
+        try {
+          if (!await healthService.isServerReachable()) return;
           final remote = await remoteRepo.getLoans(borrowerId: borrowerId);
           await localRepo.saveLoans(remote);
-          return remote;
-        }
-      } catch (_) {}
+        } catch (_) {}
+      }());
 
       return localLoans;
     });
@@ -49,13 +51,13 @@ final loanDetailProvider = FutureProvider.autoDispose.family<Loan, String>((
     localLoan = await localRepo.getLoan(loanId);
   } catch (_) {}
 
-  try {
-    if (await healthService.isServerReachable()) {
+  unawaited(() async {
+    try {
+      if (!await healthService.isServerReachable()) return;
       final remote = await remoteRepo.getLoan(loanId);
       await localRepo.saveLoan(remote);
-      return remote;
-    }
-  } catch (_) {}
+    } catch (_) {}
+  }());
 
   if (localLoan != null) return localLoan;
   throw StateError('Loan #$loanId not found locally or on server');
@@ -73,13 +75,13 @@ final loanPaymentsProvider = FutureProvider.autoDispose
         localPayments = await localRepo.getPayments(loanId);
       } catch (_) {}
 
-      try {
-        if (await healthService.isServerReachable()) {
+      unawaited(() async {
+        try {
+          if (!await healthService.isServerReachable()) return;
           final remote = await remoteRepo.history(loanId);
           await localRepo.savePayments(loanId, remote);
-          return remote;
-        }
-      } catch (_) {}
+        } catch (_) {}
+      }());
 
       return localPayments;
     });
@@ -250,13 +252,13 @@ final allLoansProvider = FutureProvider.autoDispose<List<LoanWithBorrower>>((
     loans = await localLoanRepo.getLoans();
   } catch (_) {}
 
-  try {
-    if (await healthService.isServerReachable()) {
+  unawaited(() async {
+    try {
+      if (!await healthService.isServerReachable()) return;
       final remote = await remoteLoanRepo.getLoans();
       await localLoanRepo.saveLoans(remote);
-      loans = remote;
-    }
-  } catch (_) {}
+    } catch (_) {}
+  }());
 
   final borrowerMap = <String, String>{};
   final results = <LoanWithBorrower>[];

@@ -6,6 +6,7 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from app.dependencies import CurrentUser, DbSession
 from app.schemas.borrower import BorrowerCreate, BorrowerUpdate
+from app.schemas.business_setting import BusinessSettingUpdate
 from app.schemas.loan import LoanCreate
 from app.schemas.payment import PaymentCreate, PaymentReversalCreate
 from app.schemas.note import NoteCreate
@@ -24,7 +25,13 @@ from app.schemas.sync import (
 from app.services import borrower_service, loan_service, payment_service
 from app.services import note_service
 from app.models.note import Note
-from app.routers import collection_tasks, documents, notifications
+from app.models.sync_receipt import SyncReceipt
+from app.routers import (
+    business_settings,
+    collection_tasks,
+    documents,
+    notifications,
+)
 
 router = APIRouter(prefix="/api/v1/sync", tags=["Offline Sync"])
 
@@ -192,6 +199,14 @@ async def _replay_item(
         await notifications.mark_all_read(db, current_user)
         return
 
+    if item.endpoint == "/api/v1/business-settings" and item.method == "PUT":
+        await business_settings.update_business_settings(
+            BusinessSettingUpdate.model_validate(item.payload),
+            db,
+            current_user,
+        )
+        return
+
     if (
         item.endpoint.startswith("/api/v1/notifications/")
         and item.endpoint.endswith("/read")
@@ -243,7 +258,11 @@ async def drain_sync_queue(
     failures: list[SyncFailure] = []
     for item in sorted(payload.items, key=lambda queued: queued.created_at):
         try:
+            if await db.get(SyncReceipt, item.transaction_uuid) is not None:
+                synced.append(item.transaction_uuid)
+                continue
             await _replay_item(item, db, current_user)
+            db.add(SyncReceipt(transaction_uuid=item.transaction_uuid))
             await db.commit()
             synced.append(item.transaction_uuid)
         except SyncReplayError as error:

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/server_health_service.dart';
@@ -34,12 +36,10 @@ class DashboardRepository {
 
   /// Compiles dashboard statistics and lists from online endpoints or local SQLite cache.
   Future<DashboardState> loadDashboard() async {
-    bool isOnline = false;
-    try {
-      isOnline = await _healthService.isServerReachable();
-    } catch (_) {
-      isOnline = false;
-    }
+    // Dashboard rendering is derived exclusively from SQLite. Refreshing the
+    // cache is intentionally detached from this foreground future.
+    final isOnline = _foregroundReadsUseNetwork;
+    unawaited(_refreshPrimaryCaches());
 
     // 1. Resolve borrowers (remote first if online, fallback to local SQLite)
     List<Borrower> borrowers = const [];
@@ -263,6 +263,18 @@ class DashboardRepository {
       isLoading: false,
       isOnline: isOnline,
     );
+  }
+
+  bool get _foregroundReadsUseNetwork => false;
+
+  Future<void> _refreshPrimaryCaches() async {
+    try {
+      if (!await _healthService.isServerReachable()) return;
+      final borrowers = await _remoteBorrowerRepository.getBorrowers();
+      await _borrowerRepository.syncRemoteBorrowers(borrowers);
+      final loans = await _loanRepository.getLoans();
+      await _localLoanRepository.syncLoans(loans);
+    } catch (_) {}
   }
 }
 

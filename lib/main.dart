@@ -24,12 +24,6 @@ import 'core/telemetry/operational_telemetry.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final container = ProviderContainer();
-  final localNotifications = container.read(localNotificationServiceProvider);
-  await localNotifications.initialize(onTap: appRouter.go);
-  await FirebaseMobileServices.initialize(
-    localNotifications: localNotifications,
-    onNavigation: appRouter.go,
-  );
   final telemetry = container.read(operationalTelemetryProvider);
 
   FlutterError.onError = (details) {
@@ -46,16 +40,32 @@ Future<void> main() async {
 
   await runZonedGuarded(
     () async {
-      await BackgroundSyncWorker.initialize();
       runApp(
         UncontrolledProviderScope(
           container: container,
           child: const LendingNelsonApp(),
         ),
       );
+      unawaited(_initializeBackgroundServices(container));
     },
     (error, stackTrace) {
       telemetry.recordCrash('root_zone', stackTrace);
     },
   );
+}
+
+Future<void> _initializeBackgroundServices(ProviderContainer container) async {
+  final localNotifications = container.read(localNotificationServiceProvider);
+  try {
+    await localNotifications.initialize(onTap: appRouter.go);
+  } catch (_) {}
+  try {
+    await FirebaseMobileServices.initialize(
+      localNotifications: localNotifications,
+      onNavigation: appRouter.go,
+    );
+  } catch (_) {}
+  try {
+    await BackgroundSyncWorker.initialize();
+  } catch (_) {}
 }

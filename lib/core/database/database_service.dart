@@ -4,7 +4,7 @@ import 'dart:async';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
-/// Opens, initializes, and manages normalized SQLite database schema (v6).
+/// Opens, initializes, and manages the local SQLite database schema.
 ///
 /// File: `lib/core/database/database_service.dart`
 class DatabaseService {
@@ -73,7 +73,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 7,
+      version: 8,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -318,6 +318,7 @@ class DatabaseService {
         updated_at TEXT NOT NULL
       )
     ''');
+    await _createLocalJsonCache(db);
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -351,6 +352,19 @@ class DatabaseService {
     if (oldVersion < 7) {
       await _upgradeToVersion7(db);
     }
+    if (oldVersion < 8) {
+      await _createLocalJsonCache(db);
+    }
+  }
+
+  Future<void> _createLocalJsonCache(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS local_json_cache (
+        cache_key TEXT PRIMARY KEY,
+        value_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
   }
 
   Future<void> _upgradeToVersion7(Database db) async {

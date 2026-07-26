@@ -143,10 +143,10 @@ void main() {
 
         // Verify Splash Screen renders
         expect(find.text('Secure Mobile Lending'), findsOneWidget);
-        expect(find.byType(CircularProgressIndicator), findsOneWidget);
+        expect(find.byType(CircularProgressIndicator), findsNothing);
 
-        // 2. Wait for Splash delay (1.5 seconds) to trigger routing to Login Screen
-        await tester.pump(const Duration(milliseconds: 1500));
+        // 2. Session restoration is local and has no artificial delay.
+        await tester.pump();
         await tester.pumpAndSettle();
 
         // Verify Login Screen renders
