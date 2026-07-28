@@ -1,9 +1,7 @@
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/network/api_error_mapper.dart';
 import '../data/admin_assistant_repository.dart';
 
 class AdminAssistantPage extends ConsumerStatefulWidget {
@@ -98,14 +96,14 @@ class _AdminAssistantPageState extends ConsumerState<AdminAssistantPage> {
         }
       });
       _scrollToLatest();
-    } on DioException catch (error) {
+    } on AdminAssistantRequestException catch (error) {
       if (!mounted) return;
       setState(() {
         _messages.add(
           _ChatMessage(
-            text: ApiErrorMapper.message(error),
+            text: error.message,
             isUser: false,
-            isError: !{404, 422}.contains(error.response?.statusCode),
+            isError: error.isError,
           ),
         );
       });

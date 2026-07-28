@@ -1,8 +1,16 @@
-"""Tests for backend offline sync idempotency, receipt creation, and allowlist validation."""
+"""Tests for backend offline sync idempotency and allowlist validation."""
+
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
-from app.routers.sync import SyncQueueItem, _replay_item, SyncReplayError
+
+from app.models.sync_receipt import SyncReceipt
+from app.routers.sync import (
+    SyncReplayError,
+    _replay_item,
+    drain_sync_queue,
+)
+from app.schemas.sync import SyncBatchRequest, SyncQueueItem
 
 
 @pytest.mark.asyncio
@@ -11,8 +19,11 @@ async def test_replay_item_unsupported_endpoint_raises_replay_error():
     item = SyncQueueItem(
         transaction_uuid="11111111-1111-1111-1111-111111111111",
         endpoint="/api/v1/borrowers/22222222-2222-2222-2222-222222222222",
-        method="POST", # Invalid: POST to single borrower endpoint is not supported
-        payload={"id": "22222222-2222-2222-2222-222222222222", "full_name": "Test Borrower"},
+        method="POST",  # Invalid: POST to a single borrower is unsupported.
+        payload={
+            "id": "22222222-2222-2222-2222-222222222222",
+            "full_name": "Synthetic Fixture",
+        },
         created_at="2026-07-28T12:00:00Z",
     )
     db = AsyncMock()
@@ -24,6 +35,81 @@ async def test_replay_item_unsupported_endpoint_raises_replay_error():
 
     assert exc_info.value.code == "UNSUPPORTED_ENDPOINT"
     assert exc_info.value.retryable is False
+
+
+def test_sync_batch_rejects_duplicate_transaction_uuids():
+    """A batch cannot replay one idempotency key twice."""
+    item = {
+        "transactionUuid": "11111111-1111-1111-1111-111111111111",
+        "endpoint": "/api/v1/borrowers",
+        "method": "POST",
+        "payload": {},
+        "createdAt": "2026-07-28T12:00:00Z",
+    }
+    with pytest.raises(ValueError):
+        SyncBatchRequest.model_validate({"items": [item, item]})
+
+
+@pytest.mark.asyncio
+async def test_receipt_owner_mismatch_is_rejected_without_replay():
+    """An authenticated actor cannot consume another actor's receipt."""
+    item = SyncQueueItem(
+        transaction_uuid="11111111-1111-1111-1111-111111111111",
+        endpoint="/api/v1/borrowers",
+        method="POST",
+        payload={},
+        created_at="2026-07-28T12:00:00Z",
+    )
+    receipt = SyncReceipt(
+        transaction_uuid=item.transaction_uuid,
+        user_id="22222222-2222-2222-2222-222222222222",
+    )
+    db = AsyncMock()
+    db.get.return_value = receipt
+    user = MagicMock(id="33333333-3333-3333-3333-333333333333")
+
+    result = await drain_sync_queue(
+        SyncBatchRequest(items=[item]),
+        db,
+        user,
+    )
+
+    assert result.synced_transaction_uuids == []
+    assert result.failures[0].code == "IDEMPOTENCY_CONFLICT"
+    db.commit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_receipt_and_mutation_share_one_commit(monkeypatch):
+    """A failed commit rolls back both replay work and its receipt."""
+    item = SyncQueueItem(
+        transaction_uuid="11111111-1111-1111-1111-111111111111",
+        endpoint="/api/v1/borrowers",
+        method="POST",
+        payload={},
+        created_at="2026-07-28T12:00:00Z",
+    )
+    replay = AsyncMock()
+    monkeypatch.setattr("app.routers.sync._replay_item", replay)
+    db = AsyncMock()
+    db.add = MagicMock()
+    db.get.return_value = None
+    db.commit.side_effect = RuntimeError("synthetic commit failure")
+    user = MagicMock(id="33333333-3333-3333-3333-333333333333")
+
+    result = await drain_sync_queue(
+        SyncBatchRequest(items=[item]),
+        db,
+        user,
+    )
+
+    replay.assert_awaited_once()
+    receipt = db.add.call_args.args[0]
+    assert isinstance(receipt, SyncReceipt)
+    assert receipt.user_id == user.id
+    db.rollback.assert_awaited_once()
+    assert result.synced_transaction_uuids == []
+    assert result.failures[0].retryable is True
 
 
 @pytest.mark.asyncio

@@ -16,22 +16,23 @@ from app.services.admin_assistant_service import (
     answer_admin_question,
     route_question,
 )
-from app.services.assistant_rate_limiter import (
-    FallbackAssistantRateLimiter,
-    build_assistant_rate_limiter,
+from app.services.rate_limiter import (
+    FallbackRateLimiter,
+    build_rate_limiter,
+    opaque_rate_limit_key,
 )
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/admin-assistant", tags=["Admin Assistant"])
-_rate_limiter: FallbackAssistantRateLimiter | None = None
+_rate_limiter: FallbackRateLimiter | None = None
 _rate_limiter_url: str | None = None
 
 
-def _get_rate_limiter(redis_url: str | None) -> FallbackAssistantRateLimiter:
+def _get_rate_limiter(redis_url: str | None) -> FallbackRateLimiter:
     global _rate_limiter, _rate_limiter_url
     normalized = redis_url.strip() if redis_url else None
     if _rate_limiter is None or normalized != _rate_limiter_url:
-        _rate_limiter = build_assistant_rate_limiter(normalized)
+        _rate_limiter = build_rate_limiter(normalized)
         _rate_limiter_url = normalized
     return _rate_limiter
 
@@ -101,8 +102,13 @@ async def admin_assistant_chat(
     settings = get_settings()
     correlation_id = str(uuid4())
     limiter = _get_rate_limiter(settings.assistant_rate_limit_redis_url)
-    if not await limiter.allow(
+    limiter_key = opaque_rate_limit_key(
+        "assistant",
         current_user.id,
+        secret=settings.jwt_secret_key,
+    )
+    if not await limiter.allow(
+        limiter_key,
         settings.assistant_rate_limit_per_minute,
     ):
         await _audit_assistant_result(

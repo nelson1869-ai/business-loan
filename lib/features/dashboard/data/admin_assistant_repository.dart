@@ -4,9 +4,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_endpoints.dart';
+import '../../../core/network/api_error_mapper.dart';
 import '../../../core/database/database_provider.dart';
 import '../../../core/security/encryption_service.dart';
 import 'local_admin_assistant_service.dart';
+
+/// Presentation-safe assistant failure with no Dio dependency.
+class AdminAssistantRequestException implements Exception {
+  const AdminAssistantRequestException(this.message, {required this.isError});
+
+  final String message;
+  final bool isError;
+}
 
 class AdminAssistantRecord {
   const AdminAssistantRecord({
@@ -211,7 +220,12 @@ class AdminAssistantRepository {
       return AdminAssistantReply.fromJson(data);
     } on DioException catch (error) {
       final statusCode = error.response?.statusCode;
-      if (statusCode != null && statusCode < 500) rethrow;
+      if (statusCode != null && statusCode < 500) {
+        throw AdminAssistantRequestException(
+          ApiErrorMapper.message(error),
+          isError: !{404, 422}.contains(statusCode),
+        );
+      }
       debugPrint(
         'admin_assistant_offline_fallback '
         'transport=${error.type.name}',

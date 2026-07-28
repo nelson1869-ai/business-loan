@@ -2,6 +2,17 @@
 
 Async financial backend for the Lending Nelson Flutter application. It uses FastAPI, SQLAlchemy 2, PostgreSQL, Alembic, and Pydantic v2.
 
+Application composition is intentionally incremental: `app/main.py` remains the
+factory, router registration lives in `app/api/router.py`, health endpoints live
+in `app/health/router.py`, and defensive HTTP controls live in
+`app/middleware/`. Login and Admin Assistant throttling share a Redis-first
+limiter with a bounded process-local fallback.
+
+Offline mutations are accepted only through `/api/v1/sync/drain`. Each replayed
+mutation and its idempotency receipt are committed atomically. New replay
+operations require endpoint, method, payload, authorization, rollback, and
+idempotency tests.
+
 The backend is the source of truth for loan schedules, payment allocation, balances, receipts, statements, dashboard totals, and financial reports. Flutter clients should display these results rather than recalculate them.
 
 Run the commands below from `D:\Development\lending_nelson\backend` in PowerShell.

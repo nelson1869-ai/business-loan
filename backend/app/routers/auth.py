@@ -37,9 +37,10 @@ ASCII Flow Diagram
 ═════════════════════════════════════════════════════════════════════
 """
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 from sqlalchemy import select
 
+from app.config import get_settings
 from app.dependencies import DbSession
 from app.models.user import User
 from app.schemas.auth import LoginRequest, RefreshTokenRequest, TokenResponse
@@ -49,13 +50,35 @@ from app.services.auth_service import (
     create_token,
     verify_token,
 )
+from app.services.rate_limiter import opaque_rate_limit_key
 
 router = APIRouter(prefix="/api/v1/auth", tags=["Authentication"])
 
 
 @router.post("/token", response_model=TokenResponse)
-async def login(payload: LoginRequest, db: DbSession) -> TokenResponse:
+async def login(
+    payload: LoginRequest,
+    db: DbSession,
+    request: Request,
+) -> TokenResponse:
     """Authenticate credentials and return an access/refresh token pair."""
+    settings = get_settings()
+    client_host = request.client.host if request.client else "unknown"
+    limiter_key = opaque_rate_limit_key(
+        "login",
+        client_host,
+        payload.username,
+        secret=settings.jwt_secret_key,
+    )
+    if not await request.app.state.rate_limiter.allow(
+        limiter_key,
+        settings.login_rate_limit_per_minute,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login attempts",
+            headers={"Retry-After": "60"},
+        )
     # Step 1 — Look up the user by username and verify the bcrypt password hash.
     #          Returns None if the username doesn't exist OR the password is wrong.
     #          We intentionally give the same error for both (no username enumeration).

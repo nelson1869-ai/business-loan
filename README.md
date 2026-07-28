@@ -2,6 +2,10 @@
 
 Lending Nelson is an offline-first microfinance lending platform featuring a Flutter Android application and a FastAPI/PostgreSQL backend.
 
+Detailed local-write, queue-lifecycle, recovery, and manual server-off
+instructions are in
+[docs/architecture/OFFLINE_SYNC.md](docs/architecture/OFFLINE_SYNC.md).
+
 ## Offline-First Architecture
 
 The application is engineered to operate seamlessly even when the backend server is turned off, disconnected, or unreachable. All core lending operations—creating borrowers, loans, loan schedules, repayments, collections, notes, guarantors, emergency contacts, and documents—succeed immediately on the mobile device.

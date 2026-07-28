@@ -63,14 +63,26 @@ Future<void> _initializeBackgroundServices(ProviderContainer container) async {
   final localNotifications = container.read(localNotificationServiceProvider);
   try {
     await localNotifications.initialize(onTap: appRouter.go);
-  } catch (_) {}
+  } catch (error, stackTrace) {
+    container
+        .read(operationalTelemetryProvider)
+        .recordCrash('notification_initialization', stackTrace);
+  }
   try {
     await FirebaseMobileServices.initialize(
       localNotifications: localNotifications,
       onNavigation: appRouter.go,
     );
-  } catch (_) {}
+  } catch (error, stackTrace) {
+    container
+        .read(operationalTelemetryProvider)
+        .recordCrash('firebase_initialization', stackTrace);
+  }
   try {
     await BackgroundSyncWorker.initialize();
-  } catch (_) {}
+  } catch (error, stackTrace) {
+    container
+        .read(operationalTelemetryProvider)
+        .recordCrash('background_sync_initialization', stackTrace);
+  }
 }

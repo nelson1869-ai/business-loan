@@ -414,7 +414,9 @@ async def _locked_context(
         if latest is not None
         and latest.entry_type == "Reversal"
         and latest.reversal_of is not None
-        else latest.effective_date if latest is not None else period_start
+        else latest.effective_date
+        if latest is not None
+        else period_start
     )
     carried_interest = (
         latest.allocation.interest_after if latest is not None else Decimal("0.00")

@@ -13,8 +13,11 @@ import 'package:uuid/uuid.dart';
 import '../database/database_provider.dart';
 import '../database/database_service.dart';
 import '../security/encryption_service.dart';
+import '../sync/sync_batch_client.dart';
+import '../sync/sync_dependency_resolver.dart';
+import '../sync/sync_lease_manager.dart';
+import '../sync/sync_response_validator.dart';
 import 'api_client.dart';
-import 'api_endpoints.dart';
 import 'server_health_service.dart';
 import 'sync_retry_policy.dart';
 
@@ -247,25 +250,35 @@ class OfflineSyncService {
     ServerHealthService? serverHealthService,
     String? Function()? getCurrentUserId,
     SyncRetryPolicy retryPolicy = const SyncRetryPolicy(),
+    SyncDependencyResolver dependencyResolver = const SyncDependencyResolver(),
+    SyncResponseValidator responseValidator = const SyncResponseValidator(),
+    SyncBatchClient? batchClient,
+    SyncLeaseManager leaseManager = const SyncLeaseManager(),
     Random? random,
   }) : _databaseService = databaseService,
        _encryptionService = encryptionService,
-       _dio = dio,
        _connectivity = connectivity,
        _isForcedOffline = isForcedOffline,
        _serverHealthService = serverHealthService,
        _getCurrentUserId = getCurrentUserId,
        _retryPolicy = retryPolicy,
+       _dependencyResolver = dependencyResolver,
+       _responseValidator = responseValidator,
+       _batchClient = batchClient ?? DioSyncBatchClient(dio),
+       _leaseManager = leaseManager,
        _random = random;
 
   final DatabaseService _databaseService;
   final EncryptionService _encryptionService;
-  final Dio _dio;
   final Connectivity _connectivity;
   final bool Function() _isForcedOffline;
   final ServerHealthService? _serverHealthService;
   final String? Function()? _getCurrentUserId;
   final SyncRetryPolicy _retryPolicy;
+  final SyncDependencyResolver _dependencyResolver;
+  final SyncResponseValidator _responseValidator;
+  final SyncBatchClient _batchClient;
+  final SyncLeaseManager _leaseManager;
   final Random? _random;
   final Uuid _uuid = const Uuid();
 
@@ -289,21 +302,7 @@ class OfflineSyncService {
   Future<void> _recoverStaleSyncingRecords() async {
     try {
       final database = await _databaseService.database;
-      final twoMinutesAgo = DateTime.now()
-          .toUtc()
-          .subtract(const Duration(minutes: 2))
-          .toIso8601String();
-      await database.update(
-        'offline_sync_queue',
-        {
-          'status': QueueItemStatus.pending.toDbValue(),
-          'drain_lease_id': null,
-          'lease_acquired_at': null,
-        },
-        where:
-            "status = 'syncing' AND (lease_acquired_at IS NULL OR lease_acquired_at < ?)",
-        whereArgs: [twoMinutesAgo],
-      );
+      await _leaseManager.recoverStale(database, DateTime.now().toUtc());
       onQueueChanged?.call();
     } catch (_) {}
   }
@@ -397,118 +396,6 @@ class OfflineSyncService {
     onQueueChanged?.call();
   }
 
-  /// Sorts items deterministically using a DAG topological sort (Kahn's Algorithm).
-  List<Map<String, dynamic>> _sortRowsByDAG(List<Map<String, dynamic>> rows) {
-    final itemMap = <String, Map<String, dynamic>>{};
-    final txUuidMap = <String, Map<String, dynamic>>{};
-    final localIdMap = <String, Map<String, dynamic>>{};
-
-    for (final row in rows) {
-      final id = row['id'] as String;
-      final txUuid = row['transaction_uuid'] as String;
-      final localId = row['entity_local_id'] as String?;
-      itemMap[id] = row;
-      txUuidMap[txUuid] = row;
-      if (localId != null && localId.isNotEmpty) {
-        localIdMap[localId] = row;
-      }
-    }
-
-    final inDegree = <String, int>{};
-    final graph = <String, List<String>>{};
-
-    for (final id in itemMap.keys) {
-      inDegree[id] = 0;
-      graph[id] = [];
-    }
-
-    for (final row in rows) {
-      final childId = row['id'] as String;
-      final depJson = row['dependency_ids_json'] as String?;
-      if (depJson == null || depJson.isEmpty) continue;
-
-      List<String> rawDeps = const [];
-      try {
-        rawDeps = (jsonDecode(depJson) as List<dynamic>).cast<String>();
-      } catch (_) {}
-
-      for (final rawDep in rawDeps) {
-        String? parentId;
-        if (itemMap.containsKey(rawDep)) {
-          parentId = rawDep;
-        } else if (txUuidMap.containsKey(rawDep)) {
-          parentId = txUuidMap[rawDep]!['id'] as String;
-        } else if (localIdMap.containsKey(rawDep)) {
-          parentId = localIdMap[rawDep]!['id'] as String;
-        }
-
-        if (parentId != null && parentId != childId) {
-          graph[parentId]!.add(childId);
-          inDegree[childId] = (inDegree[childId] ?? 0) + 1;
-        }
-      }
-    }
-
-    int entityPriority(String type) {
-      switch (type) {
-        case 'borrower':
-          return 10;
-        case 'guarantor':
-        case 'emergency_contact':
-        case 'borrower_note':
-          return 20;
-        case 'loan':
-          return 30;
-        case 'loan_schedule':
-          return 40;
-        case 'repayment':
-        case 'collection':
-          return 50;
-        case 'document':
-          return 60;
-        default:
-          return 99;
-      }
-    }
-
-    int compareRows(Map<String, dynamic> a, Map<String, dynamic> b) {
-      final pA = entityPriority(a['entity_type'] as String? ?? '');
-      final pB = entityPriority(b['entity_type'] as String? ?? '');
-      if (pA != pB) return pA.compareTo(pB);
-      final dateA = a['created_at'] as String? ?? '';
-      final dateB = b['created_at'] as String? ?? '';
-      return dateA.compareTo(dateB);
-    }
-
-    final ready = rows.where((r) => (inDegree[r['id']] ?? 0) == 0).toList();
-    ready.sort(compareRows);
-
-    final sortedResult = <Map<String, dynamic>>[];
-    while (ready.isNotEmpty) {
-      final node = ready.removeAt(0);
-      sortedResult.add(node);
-
-      final nodeId = node['id'] as String;
-      for (final neighborId in graph[nodeId] ?? <String>[]) {
-        inDegree[neighborId] = (inDegree[neighborId] ?? 1) - 1;
-        if (inDegree[neighborId] == 0 && itemMap.containsKey(neighborId)) {
-          ready.add(itemMap[neighborId]!);
-          ready.sort(compareRows);
-        }
-      }
-    }
-
-    // Append any cycle-blocked nodes at the end to ensure no items are dropped
-    if (sortedResult.length < rows.length) {
-      final addedIds = sortedResult.map((r) => r['id'] as String).toSet();
-      final remaining = rows.where((r) => !addedIds.contains(r['id'])).toList();
-      remaining.sort(compareRows);
-      sortedResult.addAll(remaining);
-    }
-
-    return sortedResult;
-  }
-
   /// Replays pending/retryable queued items and removes server-confirmed rows.
   Future<void> drainQueue({bool force = false}) async {
     if (_isDraining || _isForcedOffline()) return;
@@ -522,6 +409,7 @@ class OfflineSyncService {
     _isDraining = true;
     final now = DateTime.now().toUtc();
     final currentUserId = _getCurrentUserId?.call();
+    String? activeLeaseId;
 
     try {
       await _recoverStaleSyncingRecords();
@@ -553,36 +441,44 @@ class OfflineSyncService {
 
       if (eligibleRows.isEmpty) return;
 
-      final sortedRows = _sortRowsByDAG(eligibleRows);
+      final dependencyPlan = _dependencyResolver.resolve(eligibleRows);
+      if (dependencyPlan.cyclicRows.isNotEmpty) {
+        await database.transaction((txn) async {
+          for (final row in dependencyPlan.cyclicRows) {
+            await txn.update(
+              'offline_sync_queue',
+              {
+                'status': QueueItemStatus.blockedByDependency.toDbValue(),
+                'last_error_code': 'DEPENDENCY_CYCLE',
+                'last_error_message': 'Queue dependency cycle requires review',
+                'drain_lease_id': null,
+                'lease_acquired_at': null,
+              },
+              where: 'id = ?',
+              whereArgs: [row['id']],
+            );
+          }
+        });
+      }
+      final sortedRows = dependencyPlan.orderedRows;
+      if (sortedRows.isEmpty) {
+        return;
+      }
       _processingTotal = sortedRows.length;
       _processedCount = 0;
 
       final leaseId = _uuid.v4();
+      activeLeaseId = leaseId;
       final transactionUuids = sortedRows
           .map((r) => r['transaction_uuid'] as String)
           .toList();
 
-      // Acquire batch lease atomically in SQLite transaction
-      await database.transaction((txn) async {
-        for (final uuid in transactionUuids) {
-          await txn.update(
-            'offline_sync_queue',
-            {
-              'status': QueueItemStatus.syncing.toDbValue(),
-              'drain_lease_id': leaseId,
-              'lease_acquired_at': now.toIso8601String(),
-              'last_attempt_at': now.toIso8601String(),
-            },
-            where: 'transaction_uuid = ?',
-            whereArgs: [uuid],
-          );
-        }
-        await txn.insert('sync_metadata', {
-          'key': 'last_sync_attempt_at',
-          'value': now.toIso8601String(),
-          'updated_at': now.toIso8601String(),
-        }, conflictAlgorithm: ConflictAlgorithm.replace);
-      });
+      await _leaseManager.acquire(
+        database: database,
+        leaseId: leaseId,
+        transactionUuids: transactionUuids,
+        now: now,
+      );
       onQueueChanged?.call();
 
       final items = <Map<String, dynamic>>[];
@@ -599,24 +495,16 @@ class OfflineSyncService {
         });
       }
 
-      final response = await _dio.post<Map<String, dynamic>>(
-        ApiEndpoints.syncDrain,
-        data: {'items': items},
-      );
-
-      final responseData = response.data ?? <String, dynamic>{};
-      final validatedResponse = SyncDrainResponseModel.fromJson(responseData);
-      final synced = validatedResponse.syncedTransactionUuids;
-      final failures = validatedResponse.failures;
+      final response = await _batchClient.submit(items);
 
       final submittedUuidsSet = transactionUuids.toSet();
-      final accountedUuidsSet = <String>{
-        ...synced,
-        ...failures.map((f) => f.transactionUuid),
-      };
-
-      // Identify submitted items omitted from backend response (protocol error)
-      final omittedUuids = submittedUuidsSet.difference(accountedUuidsSet);
+      final validatedResponse = _responseValidator.validate(
+        response: response,
+        submittedTransactionUuids: submittedUuidsSet,
+      );
+      final synced = validatedResponse.syncedTransactionUuids;
+      final failures = validatedResponse.failures;
+      final omittedUuids = validatedResponse.omittedTransactionUuids;
 
       bool hasFailures = failures.isNotEmpty || omittedUuids.isNotEmpty;
 
@@ -793,7 +681,8 @@ class OfflineSyncService {
         await database.transaction((txn) async {
           final syncingRows = await txn.query(
             'offline_sync_queue',
-            where: "status = 'syncing'",
+            where: "status = 'syncing' AND drain_lease_id = ?",
+            whereArgs: [activeLeaseId],
           );
 
           for (final row in syncingRows) {
@@ -839,13 +728,18 @@ class OfflineSyncService {
 
       try {
         final database = await _databaseService.database;
-        await database.update('offline_sync_queue', {
-          'status': QueueItemStatus.retryableFailed.toDbValue(),
-          'last_error_code': category,
-          'last_error_message': sanitizedDetail,
-          'drain_lease_id': null,
-          'lease_acquired_at': null,
-        }, where: "status = 'syncing'");
+        await database.update(
+          'offline_sync_queue',
+          {
+            'status': QueueItemStatus.retryableFailed.toDbValue(),
+            'last_error_code': category,
+            'last_error_message': sanitizedDetail,
+            'drain_lease_id': null,
+            'lease_acquired_at': null,
+          },
+          where: "status = 'syncing' AND drain_lease_id = ?",
+          whereArgs: [activeLeaseId],
+        );
       } catch (_) {}
     } finally {
       _isDraining = false;

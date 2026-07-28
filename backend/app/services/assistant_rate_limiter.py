@@ -1,4 +1,7 @@
-"""Rate limiting backends for the administrative assistant."""
+"""Backward-compatible rate limiter implementation.
+
+New callers should import the generic aliases from ``app.services.rate_limiter``.
+"""
 
 from __future__ import annotations
 
@@ -108,7 +111,7 @@ return 1
         result = await self._client.eval(
             self._SCRIPT,
             1,
-            f"assistant-rate:{user_id}",
+            f"rate-limit:{user_id}",
             now_ms,
             now_ms - 60_000,
             limit,

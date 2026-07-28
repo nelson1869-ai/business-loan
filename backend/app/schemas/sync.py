@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.common import to_camel
 
@@ -45,6 +45,14 @@ class SyncBatchRequest(BaseModel):
     """An ordered batch of offline mutations."""
 
     items: list[SyncQueueItem] = Field(max_length=100)
+
+    @model_validator(mode="after")
+    def validate_unique_transaction_uuids(self) -> "SyncBatchRequest":
+        """Require exactly one submitted operation per transaction UUID."""
+        transaction_uuids = [item.transaction_uuid for item in self.items]
+        if len(transaction_uuids) != len(set(transaction_uuids)):
+            raise ValueError("Duplicate transaction UUIDs are not allowed")
+        return self
 
 
 class SyncFailure(BaseModel):

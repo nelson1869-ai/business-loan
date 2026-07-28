@@ -1,12 +1,14 @@
+import 'dart:async';
+
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lending_nelson/core/database/database_service.dart';
 import 'package:lending_nelson/core/network/offline_sync_service.dart';
 import 'package:lending_nelson/core/security/encryption_service.dart';
+import 'package:lending_nelson/core/sync/sync_batch_client.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class _TestEncryptionService extends EncryptionService {
   _TestEncryptionService() : super(const FlutterSecureStorage());
@@ -17,6 +19,25 @@ class _TestEncryptionService extends EncryptionService {
   @override
   Future<String> decrypt(String cipherTextWithIv) async {
     return cipherTextWithIv.replaceFirst('encrypted:', '');
+  }
+}
+
+class _BlockingBatchClient implements SyncBatchClient {
+  final entered = Completer<void>();
+  final release = Completer<void>();
+  int submissions = 0;
+
+  @override
+  Future<Object?> submit(List<Map<String, dynamic>> items) async {
+    submissions++;
+    if (!entered.isCompleted) entered.complete();
+    await release.future;
+    return {
+      'syncedTransactionUuids': items
+          .map((item) => item['transactionUuid'])
+          .toList(),
+      'failures': <Map<String, dynamic>>[],
+    };
   }
 }
 
@@ -182,5 +203,42 @@ void main() {
         expect(stateAfter.items.first.drainLeaseId, isNull);
       },
     );
+
+    test('concurrent drains submit a leased item only once', () async {
+      final client = _BlockingBatchClient();
+      final first = OfflineSyncService(
+        databaseService: dbService,
+        encryptionService: encryptionService,
+        dio: Dio(),
+        connectivity: Connectivity(),
+        isForcedOffline: () => false,
+        batchClient: client,
+      );
+      final second = OfflineSyncService(
+        databaseService: dbService,
+        encryptionService: encryptionService,
+        dio: Dio(),
+        connectivity: Connectivity(),
+        isForcedOffline: () => false,
+        batchClient: client,
+      );
+      await first.enqueue(
+        endpoint: '/api/v1/borrowers',
+        method: 'POST',
+        payload: {'id': 'local-fixture'},
+        entityType: 'borrower',
+        entityLocalId: 'local-fixture',
+      );
+
+      final firstDrain = first.drainQueue(force: true);
+      await client.entered.future;
+      final secondDrain = second.drainQueue(force: true);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      client.release.complete();
+      await Future.wait([firstDrain, secondDrain]);
+
+      expect(client.submissions, 1);
+      expect((await first.getQueueState()).items, isEmpty);
+    });
   });
 }

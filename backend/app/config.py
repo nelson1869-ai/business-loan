@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     ai_failure_cooldown_seconds: int = Field(default=120, ge=0, le=3600)
     assistant_rate_limit_per_minute: int = Field(default=30, ge=5, le=300)
     assistant_rate_limit_redis_url: str | None = None
+    login_rate_limit_per_minute: int = Field(default=5, ge=1, le=100)
     business_timezone: str = "Asia/Manila"
     currency_code: str = Field(default="PHP", min_length=3, max_length=3)
 

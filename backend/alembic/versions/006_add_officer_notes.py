@@ -7,6 +7,7 @@ Revises: 005_loan_lifecycle
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "006_officer_notes"

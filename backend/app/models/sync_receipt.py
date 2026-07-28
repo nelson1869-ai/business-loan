@@ -14,6 +14,7 @@ class SyncReceipt(Base):
     __tablename__ = "sync_receipts"
 
     transaction_uuid: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     applied_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

@@ -26,9 +26,7 @@ class Note(Base):
     author_user_id: Mapped[str] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
     )
-    category: Mapped[str] = mapped_column(
-        String(40), nullable=False, default="General"
-    )
+    category: Mapped[str] = mapped_column(String(40), nullable=False, default="General")
     content: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

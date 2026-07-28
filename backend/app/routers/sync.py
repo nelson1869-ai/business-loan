@@ -5,25 +5,6 @@ from pydantic import ValidationError
 from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from app.dependencies import CurrentUser, DbSession
-from app.schemas.borrower import BorrowerCreate, BorrowerUpdate
-from app.schemas.business_setting import BusinessSettingUpdate
-from app.schemas.loan import LoanCreate
-from app.schemas.payment import PaymentCreate, PaymentReversalCreate
-from app.schemas.note import NoteCreate
-from app.schemas.document import DocumentCreate
-from app.schemas.collection_task import (
-    CollectionTaskComplete,
-    CollectionTaskCreate,
-    PromiseStatusUpdate,
-)
-from app.schemas.sync import (
-    SyncBatchRequest,
-    SyncBatchResponse,
-    SyncFailure,
-    SyncQueueItem,
-)
-from app.services import borrower_service, loan_service, payment_service
-from app.services import note_service
 from app.models.document import Document
 from app.models.note import Note
 from app.models.sync_receipt import SyncReceipt
@@ -33,6 +14,24 @@ from app.routers import (
     documents,
     notifications,
 )
+from app.schemas.borrower import BorrowerCreate, BorrowerUpdate
+from app.schemas.business_setting import BusinessSettingUpdate
+from app.schemas.collection_task import (
+    CollectionTaskComplete,
+    CollectionTaskCreate,
+    PromiseStatusUpdate,
+)
+from app.schemas.document import DocumentCreate
+from app.schemas.loan import LoanCreate
+from app.schemas.note import NoteCreate
+from app.schemas.payment import PaymentCreate, PaymentReversalCreate
+from app.schemas.sync import (
+    SyncBatchRequest,
+    SyncBatchResponse,
+    SyncFailure,
+    SyncQueueItem,
+)
+from app.services import borrower_service, loan_service, note_service, payment_service
 
 router = APIRouter(prefix="/api/v1/sync", tags=["Offline Sync"])
 
@@ -213,9 +212,8 @@ async def _replay_item(
         )
         return
 
-    if (
-        item.endpoint.startswith("/api/v1/notifications/")
-        and item.endpoint.endswith("/read")
+    if item.endpoint.startswith("/api/v1/notifications/") and item.endpoint.endswith(
+        "/read"
     ):
         await notifications.mark_read(
             item.endpoint.split("/")[4],
@@ -224,7 +222,9 @@ async def _replay_item(
         )
         return
 
-    if item.endpoint.startswith("/api/v1/borrowers") or item.endpoint.startswith("/borrowers"):
+    if item.endpoint.startswith("/api/v1/borrowers") or item.endpoint.startswith(
+        "/borrowers"
+    ):
         borrower_id = item.endpoint.rsplit("/", maxsplit=1)[-1]
         if item.method == "POST":
             if item.endpoint.rstrip("/") not in ("/api/v1/borrowers", "/borrowers"):
@@ -279,11 +279,27 @@ async def drain_sync_queue(
     failures: list[SyncFailure] = []
     for item in sorted(payload.items, key=lambda queued: queued.created_at):
         try:
-            if await db.get(SyncReceipt, item.transaction_uuid) is not None:
+            receipt = await db.get(SyncReceipt, item.transaction_uuid)
+            if receipt is not None:
+                if receipt.user_id is not None and receipt.user_id != current_user.id:
+                    failures.append(
+                        SyncFailure(
+                            transaction_uuid=item.transaction_uuid,
+                            code="IDEMPOTENCY_CONFLICT",
+                            detail="Transaction receipt belongs to another actor",
+                            retryable=False,
+                        )
+                    )
+                    continue
                 synced.append(item.transaction_uuid)
                 continue
             await _replay_item(item, db, current_user)
-            db.add(SyncReceipt(transaction_uuid=item.transaction_uuid))
+            db.add(
+                SyncReceipt(
+                    transaction_uuid=item.transaction_uuid,
+                    user_id=current_user.id,
+                )
+            )
             await db.commit()
             synced.append(item.transaction_uuid)
         except SyncReplayError as error:
