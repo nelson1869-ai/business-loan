@@ -249,7 +249,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                                 .where(
                                   (i) =>
                                       i.status == QueueItemStatus.pending ||
-                                      i.status == QueueItemStatus.retryableFailed,
+                                      i.status ==
+                                          QueueItemStatus.retryableFailed,
                                 )
                                 .toList();
                             final countBefore = actionableItems.length;
@@ -278,9 +279,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                             );
                             await offlineSyncService.drainQueue(force: true);
                             ref
-                                .read(
-                                  offlineSyncQueueNotifierProvider.notifier,
-                                )
+                                .read(offlineSyncQueueNotifierProvider.notifier)
                                 .refreshQueueState();
                             final updatedState = await offlineSyncService
                                 .getQueueState();
@@ -288,7 +287,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                                 .where(
                                   (i) =>
                                       i.status == QueueItemStatus.pending ||
-                                      i.status == QueueItemStatus.retryableFailed,
+                                      i.status ==
+                                          QueueItemStatus.retryableFailed,
                                 )
                                 .length;
                             final syncedCount = countBefore - countAfter;

@@ -468,55 +468,56 @@ class LocalLoanRepository {
 
     var appliedToInstallment = false;
     final appliedCents =
-        LoanCalculator.parseCents(
-          preview.appliedInterest,
-          'appliedInterest',
-        ) +
-        LoanCalculator.parseCents(
-          preview.appliedPrincipal,
-          'appliedPrincipal',
-        );
-    final updatedInstallments = loan.installments.map((installment) {
-      if (!appliedToInstallment &&
-          installment.status != 'Paid' &&
-          installment.status != 'Cancelled') {
-        appliedToInstallment = true;
-        final paidCents =
-            LoanCalculator.parseCents(installment.paidAmount, 'paidAmount') +
-            appliedCents;
-        return Installment(
-          id: installment.id,
-          loanId: installment.loanId,
-          installmentNumber: installment.installmentNumber,
-          dueDate: installment.dueDate,
-          expectedPayment: installment.expectedPayment,
-          expectedInterest: installment.expectedInterest,
-          expectedPrincipal: installment.expectedPrincipal,
-          expectedRemainingPrincipal: installment.expectedRemainingPrincipal,
-          paidAmount: LoanCalculator.formatCents(paidCents),
-          status: preview.isPayoff ? 'Paid' : 'PartiallyPaid',
-          createdAt: installment.createdAt,
-        );
-      }
-      if (preview.isPayoff &&
-          installment.status != 'Paid' &&
-          installment.status != 'Cancelled') {
-        return Installment(
-          id: installment.id,
-          loanId: installment.loanId,
-          installmentNumber: installment.installmentNumber,
-          dueDate: installment.dueDate,
-          expectedPayment: installment.expectedPayment,
-          expectedInterest: installment.expectedInterest,
-          expectedPrincipal: installment.expectedPrincipal,
-          expectedRemainingPrincipal: installment.expectedRemainingPrincipal,
-          paidAmount: installment.paidAmount,
-          status: 'Cancelled',
-          createdAt: installment.createdAt,
-        );
-      }
-      return installment;
-    }).toList(growable: false);
+        LoanCalculator.parseCents(preview.appliedInterest, 'appliedInterest') +
+        LoanCalculator.parseCents(preview.appliedPrincipal, 'appliedPrincipal');
+    final updatedInstallments = loan.installments
+        .map((installment) {
+          if (!appliedToInstallment &&
+              installment.status != 'Paid' &&
+              installment.status != 'Cancelled') {
+            appliedToInstallment = true;
+            final paidCents =
+                LoanCalculator.parseCents(
+                  installment.paidAmount,
+                  'paidAmount',
+                ) +
+                appliedCents;
+            return Installment(
+              id: installment.id,
+              loanId: installment.loanId,
+              installmentNumber: installment.installmentNumber,
+              dueDate: installment.dueDate,
+              expectedPayment: installment.expectedPayment,
+              expectedInterest: installment.expectedInterest,
+              expectedPrincipal: installment.expectedPrincipal,
+              expectedRemainingPrincipal:
+                  installment.expectedRemainingPrincipal,
+              paidAmount: LoanCalculator.formatCents(paidCents),
+              status: preview.isPayoff ? 'Paid' : 'PartiallyPaid',
+              createdAt: installment.createdAt,
+            );
+          }
+          if (preview.isPayoff &&
+              installment.status != 'Paid' &&
+              installment.status != 'Cancelled') {
+            return Installment(
+              id: installment.id,
+              loanId: installment.loanId,
+              installmentNumber: installment.installmentNumber,
+              dueDate: installment.dueDate,
+              expectedPayment: installment.expectedPayment,
+              expectedInterest: installment.expectedInterest,
+              expectedPrincipal: installment.expectedPrincipal,
+              expectedRemainingPrincipal:
+                  installment.expectedRemainingPrincipal,
+              paidAmount: installment.paidAmount,
+              status: 'Cancelled',
+              createdAt: installment.createdAt,
+            );
+          }
+          return installment;
+        })
+        .toList(growable: false);
 
     await saveLoan(
       Loan(

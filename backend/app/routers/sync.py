@@ -224,33 +224,48 @@ async def _replay_item(
         )
         return
 
-    borrower_id = item.endpoint.rsplit("/", maxsplit=1)[-1]
-    if item.method == "POST":
-        payload = BorrowerCreate.model_validate(item.payload)
-        existing = await borrower_service.get_borrower(db, payload.id)
-        if existing is None:
-            await borrower_service.create_borrower(db, payload, current_user)
-        return
-
-    borrower = await borrower_service.get_borrower(db, borrower_id)
-    if item.method == "DELETE":
-        if borrower is not None:
-            try:
-                await borrower_service.delete_borrower(db, borrower, current_user)
-            except borrower_service.BorrowerHasOpenLoansError as error:
+    if item.endpoint.startswith("/api/v1/borrowers") or item.endpoint.startswith("/borrowers"):
+        borrower_id = item.endpoint.rsplit("/", maxsplit=1)[-1]
+        if item.method == "POST":
+            if item.endpoint.rstrip("/") not in ("/api/v1/borrowers", "/borrowers"):
                 raise SyncReplayError(
-                    "INVALID_WORKFLOW_STATE",
-                    str(error),
+                    "UNSUPPORTED_ENDPOINT",
+                    f"Endpoint or method is not supported for sync: {item.method} {item.endpoint}",
                     retryable=False,
-                ) from error
-        return
+                )
+            payload = BorrowerCreate.model_validate(item.payload)
+            existing = await borrower_service.get_borrower(db, payload.id)
+            if existing is None:
+                await borrower_service.create_borrower(db, payload, current_user)
+            return
 
-    if borrower is None:
-        raise SyncReplayError(
-            "RESOURCE_NOT_FOUND", "Borrower does not exist", retryable=False
-        )
-    payload = BorrowerUpdate.model_validate(item.payload)
-    await borrower_service.update_borrower(db, borrower, payload, current_user)
+        borrower = await borrower_service.get_borrower(db, borrower_id)
+        if item.method == "DELETE":
+            if borrower is not None:
+                try:
+                    await borrower_service.delete_borrower(db, borrower, current_user)
+                except borrower_service.BorrowerHasOpenLoansError as error:
+                    raise SyncReplayError(
+                        "INVALID_WORKFLOW_STATE",
+                        str(error),
+                        retryable=False,
+                    ) from error
+            return
+
+        if item.method in ("PUT", "PATCH"):
+            if borrower is None:
+                raise SyncReplayError(
+                    "RESOURCE_NOT_FOUND", "Borrower does not exist", retryable=False
+                )
+            payload = BorrowerUpdate.model_validate(item.payload)
+            await borrower_service.update_borrower(db, borrower, payload, current_user)
+            return
+
+    raise SyncReplayError(
+        "UNSUPPORTED_ENDPOINT",
+        f"Endpoint or method is not supported for sync: {item.method} {item.endpoint}",
+        retryable=False,
+    )
 
 
 @router.post("/drain", response_model=SyncBatchResponse)

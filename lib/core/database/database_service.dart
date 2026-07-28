@@ -78,7 +78,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 9,
+      version: 10,
       // Foreground UI and WorkManager run in separate provider containers.
       // They must not share sqflite's cached handle because disposing the
       // background container would otherwise close the foreground connection.
@@ -301,7 +301,10 @@ class DatabaseService {
         last_error_code TEXT,
         last_error_message TEXT,
         next_retry_at TEXT,
-        server_resource_id TEXT
+        server_resource_id TEXT,
+        user_id TEXT,
+        drain_lease_id TEXT,
+        lease_acquired_at TEXT
       )
     ''');
 
@@ -368,6 +371,39 @@ class DatabaseService {
     if (oldVersion < 9) {
       await _createAssistantIndexes(db);
     }
+    if (oldVersion < 10) {
+      await _upgradeToVersion10(db);
+    }
+  }
+
+  Future<void> _upgradeToVersion10(Database db) async {
+    final queueCols = [
+      "ALTER TABLE offline_sync_queue ADD COLUMN user_id TEXT",
+      "ALTER TABLE offline_sync_queue ADD COLUMN drain_lease_id TEXT",
+      "ALTER TABLE offline_sync_queue ADD COLUMN lease_acquired_at TEXT",
+    ];
+    for (final sql in queueCols) {
+      try {
+        await db.execute(sql);
+      } catch (_) {}
+    }
+
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_sync_queue_status_user '
+      'ON offline_sync_queue (status, user_id)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_sync_queue_lease '
+      'ON offline_sync_queue (drain_lease_id, lease_acquired_at)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_sync_queue_entity '
+      'ON offline_sync_queue (entity_type, entity_local_id)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_sync_queue_tx_uuid '
+      'ON offline_sync_queue (transaction_uuid)',
+    );
   }
 
   Future<void> _createAssistantIndexes(Database db) async {

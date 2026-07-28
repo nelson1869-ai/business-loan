@@ -264,7 +264,6 @@ class DashboardRepository {
     );
   }
 
-
   Future<void> _refreshPrimaryCaches() async {
     try {
       if (!await _healthService.isServerReachable()) return;

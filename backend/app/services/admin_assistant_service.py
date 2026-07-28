@@ -11,11 +11,11 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from difflib import SequenceMatcher
 from time import monotonic
-from typing import Literal
+from typing import Any, Callable, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -80,6 +80,30 @@ class AnonymousAIPayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class ProviderChatMessage(BaseModel):
+    """Strict subset of an OpenAI-compatible provider message."""
+
+    content: str = Field(min_length=1, max_length=1200)
+
+    model_config = ConfigDict(extra="ignore", strict=True)
+
+
+class ProviderChatChoice(BaseModel):
+    """Strict subset of one provider choice."""
+
+    message: ProviderChatMessage
+
+    model_config = ConfigDict(extra="ignore", strict=True)
+
+
+class ProviderChatCompletion(BaseModel):
+    """Validated provider response envelope."""
+
+    choices: list[ProviderChatChoice] = Field(min_length=1, max_length=10)
+
+    model_config = ConfigDict(extra="ignore", strict=True)
+
+
 _AI_ALLOWED_FIELDS = frozenset(AnonymousAIPayload.model_fields)
 
 
@@ -97,6 +121,9 @@ def assert_ai_payload_allowlisted(payload: AnonymousAIPayload) -> dict[str, obje
         "user_id",
         "phone",
         "national_id",
+        "address",
+        "email",
+        "government_id",
         "notes",
         "documents",
         "message",
@@ -109,7 +136,7 @@ def assert_ai_payload_allowlisted(payload: AnonymousAIPayload) -> dict[str, obje
 
 def classify_question(message: str) -> AssistantIntent:
     """Resolve an intent locally without model-generated tools or arguments."""
-    text = " ".join(message.lower().replace("’", "'").split())
+    text = _normalize_phrase(message)
     if text.strip("!.,? ") in {"hi", "hello", "hey", "help", "kumusta", "tulong"}:
         return "help"
     if any(
@@ -127,6 +154,8 @@ def classify_question(message: str) -> AssistantIntent:
             "find borrower",
             "search borrower",
             "search for borrower",
+            "listahan sang borrower",
+            "mga nangutang",
         )
     ):
         return "borrower_directory"
@@ -155,6 +184,10 @@ def classify_question(message: str) -> AssistantIntent:
             "payments made",
             "susunod",
             "kailan",
+            "pila",
+            "gin utang",
+            "ginhulam",
+            "san o",
         )
     )
     if borrower_hint:
@@ -170,6 +203,8 @@ def classify_question(message: str) -> AssistantIntent:
                 "original principal",
                 "magkano hiniram",
                 "halaga ng utang",
+                "pila gin utang",
+                "pila ginhulam",
             )
         ):
             return "borrower_principal"
@@ -178,18 +213,23 @@ def classify_question(message: str) -> AssistantIntent:
             or "payments made" in text
             or "mga binayad" in text
             or "nakaraang bayad" in text
+            or "mga nabayran" in text
         ):
             return "borrower_payment_history"
         if (
-            ("next" in text or "susunod" in text or "kailan" in text)
-            and ("payment" in text or "due" in text or "bayad" in text)
-        ):
+            "next" in text
+            or "susunod" in text
+            or "kailan" in text
+            or "san o" in text
+            or "sunod" in text
+        ) and ("payment" in text or "due" in text or "bayad" in text):
             return "borrower_next_payment"
         if (
             "overdue" in text
             or "late installment" in text
             or "huling bayad" in text
             or "lampas due" in text
+            or "nalapas" in text
         ):
             return "borrower_overdue_installments"
         if "summary" in text or "position" in text:
@@ -203,6 +243,8 @@ def classify_question(message: str) -> AssistantIntent:
                 "outstanding",
                 "natitirang utang",
                 "magkano utang",
+                "pila utang",
+                "saldo",
             )
         ):
             return "borrower_balance"
@@ -215,19 +257,37 @@ def classify_question(message: str) -> AssistantIntent:
             "hindi nagbayad today",
             "di nagbayad today",
             "due ngayon",
+            "bayran subong",
+            "wala nagbayad subong",
         )
     ):
         return "unpaid_today"
-    if any(day in text for day in ("tomorrow", "bukas")) and any(
+    if any(day in text for day in ("tomorrow", "bukas", "buwas")) and any(
         term in text for term in ("due", "pay", "payment", "bayad", "magbayad")
     ):
         return "due_tomorrow"
     if any(
         term in text
-        for term in ("overdue", "late payment", "past due", "lampas due", "late na")
+        for term in (
+            "overdue",
+            "late payment",
+            "past due",
+            "lampas due",
+            "late na",
+            "nalapas",
+        )
     ):
         return "overdue"
-    if any(term in text for term in ("this month", "monthly", "ngayong buwan")) and any(
+    if any(
+        term in text
+        for term in (
+            "this month",
+            "monthly",
+            "ngayong buwan",
+            "sini nga bulan",
+            "subong nga bulan",
+        )
+    ) and any(
         term in text
         for term in (
             "income",
@@ -248,6 +308,7 @@ def classify_question(message: str) -> AssistantIntent:
             "dashboard summary",
             "active loans",
             "outstanding",
+            "kabug usan nga portfolio",
         )
     ):
         return "portfolio_summary"
@@ -257,10 +318,16 @@ def classify_question(message: str) -> AssistantIntent:
     )
 
 
+def _normalize_phrase(message: str) -> str:
+    text = message.lower().replace("’", "'").replace("-", " ")
+    text = re.sub(r"[^a-z0-9' ]", " ", text)
+    return " ".join(text.split())
+
+
 def route_question(message: str) -> IntentRoute:
     """Classify locally and expose a conservative route confidence score."""
     intent = classify_question(message)
-    text = " ".join(message.lower().replace("’", "'").split())
+    text = _normalize_phrase(message)
     exact_suggestions = {
         "how much was collected this month?": "collections_this_month",
         "who has not paid today?": "unpaid_today",
@@ -285,6 +352,10 @@ def route_question(message: str) -> IntentRoute:
         confidence = 96
     else:
         confidence = 90
+    if confidence < 80:
+        raise UnsupportedAssistantQuestion(
+            "I couldn't match that question confidently. Please rephrase it."
+        )
     return IntentRoute(
         intent=intent,
         route=f"admin_assistant.{intent}",
@@ -405,20 +476,37 @@ async def _enhance_with_ai(
                     if attempt < settings.ai_max_retries:
                         continue
                     raise
-        content = response.json()["choices"][0]["message"]["content"]
-        if not isinstance(content, str) or not content.strip():
+        try:
+            completion = ProviderChatCompletion.model_validate(response.json())
+        except ValueError, ValidationError:
             return None, "invalid_response"
-        answer = content.strip()[:1200]
+        answer = completion.choices[0].message.content.strip()
         allowed_numbers = set(re.findall(r"\d+(?:\.\d+)?", json.dumps(safe_payload)))
         generated_numbers = set(re.findall(r"\d+(?:\.\d+)?", answer.replace(",", "")))
         prohibited = (
             "approve",
+            "approval",
             "reject",
+            "rejection",
             "creditworthy",
             "recommend",
+            "advice",
             "legal action",
+            "legal advice",
             "risk score",
             "change the rate",
+            "improving",
+            "declining",
+            "healthy",
+            "risky",
+            "strong",
+            "weak",
+            "likely to pay",
+            "unlikely to pay",
+            "threaten",
+            "seize",
+            "arrest",
+            "collection threat",
         )
         if not generated_numbers.issubset(allowed_numbers) or any(
             term in answer.lower() for term in prohibited
@@ -431,7 +519,13 @@ async def _enhance_with_ai(
                 expires_at=now + settings.ai_cache_ttl_seconds,
             )
         return answer, "enhanced"
-    except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as error:
+    except (
+        httpx.HTTPError,
+        IndexError,
+        TypeError,
+        ValueError,
+        ValidationError,
+    ) as error:
         _ai_state.consecutive_failures += 1
         if _ai_state.consecutive_failures >= 3:
             _ai_state.cooldown_until = now + settings.ai_failure_cooldown_seconds
@@ -450,31 +544,72 @@ async def _resolve_borrower(
     db: AsyncSession,
     message: str,
     selected_borrower_id: str | None,
+    borrower_scope: Callable[[Any], Any] | None = None,
 ) -> tuple[Borrower | None, BorrowerClarification | None]:
+    scope = borrower_scope or apply_admin_borrower_scope
     if selected_borrower_id:
-        borrower = await db.get(Borrower, selected_borrower_id)
-        if borrower is None or borrower.status == "Deleted":
+        borrower = (
+            await db.execute(
+                scope(select(Borrower).where(Borrower.id == selected_borrower_id))
+            )
+        ).scalar_one_or_none()
+        if borrower is None:
             raise BorrowerNotFound("Borrower not found")
         return borrower, None
 
-    borrowers = list(
-        (
-            await db.execute(
-                select(Borrower)
-                .where(Borrower.status != "Deleted")
-                .order_by(Borrower.last_name, Borrower.first_name)
-            )
-        ).scalars()
-    )
     normalized_message = re.sub(r"[^a-z0-9 ]", " ", message.lower())
     normalized_message = " ".join(normalized_message.split())
+    name_tokens = _borrower_name_tokens(normalized_message)
+    name_ngrams = {
+        " ".join(name_tokens[start:end])
+        for start in range(len(name_tokens))
+        for end in range(start + 2, min(len(name_tokens), start + 4) + 1)
+    }
+    full_name = func.lower(Borrower.first_name + " " + Borrower.last_name)
+    exact_candidates: list[Borrower] = []
+    if name_ngrams:
+        exact_candidates = list(
+            (
+                await db.execute(
+                    scope(select(Borrower))
+                    .where(full_name.in_(name_ngrams))
+                    .order_by(Borrower.last_name, Borrower.first_name)
+                    .limit(20)
+                )
+            ).scalars()
+        )
+    if exact_candidates:
+        borrowers = exact_candidates
+    else:
+        partial_conditions = [
+            or_(
+                func.lower(Borrower.first_name).contains(token[:3]),
+                func.lower(Borrower.last_name).contains(token[:3]),
+            )
+            for token in name_tokens
+        ]
+        statement = scope(select(Borrower))
+        if partial_conditions:
+            statement = statement.where(or_(*partial_conditions))
+        borrowers = list(
+            (
+                await db.execute(
+                    statement.order_by(Borrower.last_name, Borrower.first_name).limit(
+                        50
+                    )
+                )
+            ).scalars()
+        )
     exact: list[Borrower] = []
+    partial: list[Borrower] = []
     scored: list[tuple[float, Borrower]] = []
     for borrower in borrowers:
         full_name = f"{borrower.first_name} {borrower.last_name}".strip().lower()
         normalized_name = re.sub(r"[^a-z0-9 ]", " ", full_name)
         if normalized_name and normalized_name in normalized_message:
             exact.append(borrower)
+        elif any(len(token) >= 3 and token in normalized_name for token in name_tokens):
+            partial.append(borrower)
         else:
             words = normalized_message.split()
             name_word_count = max(1, len(normalized_name.split()))
@@ -518,9 +653,14 @@ async def _resolve_borrower(
         )
     if not exact and refers_to_previous and len(borrowers) == 1:
         return borrowers[0], None
-    matches = exact or [
-        item[1] for item in sorted(scored, key=lambda item: item[0], reverse=True)[:5]
-    ]
+    matches = (
+        exact
+        or partial
+        or [
+            item[1]
+            for item in sorted(scored, key=lambda item: item[0], reverse=True)[:5]
+        ]
+    )
     if not matches:
         raise BorrowerNotFound(
             "I couldn't identify the borrower. Include their full name and try again."
@@ -539,6 +679,51 @@ async def _resolve_borrower(
         message="Multiple authorized borrowers match. Select the correct borrower.",
         options=options,
     )
+
+
+def apply_admin_borrower_scope(statement: Any) -> Any:
+    """Apply the reusable current-admin borrower authorization scope."""
+    return statement.where(Borrower.status != "Deleted")
+
+
+def _borrower_name_tokens(message: str) -> list[str]:
+    stopwords = {
+        "a",
+        "about",
+        "ang",
+        "borrow",
+        "borrowed",
+        "borrower",
+        "did",
+        "does",
+        "due",
+        "history",
+        "how",
+        "installment",
+        "kailan",
+        "loan",
+        "magkano",
+        "mga",
+        "much",
+        "ni",
+        "next",
+        "owe",
+        "owes",
+        "payment",
+        "principal",
+        "show",
+        "still",
+        "summary",
+        "susunod",
+        "the",
+        "their",
+        "they",
+        "utang",
+        "what",
+    }
+    return [
+        token for token in message.split() if len(token) >= 2 and token not in stopwords
+    ][:8]
 
 
 async def _operational_records(
@@ -616,9 +801,7 @@ async def _borrower_directory(
                 or_(
                     Borrower.first_name.ilike(pattern),
                     Borrower.last_name.ilike(pattern),
-                    (
-                        Borrower.first_name + " " + Borrower.last_name
-                    ).ilike(pattern),
+                    (Borrower.first_name + " " + Borrower.last_name).ilike(pattern),
                 )
             )
     total = await db.scalar(select(func.count(Borrower.id)).where(*conditions))
@@ -768,7 +951,9 @@ def _local_answer(
         if count == 0:
             return "No active borrower records were found."
         noun = "borrower" if count == 1 else "borrowers"
-        return f"I found {count} active {noun}. Select a borrower to open their profile."
+        return (
+            f"I found {count} active {noun}. Select a borrower to open their profile."
+        )
     if intent in {"unpaid_today", "due_tomorrow", "overdue"}:
         label = {
             "unpaid_today": "unpaid installments due today",
@@ -948,9 +1133,7 @@ async def answer_admin_question(
         returned_record_count=len(records),
         has_more=total_count > offset + len(records),
         next_offset=(
-            offset + len(records)
-            if total_count > offset + len(records)
-            else None
+            offset + len(records) if total_count > offset + len(records) else None
         ),
         currency=currency,
     )

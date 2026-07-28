@@ -15,6 +15,18 @@ import '../database/database_service.dart';
 import '../security/encryption_service.dart';
 import 'api_client.dart';
 import 'api_endpoints.dart';
+import 'server_health_service.dart';
+import 'sync_retry_policy.dart';
+
+/// Exception thrown when attempting to delete or cancel a queue item that has active dependencies.
+class DependencyCancellationBlockedException implements Exception {
+  DependencyCancellationBlockedException(this.message, this.dependentItemIds);
+  final String message;
+  final List<String> dependentItemIds;
+
+  @override
+  String toString() => 'DependencyCancellationBlockedException: $message';
+}
 
 /// Typed status values for items in the offline synchronization queue.
 enum QueueItemStatus {
@@ -24,6 +36,7 @@ enum QueueItemStatus {
   permanentlyFailed,
   conflict,
   cancelled,
+  blockedByDependency,
 }
 
 extension QueueItemStatusX on QueueItemStatus {
@@ -41,6 +54,8 @@ extension QueueItemStatusX on QueueItemStatus {
         return 'conflict';
       case QueueItemStatus.cancelled:
         return 'cancelled';
+      case QueueItemStatus.blockedByDependency:
+        return 'blockedByDependency';
     }
   }
 
@@ -56,10 +71,63 @@ extension QueueItemStatusX on QueueItemStatus {
         return QueueItemStatus.conflict;
       case 'cancelled':
         return QueueItemStatus.cancelled;
+      case 'blockedByDependency':
+        return QueueItemStatus.blockedByDependency;
       case 'pending':
       default:
         return QueueItemStatus.pending;
     }
+  }
+}
+
+/// Typed model representing a failure item returned by the backend sync/drain API.
+class SyncFailureDetailsModel {
+  const SyncFailureDetailsModel({
+    required this.transactionUuid,
+    required this.code,
+    required this.detail,
+    required this.retryable,
+  });
+
+  final String transactionUuid;
+  final String code;
+  final String detail;
+  final bool retryable;
+
+  factory SyncFailureDetailsModel.fromJson(Map<String, dynamic> json) {
+    return SyncFailureDetailsModel(
+      transactionUuid: json['transactionUuid'] as String? ?? '',
+      code: json['code'] as String? ?? 'UNKNOWN_ERROR',
+      detail: json['detail'] as String? ?? 'Sync failure occurred',
+      retryable: json['retryable'] as bool? ?? false,
+    );
+  }
+}
+
+/// Typed model representing the backend response to a batch sync drain request.
+class SyncDrainResponseModel {
+  const SyncDrainResponseModel({
+    required this.syncedTransactionUuids,
+    required this.failures,
+  });
+
+  final List<String> syncedTransactionUuids;
+  final List<SyncFailureDetailsModel> failures;
+
+  factory SyncDrainResponseModel.fromJson(Map<String, dynamic> json) {
+    final syncedRaw = json['syncedTransactionUuids'] as List<dynamic>? ?? [];
+    final synced = syncedRaw.whereType<String>().toList();
+
+    final failuresRaw = json['failures'] as List<dynamic>? ?? [];
+    final failures = failuresRaw
+        .whereType<Map<String, dynamic>>()
+        .map(SyncFailureDetailsModel.fromJson)
+        .toList();
+
+    return SyncDrainResponseModel(
+      syncedTransactionUuids: synced,
+      failures: failures,
+    );
   }
 }
 
@@ -78,11 +146,14 @@ class OfflineQueueItemModel {
     required this.createdAt,
     required this.status,
     required this.retryCount,
+    this.userId,
     this.lastAttemptAt,
     this.lastErrorCode,
     this.lastErrorMessage,
     this.nextRetryAt,
     this.serverResourceId,
+    this.drainLeaseId,
+    this.leaseAcquiredAt,
   });
 
   final String id;
@@ -97,11 +168,14 @@ class OfflineQueueItemModel {
   final DateTime createdAt;
   final QueueItemStatus status;
   final int retryCount;
+  final String? userId;
   final DateTime? lastAttemptAt;
   final String? lastErrorCode;
   final String? lastErrorMessage;
   final DateTime? nextRetryAt;
   final String? serverResourceId;
+  final String? drainLeaseId;
+  final DateTime? leaseAcquiredAt;
 }
 
 /// Model representing a sync conflict requiring resolution.
@@ -138,6 +212,9 @@ class OfflineQueueState {
     this.items = const [],
     this.conflicts = const [],
     this.lastSyncedAt,
+    this.lastAttemptAt,
+    this.lastPartialSyncAt,
+    this.lastErrorCode,
     this.isSyncing = false,
     this.processedCount = 0,
     this.processingTotal = 0,
@@ -151,6 +228,9 @@ class OfflineQueueState {
   final List<OfflineQueueItemModel> items;
   final List<SyncConflictModel> conflicts;
   final DateTime? lastSyncedAt;
+  final DateTime? lastAttemptAt;
+  final DateTime? lastPartialSyncAt;
+  final String? lastErrorCode;
   final bool isSyncing;
   final int processedCount;
   final int processingTotal;
@@ -164,17 +244,29 @@ class OfflineSyncService {
     required Dio dio,
     required Connectivity connectivity,
     required bool Function() isForcedOffline,
+    ServerHealthService? serverHealthService,
+    String? Function()? getCurrentUserId,
+    SyncRetryPolicy retryPolicy = const SyncRetryPolicy(),
+    Random? random,
   }) : _databaseService = databaseService,
        _encryptionService = encryptionService,
        _dio = dio,
        _connectivity = connectivity,
-       _isForcedOffline = isForcedOffline;
+       _isForcedOffline = isForcedOffline,
+       _serverHealthService = serverHealthService,
+       _getCurrentUserId = getCurrentUserId,
+       _retryPolicy = retryPolicy,
+       _random = random;
 
   final DatabaseService _databaseService;
   final EncryptionService _encryptionService;
   final Dio _dio;
   final Connectivity _connectivity;
   final bool Function() _isForcedOffline;
+  final ServerHealthService? _serverHealthService;
+  final String? Function()? _getCurrentUserId;
+  final SyncRetryPolicy _retryPolicy;
+  final Random? _random;
   final Uuid _uuid = const Uuid();
 
   StreamSubscription<List<ConnectivityResult>>? _subscription;
@@ -193,15 +285,24 @@ class OfflineSyncService {
     });
   }
 
-  /// Recover any items left in 'syncing' status due to an app crash/restart.
+  /// Recover any items left in 'syncing' status due to an app crash or stale lease (> 2 mins).
   Future<void> _recoverStaleSyncingRecords() async {
     try {
       final database = await _databaseService.database;
+      final twoMinutesAgo = DateTime.now()
+          .toUtc()
+          .subtract(const Duration(minutes: 2))
+          .toIso8601String();
       await database.update(
         'offline_sync_queue',
-        {'status': 'pending'},
-        where: 'status = ?',
-        whereArgs: ['syncing'],
+        {
+          'status': QueueItemStatus.pending.toDbValue(),
+          'drain_lease_id': null,
+          'lease_acquired_at': null,
+        },
+        where:
+            "status = 'syncing' AND (lease_acquired_at IS NULL OR lease_acquired_at < ?)",
+        whereArgs: [twoMinutesAgo],
       );
       onQueueChanged?.call();
     } catch (_) {}
@@ -213,7 +314,19 @@ class OfflineSyncService {
     _subscription = null;
   }
 
-  /// Enqueues a mutation payload encrypted at rest.
+  /// Checks if an operation type and entity type can be safely coalesced.
+  bool _canCoalesce(String entityType, String operationType) {
+    if (operationType == 'update') {
+      if (entityType == 'borrower' ||
+          entityType == 'borrower_note' ||
+          entityType == 'business_setting') {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Enqueues a mutation payload encrypted at rest within a caller-supplied transaction or new database connection.
   Future<void> enqueue({
     required String endpoint,
     required String method,
@@ -222,16 +335,19 @@ class OfflineSyncService {
     String? entityLocalId,
     String operationType = 'create',
     List<String> dependencyIds = const [],
+    String? userId,
+    DatabaseExecutor? executor,
   }) async {
-    final database = await _databaseService.database;
+    final db = executor ?? await _databaseService.database;
     final encodedPayload = jsonEncode(payload);
     final encryptedPayload = await _encryptionService.encrypt(encodedPayload);
-    final transactionUuid = _uuid.v4();
+    final currentUserId = userId ?? _getCurrentUserId?.call();
 
-    if (entityLocalId != null) {
-      final existing = await database.query(
+    // Check coalescing policy for safe candidates (profile/note/settings updates)
+    if (entityLocalId != null && _canCoalesce(entityType, operationType)) {
+      final existing = await db.query(
         'offline_sync_queue',
-        columns: ['id'],
+        columns: ['id', 'transaction_uuid'],
         where:
             'entity_type = ? AND entity_local_id = ? AND operation_type = ? '
             "AND status IN ('pending', 'retryableFailed', 'syncing')",
@@ -239,7 +355,8 @@ class OfflineSyncService {
         limit: 1,
       );
       if (existing.isNotEmpty) {
-        await database.update(
+        // Coalesce payload in place without altering established transaction UUID
+        await db.update(
           'offline_sync_queue',
           {
             'endpoint': endpoint,
@@ -247,6 +364,7 @@ class OfflineSyncService {
             'payload_json': encryptedPayload,
             'dependency_ids_json': jsonEncode(dependencyIds),
             'status': QueueItemStatus.pending.toDbValue(),
+            'user_id': currentUserId,
             'next_retry_at': null,
             'last_error_code': null,
             'last_error_message': null,
@@ -259,7 +377,8 @@ class OfflineSyncService {
       }
     }
 
-    await database.insert('offline_sync_queue', {
+    final transactionUuid = _uuid.v4();
+    await db.insert('offline_sync_queue', {
       'id': _uuid.v4(),
       'transaction_uuid': transactionUuid,
       'endpoint': endpoint,
@@ -269,6 +388,7 @@ class OfflineSyncService {
       'entity_local_id': entityLocalId,
       'operation_type': operationType,
       'dependency_ids_json': jsonEncode(dependencyIds),
+      'user_id': currentUserId,
       'created_at': DateTime.now().toUtc().toIso8601String(),
       'status': QueueItemStatus.pending.toDbValue(),
       'retry_count': 0,
@@ -277,54 +397,148 @@ class OfflineSyncService {
     onQueueChanged?.call();
   }
 
-  /// Sorts rows by entity dependency order (borrower -> loan -> payment, etc.).
-  List<Map<String, dynamic>> _sortRowsByDependency(
-    List<Map<String, dynamic>> rows,
-  ) {
-    final entityTypePriority = <String, int>{
-      'borrower': 10,
-      'guarantor': 20,
-      'emergency_contact': 20,
-      'borrower_note': 20,
-      'loan': 30,
-      'loan_schedule': 40,
-      'repayment': 50,
-      'collection': 50,
-      'document': 60,
-    };
+  /// Sorts items deterministically using a DAG topological sort (Kahn's Algorithm).
+  List<Map<String, dynamic>> _sortRowsByDAG(List<Map<String, dynamic>> rows) {
+    final itemMap = <String, Map<String, dynamic>>{};
+    final txUuidMap = <String, Map<String, dynamic>>{};
+    final localIdMap = <String, Map<String, dynamic>>{};
 
-    final mutableRows = List<Map<String, dynamic>>.from(rows);
-    mutableRows.sort((a, b) {
-      final typeA = a['entity_type'] as String? ?? 'unknown';
-      final typeB = b['entity_type'] as String? ?? 'unknown';
-      final priorityA = entityTypePriority[typeA] ?? 99;
-      final priorityB = entityTypePriority[typeB] ?? 99;
-
-      if (priorityA != priorityB) {
-        return priorityA.compareTo(priorityB);
+    for (final row in rows) {
+      final id = row['id'] as String;
+      final txUuid = row['transaction_uuid'] as String;
+      final localId = row['entity_local_id'] as String?;
+      itemMap[id] = row;
+      txUuidMap[txUuid] = row;
+      if (localId != null && localId.isNotEmpty) {
+        localIdMap[localId] = row;
       }
+    }
 
+    final inDegree = <String, int>{};
+    final graph = <String, List<String>>{};
+
+    for (final id in itemMap.keys) {
+      inDegree[id] = 0;
+      graph[id] = [];
+    }
+
+    for (final row in rows) {
+      final childId = row['id'] as String;
+      final depJson = row['dependency_ids_json'] as String?;
+      if (depJson == null || depJson.isEmpty) continue;
+
+      List<String> rawDeps = const [];
+      try {
+        rawDeps = (jsonDecode(depJson) as List<dynamic>).cast<String>();
+      } catch (_) {}
+
+      for (final rawDep in rawDeps) {
+        String? parentId;
+        if (itemMap.containsKey(rawDep)) {
+          parentId = rawDep;
+        } else if (txUuidMap.containsKey(rawDep)) {
+          parentId = txUuidMap[rawDep]!['id'] as String;
+        } else if (localIdMap.containsKey(rawDep)) {
+          parentId = localIdMap[rawDep]!['id'] as String;
+        }
+
+        if (parentId != null && parentId != childId) {
+          graph[parentId]!.add(childId);
+          inDegree[childId] = (inDegree[childId] ?? 0) + 1;
+        }
+      }
+    }
+
+    int entityPriority(String type) {
+      switch (type) {
+        case 'borrower':
+          return 10;
+        case 'guarantor':
+        case 'emergency_contact':
+        case 'borrower_note':
+          return 20;
+        case 'loan':
+          return 30;
+        case 'loan_schedule':
+          return 40;
+        case 'repayment':
+        case 'collection':
+          return 50;
+        case 'document':
+          return 60;
+        default:
+          return 99;
+      }
+    }
+
+    int compareRows(Map<String, dynamic> a, Map<String, dynamic> b) {
+      final pA = entityPriority(a['entity_type'] as String? ?? '');
+      final pB = entityPriority(b['entity_type'] as String? ?? '');
+      if (pA != pB) return pA.compareTo(pB);
       final dateA = a['created_at'] as String? ?? '';
       final dateB = b['created_at'] as String? ?? '';
       return dateA.compareTo(dateB);
-    });
+    }
 
-    return mutableRows;
+    final ready = rows.where((r) => (inDegree[r['id']] ?? 0) == 0).toList();
+    ready.sort(compareRows);
+
+    final sortedResult = <Map<String, dynamic>>[];
+    while (ready.isNotEmpty) {
+      final node = ready.removeAt(0);
+      sortedResult.add(node);
+
+      final nodeId = node['id'] as String;
+      for (final neighborId in graph[nodeId] ?? <String>[]) {
+        inDegree[neighborId] = (inDegree[neighborId] ?? 1) - 1;
+        if (inDegree[neighborId] == 0 && itemMap.containsKey(neighborId)) {
+          ready.add(itemMap[neighborId]!);
+          ready.sort(compareRows);
+        }
+      }
+    }
+
+    // Append any cycle-blocked nodes at the end to ensure no items are dropped
+    if (sortedResult.length < rows.length) {
+      final addedIds = sortedResult.map((r) => r['id'] as String).toSet();
+      final remaining = rows.where((r) => !addedIds.contains(r['id'])).toList();
+      remaining.sort(compareRows);
+      sortedResult.addAll(remaining);
+    }
+
+    return sortedResult;
   }
 
   /// Replays pending/retryable queued items and removes server-confirmed rows.
   Future<void> drainQueue({bool force = false}) async {
     if (_isDraining || _isForcedOffline()) return;
+
+    final healthService = _serverHealthService;
+    if (!force && healthService != null) {
+      final reachable = await healthService.isServerReachable();
+      if (!reachable) return;
+    }
+
     _isDraining = true;
+    final now = DateTime.now().toUtc();
+    final currentUserId = _getCurrentUserId?.call();
+
     try {
+      await _recoverStaleSyncingRecords();
       final database = await _databaseService.database;
+
+      // Filter queue by current user scope if authenticated
       final rows = await database.query(
         'offline_sync_queue',
-        where: "status IN ('pending', 'retryableFailed')",
+        where: currentUserId != null && currentUserId.isNotEmpty
+            ? "status IN ('pending', 'retryableFailed') AND (user_id IS NULL OR user_id = ?)"
+            : "status IN ('pending', 'retryableFailed')",
+        whereArgs: currentUserId != null && currentUserId.isNotEmpty
+            ? [currentUserId]
+            : null,
       );
       if (rows.isEmpty) return;
 
-      final now = DateTime.now().toUtc();
       final eligibleRows = rows.where((row) {
         if (force) return true;
         final nextRetryStr = row['next_retry_at'] as String?;
@@ -339,26 +553,35 @@ class OfflineSyncService {
 
       if (eligibleRows.isEmpty) return;
 
-      final sortedRows = _sortRowsByDependency(eligibleRows);
+      final sortedRows = _sortRowsByDAG(eligibleRows);
       _processingTotal = sortedRows.length;
       _processedCount = 0;
 
+      final leaseId = _uuid.v4();
       final transactionUuids = sortedRows
           .map((r) => r['transaction_uuid'] as String)
           .toList();
 
+      // Acquire batch lease atomically in SQLite transaction
       await database.transaction((txn) async {
         for (final uuid in transactionUuids) {
           await txn.update(
             'offline_sync_queue',
             {
               'status': QueueItemStatus.syncing.toDbValue(),
+              'drain_lease_id': leaseId,
+              'lease_acquired_at': now.toIso8601String(),
               'last_attempt_at': now.toIso8601String(),
             },
             where: 'transaction_uuid = ?',
             whereArgs: [uuid],
           );
         }
+        await txn.insert('sync_metadata', {
+          'key': 'last_sync_attempt_at',
+          'value': now.toIso8601String(),
+          'updated_at': now.toIso8601String(),
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
       });
       onQueueChanged?.call();
 
@@ -381,16 +604,27 @@ class OfflineSyncService {
         data: {'items': items},
       );
 
-      final synced =
-          (response.data?['syncedTransactionUuids'] as List<dynamic>?)
-              ?.cast<String>() ??
-          const <String>[];
+      final responseData = response.data ?? <String, dynamic>{};
+      final validatedResponse = SyncDrainResponseModel.fromJson(responseData);
+      final synced = validatedResponse.syncedTransactionUuids;
+      final failures = validatedResponse.failures;
 
-      final failures = response.data?['failures'] as List<dynamic>? ?? [];
+      final submittedUuidsSet = transactionUuids.toSet();
+      final accountedUuidsSet = <String>{
+        ...synced,
+        ...failures.map((f) => f.transactionUuid),
+      };
+
+      // Identify submitted items omitted from backend response (protocol error)
+      final omittedUuids = submittedUuidsSet.difference(accountedUuidsSet);
+
+      bool hasFailures = failures.isNotEmpty || omittedUuids.isNotEmpty;
 
       await database.transaction((txn) async {
-        // Delete server-confirmed items and mark local records as synced
+        // Remove server-confirmed items and mark local records as synced
         for (final uuid in synced) {
+          if (!submittedUuidsSet.contains(uuid)) continue;
+
           final row = sortedRows.firstWhere(
             (r) => r['transaction_uuid'] == uuid,
             orElse: () => <String, dynamic>{},
@@ -417,100 +651,200 @@ class OfflineSyncService {
           _processedCount++;
         }
 
-        // Process failure items
+        // Process explicit failure items
         for (final failure in failures) {
-          if (failure is Map<String, dynamic>) {
-            final uuid = failure['transactionUuid'] as String?;
-            if (uuid == null) continue;
-            final code = failure['code'] as String? ?? 'UNKNOWN_ERROR';
-            final detail =
-                failure['detail'] as String? ?? 'Sync failure occurred';
-            final retryable = failure['retryable'] as bool? ?? false;
+          final uuid = failure.transactionUuid;
+          if (!submittedUuidsSet.contains(uuid)) continue;
 
-            final existing = sortedRows.firstWhere(
-              (r) => r['transaction_uuid'] == uuid,
-              orElse: () => <String, dynamic>{},
-            );
+          final code = failure.code;
+          final detail = SyncRetryPolicy.sanitizeErrorMessage(
+            failure.detail,
+            code,
+          );
+          final retryable = failure.retryable;
 
-            final currentRetryCount =
-                (existing['retry_count'] as num?)?.toInt() ?? 0;
-            final newRetryCount = currentRetryCount + 1;
+          final existing = sortedRows.firstWhere(
+            (r) => r['transaction_uuid'] == uuid,
+            orElse: () => <String, dynamic>{},
+          );
 
-            final nextRetryDelaySec = min(
-              300,
-              pow(2, newRetryCount).toInt() * 5,
-            );
-            final nextRetryAt = now.add(Duration(seconds: nextRetryDelaySec));
+          final currentRetryCount =
+              (existing['retry_count'] as num?)?.toInt() ?? 0;
+          final newRetryCount = currentRetryCount + 1;
+          final nextRetryAt = _retryPolicy.calculateNextRetryAt(
+            lastAttemptAt: now,
+            retryCount: newRetryCount,
+            customRandom: _random,
+          );
 
-            final newStatus = code == 'IDEMPOTENCY_CONFLICT'
-                ? QueueItemStatus.conflict
-                : (retryable
-                      ? QueueItemStatus.retryableFailed
-                      : QueueItemStatus.permanentlyFailed);
+          final newStatus = code == 'IDEMPOTENCY_CONFLICT'
+              ? QueueItemStatus.conflict
+              : (retryable
+                    ? QueueItemStatus.retryableFailed
+                    : QueueItemStatus.permanentlyFailed);
 
-            await txn.update(
-              'offline_sync_queue',
-              {
-                'status': newStatus.toDbValue(),
-                'retry_count': newRetryCount,
-                'last_error_code': code,
-                'last_error_message': detail,
-                'next_retry_at': nextRetryAt.toIso8601String(),
-              },
-              where: 'transaction_uuid = ?',
-              whereArgs: [uuid],
-            );
-            _processedCount++;
+          await txn.update(
+            'offline_sync_queue',
+            {
+              'status': newStatus.toDbValue(),
+              'retry_count': newRetryCount,
+              'last_error_code': code,
+              'last_error_message': detail,
+              'next_retry_at': nextRetryAt.toIso8601String(),
+              'drain_lease_id': null,
+              'lease_acquired_at': null,
+            },
+            where: 'transaction_uuid = ?',
+            whereArgs: [uuid],
+          );
+          _processedCount++;
 
-            if (newStatus == QueueItemStatus.conflict) {
-              await txn.insert('sync_conflicts', {
-                'id': _uuid.v4(),
-                'entity_type': existing['entity_type'] ?? 'unknown',
-                'local_id': existing['entity_local_id'] ?? uuid,
-                'server_id': null,
-                'local_data_json': jsonEncode({
-                  'redacted': true,
-                  'operation': existing['operation_type'] ?? 'unknown',
-                }),
-                'server_data_json': jsonEncode({
-                  'redacted': true,
-                  'errorCode': code,
-                }),
-                'detected_at': now.toIso8601String(),
-                'status': 'unresolved',
-              }, conflictAlgorithm: ConflictAlgorithm.ignore);
-            }
+          if (newStatus == QueueItemStatus.conflict) {
+            await txn.insert('sync_conflicts', {
+              'id': _uuid.v4(),
+              'entity_type': existing['entity_type'] ?? 'unknown',
+              'local_id': existing['entity_local_id'] ?? uuid,
+              'server_id': null,
+              'local_data_json': jsonEncode({
+                'redacted': true,
+                'operation': existing['operation_type'] ?? 'unknown',
+              }),
+              'server_data_json': jsonEncode({
+                'redacted': true,
+                'errorCode': code,
+              }),
+              'detected_at': now.toIso8601String(),
+              'status': 'unresolved',
+            }, conflictAlgorithm: ConflictAlgorithm.ignore);
+          }
 
-            if (existing.isNotEmpty) {
-              final entityType = existing['entity_type'] as String?;
-              final entityLocalId = existing['entity_local_id'] as String?;
-              if (entityType != null && entityLocalId != null) {
-                await _updateLocalEntitySyncStatus(
-                  txn,
-                  entityType,
-                  entityLocalId,
-                  newStatus == QueueItemStatus.conflict ? 'conflict' : 'failed',
-                  detail,
-                );
-              }
+          if (existing.isNotEmpty) {
+            final entityType = existing['entity_type'] as String?;
+            final entityLocalId = existing['entity_local_id'] as String?;
+            if (entityType != null && entityLocalId != null) {
+              await _updateLocalEntitySyncStatus(
+                txn,
+                entityType,
+                entityLocalId,
+                newStatus == QueueItemStatus.conflict ? 'conflict' : 'failed',
+                detail,
+              );
             }
           }
         }
 
-        // Store last successful sync metadata
-        await txn.insert('sync_metadata', {
-          'key': 'last_synced_at',
-          'value': now.toIso8601String(),
-          'updated_at': now.toIso8601String(),
-        }, conflictAlgorithm: ConflictAlgorithm.replace);
+        // Handle omitted submitted UUIDs as protocol failures (never leave stuck in syncing)
+        for (final uuid in omittedUuids) {
+          final existing = sortedRows.firstWhere(
+            (r) => r['transaction_uuid'] == uuid,
+            orElse: () => <String, dynamic>{},
+          );
+          final currentRetryCount =
+              (existing['retry_count'] as num?)?.toInt() ?? 0;
+          final newRetryCount = currentRetryCount + 1;
+          final nextRetryAt = _retryPolicy.calculateNextRetryAt(
+            lastAttemptAt: now,
+            retryCount: newRetryCount,
+            customRandom: _random,
+          );
+
+          await txn.update(
+            'offline_sync_queue',
+            {
+              'status': QueueItemStatus.retryableFailed.toDbValue(),
+              'retry_count': newRetryCount,
+              'last_error_code': SanitizedErrorCategory.protocolError,
+              'last_error_message':
+                  'Submitted item omitted from server response',
+              'next_retry_at': nextRetryAt.toIso8601String(),
+              'drain_lease_id': null,
+              'lease_acquired_at': null,
+            },
+            where: 'transaction_uuid = ?',
+            whereArgs: [uuid],
+          );
+          _processedCount++;
+        }
+
+        // Update metadata based on exact batch outcome
+        if (!hasFailures) {
+          await txn.insert('sync_metadata', {
+            'key': 'last_successful_sync_at',
+            'value': now.toIso8601String(),
+            'updated_at': now.toIso8601String(),
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
+        } else if (synced.isNotEmpty) {
+          await txn.insert('sync_metadata', {
+            'key': 'last_partial_sync_at',
+            'value': now.toIso8601String(),
+            'updated_at': now.toIso8601String(),
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
       });
     } on DioException catch (dioError) {
+      final category = SyncRetryPolicy.categorizeError(dioError);
+      final sanitizedDetail = SyncRetryPolicy.sanitizeErrorMessage(
+        dioError.message,
+        category,
+      );
+
+      try {
+        final database = await _databaseService.database;
+        await database.transaction((txn) async {
+          final syncingRows = await txn.query(
+            'offline_sync_queue',
+            where: "status = 'syncing'",
+          );
+
+          for (final row in syncingRows) {
+            final uuid = row['transaction_uuid'] as String;
+            final currentRetryCount =
+                (row['retry_count'] as num?)?.toInt() ?? 0;
+            final newRetryCount = currentRetryCount + 1;
+            final nextRetryAt = _retryPolicy.calculateNextRetryAt(
+              lastAttemptAt: now,
+              retryCount: newRetryCount,
+              customRandom: _random,
+            );
+
+            await txn.update(
+              'offline_sync_queue',
+              {
+                'status': QueueItemStatus.retryableFailed.toDbValue(),
+                'retry_count': newRetryCount,
+                'last_error_code': category,
+                'last_error_message': sanitizedDetail,
+                'next_retry_at': nextRetryAt.toIso8601String(),
+                'drain_lease_id': null,
+                'lease_acquired_at': null,
+              },
+              where: 'transaction_uuid = ?',
+              whereArgs: [uuid],
+            );
+          }
+
+          await txn.insert('sync_metadata', {
+            'key': 'last_sync_error_code',
+            'value': category,
+            'updated_at': now.toIso8601String(),
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
+        });
+      } catch (_) {}
+    } catch (e) {
+      final category = SanitizedErrorCategory.unknownError;
+      final sanitizedDetail = SyncRetryPolicy.sanitizeErrorMessage(
+        e.toString(),
+        category,
+      );
+
       try {
         final database = await _databaseService.database;
         await database.update('offline_sync_queue', {
           'status': QueueItemStatus.retryableFailed.toDbValue(),
-          'last_error_code': dioError.type.name,
-          'last_error_message': 'Network error during sync replay',
+          'last_error_code': category,
+          'last_error_message': sanitizedDetail,
+          'drain_lease_id': null,
+          'lease_acquired_at': null,
         }, where: "status = 'syncing'");
       } catch (_) {}
     } finally {
@@ -564,11 +898,19 @@ class OfflineSyncService {
     }
   }
 
-  /// Returns full queue state with diagnostic items and conflicts.
+  /// Returns full queue state with diagnostic items, metadata, and conflicts.
   Future<OfflineQueueState> getQueueState() async {
     final database = await _databaseService.database;
+    final currentUserId = _getCurrentUserId?.call();
+
     final rows = await database.query(
       'offline_sync_queue',
+      where: currentUserId != null && currentUserId.isNotEmpty
+          ? 'user_id IS NULL OR user_id = ?'
+          : null,
+      whereArgs: currentUserId != null && currentUserId.isNotEmpty
+          ? [currentUserId]
+          : null,
       orderBy: 'created_at ASC',
     );
 
@@ -589,6 +931,7 @@ class OfflineSyncService {
           pending++;
           break;
         case QueueItemStatus.retryableFailed:
+        case QueueItemStatus.blockedByDependency:
           retryableFailed++;
           break;
         case QueueItemStatus.permanentlyFailed:
@@ -628,6 +971,7 @@ class OfflineSyncService {
           createdAt: DateTime.parse(row['created_at'] as String),
           status: status,
           retryCount: (row['retry_count'] as num?)?.toInt() ?? 0,
+          userId: row['user_id'] as String?,
           lastAttemptAt: row['last_attempt_at'] != null
               ? DateTime.tryParse(row['last_attempt_at'] as String)
               : null,
@@ -637,11 +981,14 @@ class OfflineSyncService {
               ? DateTime.tryParse(row['next_retry_at'] as String)
               : null,
           serverResourceId: row['server_resource_id'] as String?,
+          drainLeaseId: row['drain_lease_id'] as String?,
+          leaseAcquiredAt: row['lease_acquired_at'] != null
+              ? DateTime.tryParse(row['lease_acquired_at'] as String)
+              : null,
         ),
       );
     }
 
-    // Load conflicts
     final conflictRows = await database.query(
       'sync_conflicts',
       orderBy: 'detected_at DESC',
@@ -661,15 +1008,24 @@ class OfflineSyncService {
       );
     }).toList();
 
-    // Load last sync metadata
-    final metaRows = await database.query(
-      'sync_metadata',
-      where: "key = 'last_synced_at'",
-      limit: 1,
-    );
+    final metaRows = await database.query('sync_metadata');
     DateTime? lastSyncedAt;
-    if (metaRows.isNotEmpty) {
-      lastSyncedAt = DateTime.tryParse(metaRows.first['value'] as String);
+    DateTime? lastAttemptAt;
+    DateTime? lastPartialSyncAt;
+    String? lastErrorCode;
+
+    for (final row in metaRows) {
+      final key = row['key'] as String?;
+      final value = row['value'] as String?;
+      if (key == 'last_successful_sync_at' && value != null) {
+        lastSyncedAt = DateTime.tryParse(value);
+      } else if (key == 'last_sync_attempt_at' && value != null) {
+        lastAttemptAt = DateTime.tryParse(value);
+      } else if (key == 'last_partial_sync_at' && value != null) {
+        lastPartialSyncAt = DateTime.tryParse(value);
+      } else if (key == 'last_sync_error_code') {
+        lastErrorCode = value;
+      }
     }
 
     return OfflineQueueState(
@@ -681,18 +1037,26 @@ class OfflineSyncService {
       items: items,
       conflicts: conflicts,
       lastSyncedAt: lastSyncedAt,
+      lastAttemptAt: lastAttemptAt,
+      lastPartialSyncAt: lastPartialSyncAt,
+      lastErrorCode: lastErrorCode,
       isSyncing: _isDraining,
       processedCount: _processedCount,
       processingTotal: _processingTotal,
     );
   }
 
-  /// Reset one failed/conflict item back to pending.
+  /// Reset one failed/conflict item back to pending after clearing error states.
   Future<void> retryItem(String transactionUuid) async {
     final database = await _databaseService.database;
     await database.update(
       'offline_sync_queue',
-      {'status': QueueItemStatus.pending.toDbValue(), 'next_retry_at': null},
+      {
+        'status': QueueItemStatus.pending.toDbValue(),
+        'next_retry_at': null,
+        'drain_lease_id': null,
+        'lease_acquired_at': null,
+      },
       where: 'transaction_uuid = ?',
       whereArgs: [transactionUuid],
     );
@@ -700,9 +1064,54 @@ class OfflineSyncService {
     unawaited(drainQueue());
   }
 
-  /// Remove one item from the offline sync queue.
-  Future<void> deleteItem(String transactionUuid) async {
+  /// Remove one item from the offline sync queue safely if no items depend on it.
+  Future<void> deleteItem(
+    String transactionUuid, {
+    bool forceCascade = false,
+  }) async {
     final database = await _databaseService.database;
+    final itemRows = await database.query(
+      'offline_sync_queue',
+      where: 'transaction_uuid = ?',
+      whereArgs: [transactionUuid],
+      limit: 1,
+    );
+    if (itemRows.isEmpty) return;
+
+    final item = itemRows.first;
+    final id = item['id'] as String;
+    final entityLocalId = item['entity_local_id'] as String?;
+
+    if (!forceCascade) {
+      final activeRows = await database.query(
+        'offline_sync_queue',
+        where:
+            "status IN ('pending', 'retryableFailed', 'syncing') AND id != ?",
+        whereArgs: [id],
+      );
+
+      final dependentIds = <String>[];
+      for (final row in activeRows) {
+        final depJson = row['dependency_ids_json'] as String?;
+        if (depJson == null || depJson.isEmpty) continue;
+        try {
+          final deps = (jsonDecode(depJson) as List<dynamic>).cast<String>();
+          if (deps.contains(id) ||
+              deps.contains(transactionUuid) ||
+              (entityLocalId != null && deps.contains(entityLocalId))) {
+            dependentIds.add(row['id'] as String);
+          }
+        } catch (_) {}
+      }
+
+      if (dependentIds.isNotEmpty) {
+        throw DependencyCancellationBlockedException(
+          'Cannot delete queue item $transactionUuid because active queue items depend on it',
+          dependentIds,
+        );
+      }
+    }
+
     await database.delete(
       'offline_sync_queue',
       where: 'transaction_uuid = ?',
@@ -711,19 +1120,25 @@ class OfflineSyncService {
     onQueueChanged?.call();
   }
 
-  /// Reset all failed items (retryable or permanently failed) back to pending and drain immediately.
+  /// Reset all failed items back to pending and drain immediately.
   Future<void> retryAllFailed() async {
     final database = await _databaseService.database;
     await database.update(
       'offline_sync_queue',
-      {'status': QueueItemStatus.pending.toDbValue(), 'next_retry_at': null},
-      where: "status IN ('retryableFailed', 'permanentlyFailed')",
+      {
+        'status': QueueItemStatus.pending.toDbValue(),
+        'next_retry_at': null,
+        'drain_lease_id': null,
+        'lease_acquired_at': null,
+      },
+      where:
+          "status IN ('retryableFailed', 'permanentlyFailed', 'blockedByDependency')",
     );
     onQueueChanged?.call();
     unawaited(drainQueue(force: true));
   }
 
-  /// Removes all failed and cancelled items from the offline sync queue.
+  /// Removes all failed and cancelled items from the offline sync queue safely.
   Future<void> clearAllFailed() async {
     final database = await _databaseService.database;
     await database.delete(
@@ -733,14 +1148,61 @@ class OfflineSyncService {
     onQueueChanged?.call();
   }
 
-  /// Cancels a queued operation without deleting its audit trail.
-  Future<void> cancelItem(String transactionUuid) async {
+  /// Cancels a queued operation without deleting audit history or local business data.
+  Future<void> cancelItem(
+    String transactionUuid, {
+    bool forceCascade = false,
+  }) async {
     final database = await _databaseService.database;
+    final itemRows = await database.query(
+      'offline_sync_queue',
+      where: 'transaction_uuid = ?',
+      whereArgs: [transactionUuid],
+      limit: 1,
+    );
+    if (itemRows.isEmpty) return;
+
+    final item = itemRows.first;
+    final id = item['id'] as String;
+    final entityLocalId = item['entity_local_id'] as String?;
+
+    if (!forceCascade) {
+      final activeRows = await database.query(
+        'offline_sync_queue',
+        where:
+            "status IN ('pending', 'retryableFailed', 'syncing') AND id != ?",
+        whereArgs: [id],
+      );
+
+      final dependentIds = <String>[];
+      for (final row in activeRows) {
+        final depJson = row['dependency_ids_json'] as String?;
+        if (depJson == null || depJson.isEmpty) continue;
+        try {
+          final deps = (jsonDecode(depJson) as List<dynamic>).cast<String>();
+          if (deps.contains(id) ||
+              deps.contains(transactionUuid) ||
+              (entityLocalId != null && deps.contains(entityLocalId))) {
+            dependentIds.add(row['id'] as String);
+          }
+        } catch (_) {}
+      }
+
+      if (dependentIds.isNotEmpty) {
+        throw DependencyCancellationBlockedException(
+          'Cannot cancel queue item $transactionUuid because active queue items depend on it',
+          dependentIds,
+        );
+      }
+    }
+
     await database.update(
       'offline_sync_queue',
       {
         'status': QueueItemStatus.cancelled.toDbValue(),
         'next_retry_at': null,
+        'drain_lease_id': null,
+        'lease_acquired_at': null,
         'last_error_code': 'CANCELLED_BY_USER',
         'last_error_message': 'Cancelled on this device',
       },
@@ -810,6 +1272,7 @@ final offlineSyncServiceProvider = Provider<OfflineSyncService>((ref) {
     dio: ref.watch(apiClientProvider),
     connectivity: ref.watch(connectivityProvider),
     isForcedOffline: () => ref.read(forcedOfflineModeProvider),
+    serverHealthService: ref.watch(serverHealthServiceProvider),
   );
   service.start();
   ref.onDispose(service.dispose);
@@ -833,8 +1296,7 @@ class OfflineSyncQueueNotifier extends StateNotifier<OfflineQueueState> {
         state = newState;
       }
     } catch (_) {
-      // Keep the last known queue summary when local storage is temporarily
-      // unavailable. Queue mutations still report their own actionable errors.
+      // Keep the last known queue summary when local storage is temporarily unavailable
     }
   }
 }

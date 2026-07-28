@@ -36,34 +36,38 @@ void main() {
       expect(tableNames, contains('offline_sync_queue'));
     });
 
-    test('reopens transparently when the cached database handle was closed',
-        () async {
-      final first = await databaseService.database;
-      await first.close();
+    test(
+      'reopens transparently when the cached database handle was closed',
+      () async {
+        final first = await databaseService.database;
+        await first.close();
 
-      final reopened = await databaseService.database;
+        final reopened = await databaseService.database;
 
-      expect(reopened.isOpen, isTrue);
-      final tables = await reopened.rawQuery(
-        "SELECT name FROM sqlite_master WHERE type='table'",
-      );
-      expect(tables.map((row) => row['name']), contains('loans'));
-    });
+        expect(reopened.isOpen, isTrue);
+        final tables = await reopened.rawQuery(
+          "SELECT name FROM sqlite_master WHERE type='table'",
+        );
+        expect(tables.map((row) => row['name']), contains('loans'));
+      },
+    );
 
-    test('closing another service does not close this service connection',
-        () async {
-      final otherService = DatabaseService(dbPath: inMemoryDatabasePath);
-      final foregroundDb = await databaseService.database;
-      await otherService.database;
+    test(
+      'closing another service does not close this service connection',
+      () async {
+        final otherService = DatabaseService(dbPath: inMemoryDatabasePath);
+        final foregroundDb = await databaseService.database;
+        await otherService.database;
 
-      await otherService.close();
+        await otherService.close();
 
-      expect(foregroundDb.isOpen, isTrue);
-      final tables = await foregroundDb.rawQuery(
-        "SELECT name FROM sqlite_master WHERE type='table'",
-      );
-      expect(tables.map((row) => row['name']), contains('loans'));
-    });
+        expect(foregroundDb.isOpen, isTrue);
+        final tables = await foregroundDb.rawQuery(
+          "SELECT name FROM sqlite_master WHERE type='table'",
+        );
+        expect(tables.map((row) => row['name']), contains('loans'));
+      },
+    );
 
     test('should allow operations on borrowers table', () async {
       final db = await databaseService.database;

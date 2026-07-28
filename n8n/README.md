@@ -30,7 +30,7 @@ In `backend/.env`, set the following environment variables:
 
 ```env
 N8N_WEBHOOK_URL=http://localhost:5678/webhook/lending-events
-N8N_WEBHOOK_SECRET=your_secure_random_secret_key_123
+N8N_WEBHOOK_SECRET=replace-with-a-secure-webhook-secret
 ```
 
 ---

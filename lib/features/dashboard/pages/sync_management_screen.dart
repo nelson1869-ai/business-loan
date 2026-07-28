@@ -280,6 +280,8 @@ class SyncManagementScreen extends ConsumerWidget {
         return Colors.purple;
       case QueueItemStatus.cancelled:
         return Colors.grey;
+      case QueueItemStatus.blockedByDependency:
+        return Colors.orange.shade800;
     }
   }
 
@@ -296,7 +298,9 @@ class SyncManagementScreen extends ConsumerWidget {
       case QueueItemStatus.conflict:
         return Icons.warning;
       case QueueItemStatus.cancelled:
-        return Icons.cancel_outlined;
+        return Icons.cancel;
+      case QueueItemStatus.blockedByDependency:
+        return Icons.account_tree;
     }
   }
 

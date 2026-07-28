@@ -78,13 +78,16 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   }
 
   _PaymentTerms? _paymentTerms(Loan loan) {
-    final openInstallments = loan.installments
-        .where((item) => item.status != 'Paid' && item.status != 'Cancelled')
-        .toList()
-      ..sort(
-        (left, right) =>
-            left.installmentNumber.compareTo(right.installmentNumber),
-      );
+    final openInstallments =
+        loan.installments
+            .where(
+              (item) => item.status != 'Paid' && item.status != 'Cancelled',
+            )
+            .toList()
+          ..sort(
+            (left, right) =>
+                left.installmentNumber.compareTo(right.installmentNumber),
+          );
     if (openInstallments.isEmpty) return null;
 
     final installment = openInstallments.first;
