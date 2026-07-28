@@ -54,9 +54,8 @@ class BorrowerCustomerScoreCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Customer 360° Credit Score',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    'Credit Assessment',
+                    maxLines: 2,
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),

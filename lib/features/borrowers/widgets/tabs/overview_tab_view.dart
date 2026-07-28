@@ -5,22 +5,29 @@ import '../pii_masked_text.dart';
 /// Overview Tab View presenting personal, employment, emergency, and guarantor details.
 class OverviewTabView extends StatelessWidget {
   final Borrower borrower;
+  final List<Widget> leading;
 
-  const OverviewTabView({super.key, required this.borrower});
+  const OverviewTabView({
+    super.key,
+    required this.borrower,
+    this.leading = const [],
+  });
 
   @override
   Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        ...leading,
+        if (leading.isNotEmpty) const SizedBox(height: 16),
         _SectionCard(
           title: 'Personal Information',
           icon: Icons.person_outline,
           children: [
             _InfoRow(label: 'Full Name', value: borrower.fullName),
             _InfoRow(label: 'Date of Birth', value: borrower.dateOfBirth),
-            const _InfoRow(label: 'Gender', value: 'Not specified'),
-            const _InfoRow(label: 'Civil Status', value: 'Single / Married'),
+            const _InfoRow(label: 'Gender', value: 'Not provided'),
+            const _InfoRow(label: 'Civil Status', value: 'Not provided'),
             PIIMaskedText(
               icon: Icons.badge_outlined,
               label: 'National ID',
@@ -33,9 +40,9 @@ class OverviewTabView extends StatelessWidget {
           title: 'Employment & Income',
           icon: Icons.work_outline,
           children: [
-            _InfoRow(label: 'Occupation', value: 'Self-Employed / Business'),
-            _InfoRow(label: 'Employer', value: 'Private Enterprise'),
-            _InfoRow(label: 'Estimated Income', value: '\$2,500.00 / month'),
+            _InfoRow(label: 'Occupation', value: 'Not provided'),
+            _InfoRow(label: 'Employer', value: 'Not provided'),
+            _InfoRow(label: 'Estimated Income', value: 'Not provided'),
           ],
         ),
         const SizedBox(height: 16),
@@ -43,11 +50,8 @@ class OverviewTabView extends StatelessWidget {
           title: 'Emergency Contact',
           icon: Icons.contact_phone_outlined,
           children: [
-            const _InfoRow(
-              label: 'Contact Name',
-              value: 'Immediate Family Member',
-            ),
-            const _InfoRow(label: 'Relationship', value: 'Spouse / Parent'),
+            const _InfoRow(label: 'Contact Name', value: 'Not provided'),
+            const _InfoRow(label: 'Relationship', value: 'Not provided'),
             PIIMaskedText(
               icon: Icons.phone_outlined,
               label: 'Phone',
@@ -61,9 +65,9 @@ class OverviewTabView extends StatelessWidget {
           title: 'Guarantor Information',
           icon: Icons.verified_user_outlined,
           children: [
-            _InfoRow(label: 'Guarantor Name', value: 'Co-Signer Reference'),
-            _InfoRow(label: 'Guarantor Phone', value: '0917****999'),
-            _InfoRow(label: 'Address', value: 'Registered Guarantor Address'),
+            _InfoRow(label: 'Guarantor Name', value: 'Not provided'),
+            _InfoRow(label: 'Guarantor Phone', value: 'Not provided'),
+            _InfoRow(label: 'Address', value: 'Not provided'),
           ],
         ),
         const SizedBox(height: 32),
@@ -129,18 +133,26 @@ class _InfoRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+          Expanded(
+            flex: 2,
+            child: Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
-          Text(
-            value,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w600,
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 3,
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],

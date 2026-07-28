@@ -15,6 +15,7 @@ from app.schemas.payment import (
 )
 from app.services import loan_service, payment_service
 from app.services.loan_calculator import LoanCalculationError
+from app.services.webhook_service import dispatch_n8n_event
 
 router = APIRouter(prefix="/api/v1/loans/{loan_id}/payments", tags=["Payments"])
 
@@ -61,6 +62,15 @@ async def confirm_one_payment(
             db, loan_id, payload, current_user
         )
         await db.commit()
+        await dispatch_n8n_event(
+            "payment_recorded",
+            {
+                "payment_id": payment.id,
+                "loan_id": loan_id,
+                "amount_paid": float(payload.amount),
+                "recorded_by": current_user.username,
+            },
+        )
     except LoanCalculationError as error:
         await db.rollback()
         code = (

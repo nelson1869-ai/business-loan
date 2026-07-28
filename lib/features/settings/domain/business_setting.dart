@@ -18,4 +18,11 @@ class BusinessSetting {
         receiptFooter: json['receiptFooter'] as String,
         updatedAt: DateTime.parse(json['updatedAt'] as String).toLocal(),
       );
+
+  Map<String, dynamic> toJson() => {
+    'businessName': businessName,
+    'currencyCode': currencyCode,
+    'receiptFooter': receiptFooter,
+    'updatedAt': updatedAt.toUtc().toIso8601String(),
+  };
 }

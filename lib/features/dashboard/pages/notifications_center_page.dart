@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:lending_nelson/core/presentation/design_system/design_system.dart';
 import 'package:lending_nelson/core/network/api_error_mapper.dart';
+import 'package:lending_nelson/core/network/server_health_service.dart';
 import '../data/notification_repository.dart';
 import '../domain/app_notification.dart';
 import '../providers/notification_provider.dart';
@@ -38,12 +39,26 @@ class _NotificationsCenterPageState
     final notificationsAsync = ref.watch(notificationsProvider);
     final notifications =
         notificationsAsync.valueOrNull ?? const <AppNotification>[];
+    final isServerReady =
+        ref.watch(serverStatusNotifierProvider) == ServerStatus.serverReady;
     final filteredItems = notifications.where((n) {
       if (_selectedFilter == 'Unread' && n.isRead) {
         return false;
       }
       if (_selectedFilter == 'High Priority' &&
           (n.priority != 'Critical' && n.priority != 'High')) {
+        return false;
+      }
+      if (_selectedFilter == 'Today' && !_isToday(n.createdAt)) {
+        return false;
+      }
+      if (const {
+            'Collections',
+            'Borrowers',
+            'Loans',
+            'System',
+          }.contains(_selectedFilter) &&
+          n.category.toLowerCase() != _selectedFilter.toLowerCase()) {
         return false;
       }
       if (_query.isNotEmpty) {
@@ -108,6 +123,7 @@ class _NotificationsCenterPageState
               unreadCount: unreadCount,
               overdueCount: overdueCount,
               highPriorityCount: highPriorityCount,
+              isServerReady: isServerReady,
             ),
             const SizedBox(height: 16),
             // 3. Multi-Category Filter Bar
@@ -157,14 +173,18 @@ class _NotificationsCenterPageState
                 description: _query.isNotEmpty || _selectedFilter != 'All'
                     ? 'No notifications match the current filters.'
                     : 'New collection alerts and reminders will appear here.',
-                actionLabel: 'Reset Filters',
-                onAction: () {
-                  _searchCtrl.clear();
-                  setState(() {
-                    _query = '';
-                    _selectedFilter = 'All';
-                  });
-                },
+                actionLabel: _query.isNotEmpty || _selectedFilter != 'All'
+                    ? 'Reset Filters'
+                    : null,
+                onAction: _query.isNotEmpty || _selectedFilter != 'All'
+                    ? () {
+                        _searchCtrl.clear();
+                        setState(() {
+                          _query = '';
+                          _selectedFilter = 'All';
+                        });
+                      }
+                    : null,
               )
             else
               ...filteredItems.map(
@@ -206,5 +226,14 @@ class _NotificationsCenterPageState
       loanId: notification.loanId,
       isRead: notification.isRead,
     );
+  }
+
+  bool _isToday(DateTime value) {
+    const businessOffset = Duration(hours: 8);
+    final now = DateTime.now().toUtc().add(businessOffset);
+    final date = value.toUtc().add(businessOffset);
+    return date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day;
   }
 }

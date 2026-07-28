@@ -6,12 +6,14 @@ class NotificationSummaryCards extends StatelessWidget {
   final int unreadCount;
   final int overdueCount;
   final int highPriorityCount;
+  final bool isServerReady;
 
   const NotificationSummaryCards({
     super.key,
     required this.unreadCount,
     required this.overdueCount,
     required this.highPriorityCount,
+    required this.isServerReady,
   });
 
   @override
@@ -50,9 +52,11 @@ class NotificationSummaryCards extends StatelessWidget {
             ),
             AppMetricCard(
               label: 'System Status',
-              value: 'Unavailable',
-              icon: Icons.cloud_off_outlined,
-              color: theme.colorScheme.outline,
+              value: isServerReady ? 'Server Ready' : 'Offline Mode',
+              icon: isServerReady
+                  ? Icons.cloud_done_outlined
+                  : Icons.cloud_off_outlined,
+              color: isServerReady ? Colors.green : theme.colorScheme.outline,
             ),
           ],
         );

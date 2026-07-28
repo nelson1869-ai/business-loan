@@ -97,8 +97,8 @@ class _PortfolioProgressBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final onTimeCount = totalCount - overdueCount;
-    final ratio = totalCount > 0 ? onTimeCount / totalCount : 1.0;
+    final onTimeCount = (totalCount - overdueCount).clamp(0, totalCount);
+    final ratio = totalCount > 0 ? onTimeCount / totalCount : 0.0;
     final pct = (ratio * 100).round();
 
     return Card(
@@ -126,7 +126,7 @@ class _PortfolioProgressBar extends StatelessWidget {
                 ),
                 const Spacer(),
                 Text(
-                  '$pct% On-Time',
+                  totalCount > 0 ? '$pct% On-Time' : 'No active loans',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
@@ -138,30 +138,36 @@ class _PortfolioProgressBar extends StatelessWidget {
             const SizedBox(height: 12),
             ClipRRect(
               borderRadius: BorderRadius.circular(6),
-              child: SizedBox(
-                height: 10,
-                child: Row(
-                  children: [
-                    Expanded(
-                      flex: onTimeCount,
-                      child: Container(
-                        color: isDark
-                            ? const Color(0xFF10B981)
-                            : const Color(0xFF059669),
+              child: totalCount == 0
+                  ? Container(
+                      height: 10,
+                      color: theme.colorScheme.surfaceContainerHighest,
+                    )
+                  : SizedBox(
+                      height: 10,
+                      child: Row(
+                        children: [
+                          if (onTimeCount > 0)
+                            Expanded(
+                              flex: onTimeCount,
+                              child: Container(
+                                color: isDark
+                                    ? const Color(0xFF10B981)
+                                    : const Color(0xFF059669),
+                              ),
+                            ),
+                          if (overdueCount > 0)
+                            Expanded(
+                              flex: overdueCount,
+                              child: Container(
+                                color: isDark
+                                    ? const Color(0xFFEF4444)
+                                    : const Color(0xFFDC2626),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
-                    if (overdueCount > 0)
-                      Expanded(
-                        flex: overdueCount,
-                        child: Container(
-                          color: isDark
-                              ? const Color(0xFFEF4444)
-                              : const Color(0xFFDC2626),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
             ),
             const SizedBox(height: 8),
             Row(

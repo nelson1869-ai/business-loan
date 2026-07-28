@@ -139,7 +139,10 @@ class BorrowerRecommendationCard extends StatelessWidget {
                   child: _buildMetricTile(
                     context: meContext,
                     label: 'Max Recommended',
-                    value: '\$${recommendation.maxRecommendedPrincipal}',
+                    value: _formatCurrency(
+                      double.tryParse(recommendation.maxRecommendedPrincipal) ??
+                          0,
+                    ),
                     icon: Icons.account_balance_wallet_outlined,
                   ),
                 ),
@@ -268,8 +271,7 @@ class BorrowerRecommendationCard extends StatelessWidget {
                   color: theme.colorScheme.onSurfaceVariant,
                   fontSize: 11,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                maxLines: 2,
               ),
               Text(
                 value,
@@ -284,6 +286,19 @@ class BorrowerRecommendationCard extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  String _formatCurrency(double value) {
+    final parts = value.toStringAsFixed(2).split('.');
+    final digits = parts.first;
+    final buffer = StringBuffer();
+    for (var index = 0; index < digits.length; index++) {
+      if (index > 0 && (digits.length - index) % 3 == 0) {
+        buffer.write(',');
+      }
+      buffer.write(digits[index]);
+    }
+    return '\$$buffer.${parts.last}';
   }
 
   _TierColorScheme _getTierColorScheme(RiskTier tier) {

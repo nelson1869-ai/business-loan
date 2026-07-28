@@ -40,37 +40,10 @@ class NotesTabView extends ConsumerWidget {
     WidgetRef ref,
     NotesScope scope,
   ) async {
-    final controller = TextEditingController();
     final content = await showDialog<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Add Officer Note'),
-        content: TextField(
-          controller: controller,
-          maxLines: 4,
-          maxLength: 4000,
-          autofocus: true,
-          decoration: const InputDecoration(
-            hintText: 'Enter an observation or collection note',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final value = controller.text.trim();
-              if (value.isNotEmpty) Navigator.pop(dialogContext, value);
-            },
-            child: const Text('Save Note'),
-          ),
-        ],
-      ),
+      builder: (_) => const _AddNoteDialog(),
     );
-    controller.dispose();
     if (content == null || !context.mounted) return;
     try {
       await ref
@@ -89,6 +62,57 @@ class NotesTabView extends ConsumerWidget {
         ).showSnackBar(SnackBar(content: Text(ApiErrorMapper.message(error))));
       }
     }
+  }
+}
+
+class _AddNoteDialog extends StatefulWidget {
+  const _AddNoteDialog();
+
+  @override
+  State<_AddNoteDialog> createState() => _AddNoteDialogState();
+}
+
+class _AddNoteDialogState extends State<_AddNoteDialog> {
+  final _controller = TextEditingController();
+  bool _canSave = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Add Officer Note'),
+      content: TextField(
+        controller: _controller,
+        maxLines: 4,
+        maxLength: 4000,
+        autofocus: true,
+        onChanged: (value) {
+          final canSave = value.trim().isNotEmpty;
+          if (canSave != _canSave) setState(() => _canSave = canSave);
+        },
+        decoration: const InputDecoration(
+          hintText: 'Enter an observation or collection note',
+          border: OutlineInputBorder(),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _canSave
+              ? () => Navigator.pop(context, _controller.text.trim())
+              : null,
+          child: const Text('Save Note'),
+        ),
+      ],
+    );
   }
 }
 

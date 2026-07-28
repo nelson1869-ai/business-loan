@@ -1,13 +1,21 @@
 """Ordered offline mutation replay routes."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import ValidationError
 from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from app.dependencies import CurrentUser, DbSession
 from app.schemas.borrower import BorrowerCreate, BorrowerUpdate
+from app.schemas.business_setting import BusinessSettingUpdate
 from app.schemas.loan import LoanCreate
 from app.schemas.payment import PaymentCreate, PaymentReversalCreate
+from app.schemas.note import NoteCreate
+from app.schemas.document import DocumentCreate
+from app.schemas.collection_task import (
+    CollectionTaskComplete,
+    CollectionTaskCreate,
+    PromiseStatusUpdate,
+)
 from app.schemas.sync import (
     SyncBatchRequest,
     SyncBatchResponse,
@@ -15,6 +23,16 @@ from app.schemas.sync import (
     SyncQueueItem,
 )
 from app.services import borrower_service, loan_service, payment_service
+from app.services import note_service
+from app.models.document import Document
+from app.models.note import Note
+from app.models.sync_receipt import SyncReceipt
+from app.routers import (
+    business_settings,
+    collection_tasks,
+    documents,
+    notifications,
+)
 
 router = APIRouter(prefix="/api/v1/sync", tags=["Offline Sync"])
 
@@ -101,6 +119,111 @@ async def _replay_item(
         await payment_service.record_payment(db, loan_id, payload, current_user)
         return
 
+    if item.endpoint.endswith("/notes") and item.method == "POST":
+        parts = item.endpoint.split("/")
+        borrower_id = parts[4]
+        loan_id = parts[6] if len(parts) > 6 else None
+        await note_service.create_note(
+            db,
+            borrower_id,
+            NoteCreate.model_validate(item.payload),
+            current_user,
+            loan_id,
+        )
+        return
+
+    if item.endpoint.startswith("/api/v1/notes/") and item.method == "DELETE":
+        note_id = item.endpoint.rsplit("/", maxsplit=1)[-1]
+        note = await db.get(Note, note_id)
+        if note is None:
+            return
+        await note_service.delete_note(db, note, current_user)
+        return
+
+    if item.endpoint.endswith("/documents") and item.method == "POST":
+        parts = item.endpoint.split("/")
+        borrower_id = parts[4]
+        loan_id = parts[6] if len(parts) > 6 else None
+        await documents._create(
+            db,
+            current_user,
+            borrower_id,
+            loan_id,
+            DocumentCreate.model_validate(item.payload),
+        )
+        return
+
+    if item.endpoint.startswith("/api/v1/documents/") and item.method == "DELETE":
+        document_id = item.endpoint.rsplit("/", maxsplit=1)[-1]
+        # DELETE is idempotent during offline replay. If the document was
+        # already removed, the server is already in the requested state.
+        if await db.get(Document, document_id) is None:
+            return
+        await documents.delete_document(
+            document_id,
+            db,
+            current_user,
+        )
+        return
+
+    if item.endpoint == "/api/v1/collection-tasks" and item.method == "POST":
+        await collection_tasks.create_task(
+            CollectionTaskCreate.model_validate(item.payload),
+            db,
+            current_user,
+        )
+        return
+
+    if item.endpoint.startswith("/api/v1/collection-tasks/"):
+        parts = item.endpoint.split("/")
+        if item.endpoint.endswith("/promise-status") and item.method == "PATCH":
+            await collection_tasks.update_promise_status(
+                parts[4],
+                PromiseStatusUpdate.model_validate(item.payload),
+                db,
+                current_user,
+            )
+            return
+        if item.endpoint.endswith("/complete") and item.method == "POST":
+            if len(parts) == 6:
+                await collection_tasks.complete_scheduled_task(
+                    parts[4],
+                    CollectionTaskComplete.model_validate(item.payload),
+                    db,
+                    current_user,
+                )
+            else:
+                await collection_tasks.complete_installment_task(
+                    parts[4],
+                    int(parts[5]),
+                    db,
+                    current_user,
+                )
+            return
+
+    if item.endpoint == "/api/v1/notifications/read-all":
+        await notifications.mark_all_read(db, current_user)
+        return
+
+    if item.endpoint == "/api/v1/business-settings" and item.method == "PUT":
+        await business_settings.update_business_settings(
+            BusinessSettingUpdate.model_validate(item.payload),
+            db,
+            current_user,
+        )
+        return
+
+    if (
+        item.endpoint.startswith("/api/v1/notifications/")
+        and item.endpoint.endswith("/read")
+    ):
+        await notifications.mark_read(
+            item.endpoint.split("/")[4],
+            db,
+            current_user,
+        )
+        return
+
     borrower_id = item.endpoint.rsplit("/", maxsplit=1)[-1]
     if item.method == "POST":
         payload = BorrowerCreate.model_validate(item.payload)
@@ -141,7 +264,11 @@ async def drain_sync_queue(
     failures: list[SyncFailure] = []
     for item in sorted(payload.items, key=lambda queued: queued.created_at):
         try:
+            if await db.get(SyncReceipt, item.transaction_uuid) is not None:
+                synced.append(item.transaction_uuid)
+                continue
             await _replay_item(item, db, current_user)
+            db.add(SyncReceipt(transaction_uuid=item.transaction_uuid))
             await db.commit()
             synced.append(item.transaction_uuid)
         except SyncReplayError as error:
@@ -172,6 +299,20 @@ async def drain_sync_queue(
                     code="INVALID_PAYLOAD",
                     detail="Mutation payload is invalid",
                     retryable=False,
+                )
+            )
+        except HTTPException as error:
+            await db.rollback()
+            failures.append(
+                SyncFailure(
+                    transaction_uuid=item.transaction_uuid,
+                    code=(
+                        "IDEMPOTENCY_CONFLICT"
+                        if error.status_code == 409
+                        else "INVALID_WORKFLOW_STATE"
+                    ),
+                    detail=str(error.detail),
+                    retryable=error.status_code >= 500,
                 )
             )
         except (ValueError, KeyError) as error:

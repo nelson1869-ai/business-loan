@@ -156,7 +156,10 @@ class LocalLoanRepository {
       }, conflictAlgorithm: ConflictAlgorithm.replace);
     }
 
-    final loanId = _uuid.v4();
+    // The idempotency request UUID is also the canonical loan UUID. Keeping
+    // one identifier across offline creation and server replay prevents queued
+    // repayments from targeting an obsolete device-only loan ID.
+    final loanId = request.requestId;
     final now = DateTime.now().toUtc().toIso8601String();
     final double periodicRate =
         (double.tryParse(request.monthlyRate) ?? 0.0) /
@@ -367,6 +370,18 @@ class LocalLoanRepository {
     return null;
   }
 
+  Future<bool> isLoanPending(String loanId) async {
+    final db = await _dbService.database;
+    final rows = await db.query(
+      'loans',
+      columns: ['sync_status'],
+      where: 'id = ?',
+      whereArgs: [loanId],
+      limit: 1,
+    );
+    return rows.isNotEmpty && rows.first['sync_status'] == 'pending';
+  }
+
   Future<void> deleteLoan(String loanId) async {
     final db = await _dbService.database;
     await db.delete('loans', where: 'id = ?', whereArgs: [loanId]);
@@ -443,6 +458,90 @@ class LocalLoanRepository {
         'cached_at': now,
       }, conflictAlgorithm: ConflictAlgorithm.replace);
     });
+  }
+
+  /// Applies an accepted preview to the cached loan so balances and payment
+  /// history remain consistent while the queued server write is pending.
+  Future<void> applyPaymentPreview(PaymentPreview preview) async {
+    final loan = await getLoan(preview.loanId);
+    if (loan == null) return;
+
+    var appliedToInstallment = false;
+    final appliedCents =
+        LoanCalculator.parseCents(
+          preview.appliedInterest,
+          'appliedInterest',
+        ) +
+        LoanCalculator.parseCents(
+          preview.appliedPrincipal,
+          'appliedPrincipal',
+        );
+    final updatedInstallments = loan.installments.map((installment) {
+      if (!appliedToInstallment &&
+          installment.status != 'Paid' &&
+          installment.status != 'Cancelled') {
+        appliedToInstallment = true;
+        final paidCents =
+            LoanCalculator.parseCents(installment.paidAmount, 'paidAmount') +
+            appliedCents;
+        return Installment(
+          id: installment.id,
+          loanId: installment.loanId,
+          installmentNumber: installment.installmentNumber,
+          dueDate: installment.dueDate,
+          expectedPayment: installment.expectedPayment,
+          expectedInterest: installment.expectedInterest,
+          expectedPrincipal: installment.expectedPrincipal,
+          expectedRemainingPrincipal: installment.expectedRemainingPrincipal,
+          paidAmount: LoanCalculator.formatCents(paidCents),
+          status: preview.isPayoff ? 'Paid' : 'PartiallyPaid',
+          createdAt: installment.createdAt,
+        );
+      }
+      if (preview.isPayoff &&
+          installment.status != 'Paid' &&
+          installment.status != 'Cancelled') {
+        return Installment(
+          id: installment.id,
+          loanId: installment.loanId,
+          installmentNumber: installment.installmentNumber,
+          dueDate: installment.dueDate,
+          expectedPayment: installment.expectedPayment,
+          expectedInterest: installment.expectedInterest,
+          expectedPrincipal: installment.expectedPrincipal,
+          expectedRemainingPrincipal: installment.expectedRemainingPrincipal,
+          paidAmount: installment.paidAmount,
+          status: 'Cancelled',
+          createdAt: installment.createdAt,
+        );
+      }
+      return installment;
+    }).toList(growable: false);
+
+    await saveLoan(
+      Loan(
+        id: loan.id,
+        requestId: loan.requestId,
+        borrowerId: loan.borrowerId,
+        createdByUserId: loan.createdByUserId,
+        originalPrincipal: loan.originalPrincipal,
+        outstandingPrincipal: preview.principalAfter,
+        monthlyRate: loan.monthlyRate,
+        termMonths: loan.termMonths,
+        paymentsPerMonth: loan.paymentsPerMonth,
+        numberOfPayments: loan.numberOfPayments,
+        regularPaymentAmount: loan.regularPaymentAmount,
+        calculationMethod: loan.calculationMethod,
+        startDate: loan.startDate,
+        firstDueDate: loan.firstDueDate,
+        finalDueDate: loan.finalDueDate,
+        status: preview.isPayoff ? 'Paid' : loan.status,
+        createdAt: loan.createdAt,
+        unappliedCredit: preview.unappliedCredit,
+        installments: updatedInstallments,
+      ),
+      syncStatus: 'pending',
+    );
   }
 
   Future<List<LoanPayment>> getPayments(String loanId) async {

@@ -1,35 +1,36 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/utils/formatters.dart';
 import '../../../domain/models/loan.dart';
+import '../../providers/loans_provider.dart';
 
 /// Payments Tab View showing timeline of recorded payment transactions.
-class LoanPaymentsTab extends StatelessWidget {
+class LoanPaymentsTab extends ConsumerWidget {
   final Loan loan;
 
   const LoanPaymentsTab({super.key, required this.loan});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final payments = <_PaymentRecord>[];
 
-    for (final inst in loan.installments) {
-      final paid = double.tryParse(inst.paidAmount) ?? 0;
-      if (paid > 0 || inst.status == 'Paid') {
+    final ledger = ref.watch(loanPaymentsProvider(loan.id)).valueOrNull;
+    if (ledger == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    for (final payment in ledger) {
+      if (payment.entryType == 'Payment') {
         payments.add(
           _PaymentRecord(
             receiptNo:
-                'RCP-${inst.id.length >= 6 ? inst.id.substring(0, 6) : inst.id}',
-            date: formatDateShort(inst.dueDate),
-            amount: inst.paidAmount.isNotEmpty && inst.paidAmount != '0'
-                ? inst.paidAmount
-                : inst.expectedPayment,
-            collector: loan.createdByUserId.isNotEmpty
-                ? loan.createdByUserId
-                : 'System Officer',
+                'RCP-${payment.id.length >= 6 ? payment.id.substring(0, 6) : payment.id}',
+            date: formatDateShort(payment.effectiveDate),
+            amount: payment.amount,
+            collector: 'Recorded by system',
             method: 'Cash / Mobile Transfer',
             refNo:
-                'REF-${inst.id.length >= 8 ? inst.id.substring(0, 8) : inst.id}',
+                'REF-${payment.requestId.length >= 8 ? payment.requestId.substring(0, 8) : payment.requestId}',
           ),
         );
       }
@@ -109,8 +110,10 @@ class LoanPaymentsTab extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 2,
+                        alignment: WrapAlignment.spaceBetween,
                         children: [
                           Text(
                             formatCurrency(payment.amount),
@@ -130,13 +133,16 @@ class LoanPaymentsTab extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         'Receipt: ${payment.receiptNo} · Ref: ${payment.refNo}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodySmall?.copyWith(
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       const SizedBox(height: 2),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 2,
                         children: [
                           Text(
                             'Method: ${payment.method}',

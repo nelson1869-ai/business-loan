@@ -207,3 +207,17 @@ class LoanWorkflowResponse(BaseModel):
     occurred_at: datetime
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
+class LoanExplanationResponse(BaseModel):
+    """A read-only, AI-generated explanation of deterministic loan figures."""
+
+    summary: str = Field(min_length=1, max_length=1200)
+    key_points: list[str] = Field(min_length=1, max_length=5)
+    generated_at: datetime
+    model: str
+    disclaimer: str = (
+        "AI-generated explanation. Verify against the official loan schedule."
+    )
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)

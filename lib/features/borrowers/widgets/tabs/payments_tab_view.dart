@@ -1,41 +1,50 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../loans/domain/models/loan.dart';
+import '../../../loans/domain/models/payment.dart';
+import '../../../loans/presentation/providers/loans_provider.dart';
 
 /// Payments Tab View featuring a modern timeline of payment transactions.
-class PaymentsTabView extends StatelessWidget {
+class PaymentsTabView extends ConsumerWidget {
   final List<Loan> loans;
 
   const PaymentsTabView({super.key, required this.loans});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
 
-    // Extract all paid installments across loans for the timeline
+    // Use immutable ledger entries rather than scheduled installments. The
+    // ledger owns the actual amount and financial/effective date.
     final timelineItems = <_TimelineItemData>[];
+    var loading = false;
     for (final loan in loans) {
-      for (final inst in loan.installments) {
-        final paid = double.tryParse(inst.paidAmount) ?? 0;
-        if (paid > 0 || inst.status == 'Paid') {
+      final ledger = ref.watch(loanPaymentsProvider(loan.id));
+      if (ledger.isLoading) loading = true;
+      for (final LoanPayment payment
+          in ledger.valueOrNull ?? const <LoanPayment>[]) {
+        if (payment.entryType == 'Payment') {
           timelineItems.add(
             _TimelineItemData(
               loanId: loan.id,
-              date: inst.dueDate.length >= 10
-                  ? inst.dueDate.substring(0, 10)
-                  : inst.dueDate,
-              amount: inst.paidAmount,
+              date: payment.effectiveDate,
+              amount: payment.amount,
               method: 'Cash / Bank Transfer',
-              collector: loan.createdByUserId,
+              collector: 'Recorded by system',
               receiptNo:
-                  'RCP-${inst.id.length >= 6 ? inst.id.substring(0, 6) : inst.id}',
+                  'RCP-${payment.id.length >= 6 ? payment.id.substring(0, 6) : payment.id}',
             ),
           );
         }
       }
     }
+    timelineItems.sort((a, b) => b.date.compareTo(a.date));
 
     if (timelineItems.isEmpty) {
+      if (loading) {
+        return const Center(child: CircularProgressIndicator());
+      }
       return ListView(
         padding: const EdgeInsets.all(24),
         children: [
@@ -114,8 +123,10 @@ class PaymentsTabView extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 2,
+                        alignment: WrapAlignment.spaceBetween,
                         children: [
                           Text(
                             formatCurrency(item.amount),
@@ -140,8 +151,8 @@ class PaymentsTabView extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 2),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             'Method: ${item.method}',
@@ -150,6 +161,7 @@ class PaymentsTabView extends StatelessWidget {
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
                           ),
+                          const SizedBox(height: 2),
                           Text(
                             'Officer: ${item.collector}',
                             style: theme.textTheme.bodySmall?.copyWith(

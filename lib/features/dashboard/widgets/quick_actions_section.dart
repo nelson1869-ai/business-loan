@@ -40,7 +40,7 @@ class QuickActionsSection extends ConsumerWidget {
               child: _ActionButton(
                 icon: Icons.add_card,
                 label: 'New Loan',
-                color: const Color(0xFF0F172A),
+                color: const Color(0xFF14B8A6),
                 onTap: () => _pickBorrower(context, ref),
               ),
             ),

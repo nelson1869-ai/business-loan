@@ -11,6 +11,7 @@ from sqlalchemy import text
 from app.config import get_settings
 from app.database import AsyncSessionFactory
 from app.routers import (
+    admin_assistant,
     auth,
     borrowers,
     business_settings,
@@ -99,6 +100,7 @@ def create_app() -> FastAPI:
         return response
 
     application.include_router(auth.router)
+    application.include_router(admin_assistant.router)
     application.include_router(borrowers.router)
     application.include_router(business_settings.router)
     application.include_router(loans.router)

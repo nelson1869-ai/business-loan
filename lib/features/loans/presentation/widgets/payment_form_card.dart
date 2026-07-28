@@ -25,7 +25,7 @@ class PaymentFormCard extends StatelessWidget {
     required this.onFieldChange,
     required this.theme,
     this.installmentAmount,
-    this.outstandingPrincipal,
+    this.payoffAmount,
   });
 
   final GlobalKey<FormState> formKey;
@@ -38,7 +38,7 @@ class PaymentFormCard extends StatelessWidget {
   final VoidCallback onFieldChange;
   final ThemeData theme;
   final String? installmentAmount;
-  final String? outstandingPrincipal;
+  final String? payoffAmount;
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +52,7 @@ class PaymentFormCard extends StatelessWidget {
             children: [
               Text('Record a payment', style: theme.textTheme.titleLarge),
               const SizedBox(height: 12),
-              if (installmentAmount != null || outstandingPrincipal != null)
+              if (installmentAmount != null || payoffAmount != null)
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
@@ -60,7 +60,7 @@ class PaymentFormCard extends StatelessWidget {
                     if (installmentAmount != null)
                       ActionChip(
                         label: Text(
-                          '${formatCurrency(installmentAmount!)} Due Installment',
+                          '${formatCurrency(installmentAmount!)} Scheduled Installment',
                         ),
                         onPressed: working
                             ? null
@@ -69,13 +69,15 @@ class PaymentFormCard extends StatelessWidget {
                                 onFieldChange();
                               },
                       ),
-                    if (outstandingPrincipal != null)
+                    if (payoffAmount != null)
                       ActionChip(
-                        label: const Text('Full Payoff'),
+                        label: Text(
+                          '${formatCurrency(payoffAmount!)} Full Payoff',
+                        ),
                         onPressed: working
                             ? null
                             : () {
-                                amountController.text = outstandingPrincipal!;
+                                amountController.text = payoffAmount!;
                                 onFieldChange();
                               },
                       ),

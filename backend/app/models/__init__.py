@@ -9,6 +9,7 @@ from app.models.loan import Installment, Loan
 from app.models.note import Note
 from app.models.notification import Notification
 from app.models.payment import Payment, PaymentAllocation
+from app.models.sync_receipt import SyncReceipt
 from app.models.user import User
 
 __all__ = [
@@ -23,5 +24,6 @@ __all__ = [
     "Notification",
     "Payment",
     "PaymentAllocation",
+    "SyncReceipt",
     "User",
 ]

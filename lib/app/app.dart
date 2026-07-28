@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'app_router.dart';
 import 'app_theme.dart';
+import '../core/security/session_guard.dart';
 
 /// Configures the root Material application, router, and visual themes.
 ///
@@ -27,6 +28,10 @@ class LendingNelsonApp extends StatelessWidget {
       themeMode:
           ThemeMode.system, // Automatically matches system dark/light mode
       debugShowCheckedModeBanner: false,
+      // Keep Flutter's frame timing graphs out of the application UI. Profiling
+      // should be enabled from DevTools only while actively diagnosing frames.
+      showPerformanceOverlay: false,
+      builder: (context, child) => SessionGuard(child: child!),
     );
   }
 }

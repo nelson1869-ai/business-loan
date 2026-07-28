@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/network/offline_sync_service.dart';
+import '../models/loan_explanation.dart';
 import '../../domain/models/loan.dart';
 import '../models/loan_create_request.dart';
 import '../models/loan_quote.dart';
@@ -208,6 +209,25 @@ class RemoteLoanRepository {
         'Invalid loan response: $error',
         isRetryable: false,
       );
+    }
+  }
+
+  /// Requests a privacy-minimized explanation; no borrower data leaves Flutter.
+  Future<LoanExplanation> explainLoan(String loanId) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        ApiEndpoints.loanExplanation(loanId),
+        options: Options(receiveTimeout: const Duration(seconds: 70)),
+      );
+      final data = response.data;
+      if (data == null) {
+        throw const FormatException('Empty loan explanation response');
+      }
+      return LoanExplanation.fromJson(data);
+    } on DioException catch (error) {
+      throw _mapError(error, 'Unable to explain this loan right now');
+    } on FormatException catch (error) {
+      throw RemoteLoanException(error.message, isRetryable: false);
     }
   }
 

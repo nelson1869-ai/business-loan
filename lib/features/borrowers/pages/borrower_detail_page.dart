@@ -42,6 +42,7 @@ class BorrowerDetailPage extends ConsumerWidget {
       length: 6,
       child: Scaffold(
         appBar: AppBar(
+          toolbarHeight: 52,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () {
@@ -53,6 +54,19 @@ class BorrowerDetailPage extends ConsumerWidget {
             },
           ),
           title: Text(initialBorrower?.fullName ?? 'Customer 360° Profile'),
+          bottom: const TabBar(
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            labelPadding: EdgeInsets.symmetric(horizontal: 16),
+            tabs: [
+              Tab(text: 'Overview'),
+              Tab(text: 'Loans'),
+              Tab(text: 'Payments'),
+              Tab(text: 'Documents'),
+              Tab(text: 'Notes'),
+              Tab(text: 'Activity'),
+            ],
+          ),
         ),
         body: _BorrowerDetailContent(
           borrowerId: borrowerId,
@@ -89,8 +103,6 @@ class _BorrowerDetailContent extends ConsumerWidget {
     final recommendationAsync = ref.watch(
       borrowerRecommendationProvider(borrowerId),
     );
-    final theme = Theme.of(context);
-
     final loans = loansAsync.valueOrNull ?? const <Loan>[];
     final activeLoan = loans
         .where((l) => l.status == 'Active' || l.status == 'Overdue')
@@ -116,168 +128,64 @@ class _BorrowerDetailContent extends ConsumerWidget {
 
     final recommendation = recommendationAsync.valueOrNull;
 
-    return Column(
-      children: [
-        Expanded(
-          child: NestedScrollView(
-            headerSliverBuilder: (context, innerBoxIsScrolled) {
-              return [
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // 1. Material 3 Customer 360 Header Card
-                        BorrowerHeaderCard(
-                          borrower: borrower,
-                          recommendation: recommendation,
-                        ),
-                        const SizedBox(height: 12),
-                        // 2. Customer Score Card
-                        BorrowerCustomerScoreCard(
-                          borrower: borrower,
-                          recommendation: recommendation,
-                        ),
-                        if (overdueAmount > 0) ...[
-                          const SizedBox(height: 12),
-                          BorrowerAlertBanner(
-                            daysOverdue: daysOverdue > 0 ? daysOverdue : 1,
-                            overdueAmount: overdueAmount.toStringAsFixed(2),
-                            recommendedNextAction:
-                                'Contact borrower for immediate payment agreement',
-                            onTakeAction: () {
-                              if (activeLoan != null) {
-                                context.push(
-                                  '/loans/${activeLoan.id}/payments',
-                                );
-                              }
-                            },
-                          ),
-                        ],
-                        const SizedBox(height: 14),
-                        // 3. Recommended Officer Next Actions
-                        BorrowerRecommendedActions(
-                          borrower: borrower,
-                          activeLoanId: activeLoan?.id,
-                        ),
-                        const SizedBox(height: 14),
-                        // 4. Quick Action Buttons Bar
-                        BorrowerQuickActions(
-                          borrower: borrower,
-                          activeLoanId: activeLoan?.id,
-                        ),
-                        const SizedBox(height: 16),
-                        // 5. Financial Snapshot Grid
-                        BorrowerFinancialSnapshot(loans: loans),
-                        const SizedBox(height: 16),
-                        // 6. Payment Behavior Analytics
-                        BorrowerPaymentBehaviorCard(loans: loans),
-                        const SizedBox(height: 16),
-                        // 7. Active Loan Card
-                        if (activeLoan != null) ...[
-                          BorrowerActiveLoanCard(loan: activeLoan),
-                          const SizedBox(height: 16),
-                        ],
-                        // 8. Emergency Contact & Guarantor Card
-                        BorrowerEmergencyGuarantorCard(borrower: borrower),
-                        const SizedBox(height: 16),
-                        // 9. AI Credit Recommendation Widget
-                        if (recommendation != null)
-                          BorrowerRecommendationCard(
-                            recommendation: recommendation,
-                            onApplyRecommended: () {
-                              context.push(
-                                '/borrowers/$borrowerId/loans/new',
-                                extra: borrower,
-                              );
-                            },
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-                SliverPersistentHeader(
-                  pinned: true,
-                  delegate: _SliverTabBarDelegate(
-                    TabBar(
-                      isScrollable: true,
-                      tabAlignment: TabAlignment.start,
-                      labelColor: theme.colorScheme.primary,
-                      unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
-                      indicatorColor: theme.colorScheme.primary,
-                      tabs: const [
-                        Tab(
-                          text: 'Overview',
-                          icon: Icon(Icons.person_outline, size: 20),
-                        ),
-                        Tab(
-                          text: 'Loans',
-                          icon: Icon(Icons.credit_card_outlined, size: 20),
-                        ),
-                        Tab(
-                          text: 'Payments',
-                          icon: Icon(Icons.history_outlined, size: 20),
-                        ),
-                        Tab(
-                          text: 'Documents',
-                          icon: Icon(Icons.folder_open_outlined, size: 20),
-                        ),
-                        Tab(
-                          text: 'Notes',
-                          icon: Icon(Icons.note_alt_outlined, size: 20),
-                        ),
-                        Tab(
-                          text: 'Activity',
-                          icon: Icon(Icons.timeline_outlined, size: 20),
-                        ),
-                      ],
-                    ),
-                    theme.colorScheme.surface,
-                  ),
-                ),
-              ];
-            },
-            body: TabBarView(
-              children: [
-                OverviewTabView(borrower: borrower),
-                LoansTabView(borrower: borrower, loans: loans),
-                PaymentsTabView(loans: loans),
-                DocumentsTabView(borrowerId: borrowerId),
-                NotesTabView(borrowerId: borrowerId),
-                ActivityTabView(borrower: borrower),
-              ],
-            ),
-          ),
+    final overviewSections = <Widget>[
+      BorrowerHeaderCard(borrower: borrower, recommendation: recommendation),
+      const SizedBox(height: 12),
+      BorrowerCustomerScoreCard(
+        borrower: borrower,
+        recommendation: recommendation,
+      ),
+      if (overdueAmount > 0) ...[
+        const SizedBox(height: 12),
+        BorrowerAlertBanner(
+          daysOverdue: daysOverdue > 0 ? daysOverdue : 1,
+          overdueAmount: overdueAmount.toStringAsFixed(2),
+          recommendedNextAction:
+              'Contact borrower for immediate payment agreement',
+          onTakeAction: () {
+            if (activeLoan != null) {
+              context.push('/loans/${activeLoan.id}/payments');
+            }
+          },
         ),
       ],
+      const SizedBox(height: 14),
+      BorrowerRecommendedActions(
+        borrower: borrower,
+        activeLoanId: activeLoan?.id,
+      ),
+      const SizedBox(height: 14),
+      BorrowerQuickActions(borrower: borrower, activeLoanId: activeLoan?.id),
+      const SizedBox(height: 16),
+      BorrowerFinancialSnapshot(loans: loans),
+      const SizedBox(height: 16),
+      BorrowerPaymentBehaviorCard(loans: loans),
+      if (activeLoan != null) ...[
+        const SizedBox(height: 16),
+        BorrowerActiveLoanCard(loan: activeLoan),
+      ],
+      const SizedBox(height: 16),
+      BorrowerEmergencyGuarantorCard(borrower: borrower),
+      if (recommendation != null) ...[
+        const SizedBox(height: 16),
+        BorrowerRecommendationCard(
+          recommendation: recommendation,
+          onApplyRecommended: () {
+            context.push('/borrowers/$borrowerId/loans/new', extra: borrower);
+          },
+        ),
+      ],
+    ];
+
+    return TabBarView(
+      children: [
+        OverviewTabView(borrower: borrower, leading: overviewSections),
+        LoansTabView(borrower: borrower, loans: loans),
+        PaymentsTabView(loans: loans),
+        DocumentsTabView(borrowerId: borrowerId),
+        NotesTabView(borrowerId: borrowerId),
+        ActivityTabView(borrower: borrower),
+      ],
     );
-  }
-}
-
-class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
-  final TabBar tabBar;
-  final Color backgroundColor;
-
-  _SliverTabBarDelegate(this.tabBar, this.backgroundColor);
-
-  @override
-  double get minExtent => tabBar.preferredSize.height;
-
-  @override
-  double get maxExtent => tabBar.preferredSize.height;
-
-  @override
-  Widget build(
-    BuildContext context,
-    double shrinkOffset,
-    bool overlapsContent,
-  ) {
-    return Container(color: backgroundColor, child: tabBar);
-  }
-
-  @override
-  bool shouldRebuild(_SliverTabBarDelegate oldDelegate) {
-    return false;
   }
 }

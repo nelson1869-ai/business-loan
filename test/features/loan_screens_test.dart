@@ -69,7 +69,7 @@ void main() {
   });
 
   testWidgets(
-    'unchanged retry reuses request ID and changed terms replace it',
+    'loan creation never calls the remote repository in the foreground',
     (tester) async {
       final repository = _FailingLoanRepository();
       await tester.pumpWidget(
@@ -93,42 +93,11 @@ void main() {
       await tester.tap(btn);
       await tester.pumpAndSettle();
 
-      // dismiss the error SnackBar before the second attempt
-      await tester.pump(const Duration(seconds: 6));
-      await tester.pumpAndSettle();
-
-      final btn2 = find.widgetWithText(FilledButton, 'Create Loan');
-      await tester.ensureVisible(btn2);
-      await tester.pump();
-      await tester.tap(btn2);
-      await tester.pumpAndSettle();
-
-      expect(repository.requests, hasLength(2));
-      expect(
-        repository.requests[1].requestId,
-        repository.requests[0].requestId,
-      );
-
-      // dismiss the error SnackBar before changing terms
-      await tester.pump(const Duration(seconds: 6));
-      await tester.pumpAndSettle();
-
-      await tester.enterText(find.byType(TextFormField).first, '1200.00');
-      final btn3 = find.widgetWithText(FilledButton, 'Create Loan');
-      await tester.ensureVisible(btn3);
-      await tester.pump();
-      await tester.tap(btn3);
-      await tester.pumpAndSettle();
-
-      expect(repository.requests, hasLength(3));
-      expect(
-        repository.requests[2].requestId,
-        isNot(repository.requests[0].requestId),
-      );
+      expect(repository.requests, isEmpty);
     },
   );
 
-  testWidgets('repeated tap while request is pending sends only once', (
+  testWidgets('submit does not wait for a pending remote request', (
     tester,
   ) async {
     final repository = _PendingLoanRepository();
@@ -149,14 +118,7 @@ void main() {
 
     await tester.tap(find.widgetWithText(FilledButton, 'Create Loan'));
     await tester.pump();
-    await tester.tap(find.byType(FilledButton));
-    await tester.pump();
-
-    expect(repository.requests, hasLength(1));
-    repository.completer.completeError(
-      const RemoteLoanException('Timeout', isRetryable: true),
-    );
-    await tester.pumpAndSettle();
+    expect(repository.requests, isEmpty);
   });
 
   testWidgets('detail screen renders the backend installment breakdown', (

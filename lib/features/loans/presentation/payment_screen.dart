@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_mapper.dart';
+import '../../../core/utils/loan_calculator.dart';
 import '../../../core/utils/formatters.dart';
 import '../domain/models/payment.dart';
+import '../domain/models/loan.dart';
 import 'providers/loans_provider.dart';
 import 'providers/payment_notifier.dart';
 import 'widgets/payment_borrower_card.dart';
@@ -54,13 +56,77 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
   Future<void> _loadPreview() async {
     if (!_formKey.currentState!.validate()) return;
+    final loan = ref.read(loanDetailProvider(widget.loanId)).valueOrNull;
+    if (loan == null) return;
+    final terms = _paymentTerms(loan);
+    if (terms == null) return;
     ref
         .read(paymentNotifierProvider.notifier)
         .loadPreview(
           loanId: widget.loanId,
           amount: _amountController.text.trim(),
           effectiveDate: _date,
+          outstandingPrincipal: loan.outstandingPrincipal,
+          interestDue: terms.quote.interestDue,
+          dueDate: terms.dueDate,
+          daysEarly: terms.quote.daysEarly,
+          overdueDays: terms.quote.overdueDays,
+          scheduledPayment: terms.installmentAmount,
+          periodicRate: terms.periodicRate,
+          installmentId: terms.installmentId,
         );
+  }
+
+  _PaymentTerms? _paymentTerms(Loan loan) {
+    final openInstallments = loan.installments
+        .where((item) => item.status != 'Paid' && item.status != 'Cancelled')
+        .toList()
+      ..sort(
+        (left, right) =>
+            left.installmentNumber.compareTo(right.installmentNumber),
+      );
+    if (openInstallments.isEmpty) return null;
+
+    final installment = openInstallments.first;
+    final dueDate = DateTime.tryParse(installment.dueDate);
+    final installmentIndex = loan.installments.indexOf(installment);
+    final periodStart = installmentIndex > 0
+        ? DateTime.tryParse(loan.installments[installmentIndex - 1].dueDate)
+        : DateTime.tryParse(loan.startDate);
+    final monthlyRate = double.tryParse(loan.monthlyRate);
+    if (dueDate == null ||
+        periodStart == null ||
+        monthlyRate == null ||
+        loan.paymentsPerMonth <= 0) {
+      return null;
+    }
+
+    var remainingCredit = double.tryParse(loan.unappliedCredit) ?? 0;
+    final expected = double.tryParse(installment.expectedPayment) ?? 0;
+    final paid = double.tryParse(installment.paidAmount) ?? 0;
+    final installmentAmount = (expected - paid - remainingCredit).clamp(
+      0.0,
+      double.infinity,
+    );
+    final periodicRate = monthlyRate / loan.paymentsPerMonth;
+    try {
+      final quote = LoanCalculator.quotePayoff(
+        outstandingPrincipal: loan.outstandingPrincipal,
+        periodicRate: periodicRate,
+        periodStartDate: periodStart,
+        dueDate: dueDate,
+        effectiveDate: _effectiveDate,
+      );
+      return _PaymentTerms(
+        quote: quote,
+        installmentAmount: installmentAmount.toStringAsFixed(2),
+        dueDate: installment.dueDate,
+        periodicRate: periodicRate,
+        installmentId: installment.id,
+      );
+    } on LoanCalculationException {
+      return null;
+    }
   }
 
   Future<void> _confirm() async {
@@ -144,36 +210,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     final working = paymentState.working;
     final theme = Theme.of(context);
 
-    String? installmentAmount;
-    String? outstandingPrincipal;
     final loan = loanAsync.valueOrNull;
-    if (loan != null) {
-      outstandingPrincipal = loan.outstandingPrincipal;
-      if (loan.status == 'Paid' ||
-          (double.tryParse(loan.outstandingPrincipal) ?? 0) == 0) {
-        installmentAmount = null;
-      } else {
-        double remainingCredit = double.tryParse(loan.unappliedCredit) ?? 0.0;
-        for (final inst in loan.installments) {
-          if (inst.status == 'Paid' || inst.status == 'Cancelled') continue;
-          final paid = double.tryParse(inst.paidAmount) ?? 0;
-          final expected = double.tryParse(inst.expectedPayment) ?? 0;
-          final remaining = expected - paid;
-          if (remaining <= 0) continue;
-
-          final netDue = remaining - remainingCredit;
-          remainingCredit = (remainingCredit - remaining).clamp(
-            0.0,
-            double.infinity,
-          );
-
-          if (netDue > 0) {
-            installmentAmount = netDue.toStringAsFixed(2);
-            break;
-          }
-        }
-      }
-    }
+    final terms = loan == null ? null : _paymentTerms(loan);
+    final installmentAmount = terms?.installmentAmount;
+    final payoffAmount = terms?.quote.payoffAmount;
 
     ref.listen(paymentNotifierProvider, (_, next) {
       if (next.error != null) {
@@ -211,27 +251,50 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
               ),
               const SizedBox(height: 16),
             ],
-            PaymentFormCard(
-              formKey: _formKey,
-              amountController: _amountController,
-              noteController: _noteController,
-              dateLabel: _date,
-              working: working,
-              theme: theme,
-              installmentAmount: installmentAmount,
-              outstandingPrincipal: outstandingPrincipal,
-              onPickDate: _pickDate,
-              onPreview: _loadPreview,
-              onFieldChange: () =>
-                  ref.read(paymentNotifierProvider.notifier).resetPreview(),
-            ),
-            if (paymentState.preview case final preview?) ...[
-              const SizedBox(height: 12),
-              PaymentPreviewCard(
-                preview: preview,
+            if (loan?.status == 'Paid')
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.check_circle,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Loan paid in full. No further payment is due.',
+                          style: theme.textTheme.titleMedium,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else ...[
+              PaymentFormCard(
+                formKey: _formKey,
+                amountController: _amountController,
+                noteController: _noteController,
+                dateLabel: _date,
                 working: working,
-                onConfirm: _confirm,
+                theme: theme,
+                installmentAmount: installmentAmount,
+                payoffAmount: payoffAmount,
+                onPickDate: _pickDate,
+                onPreview: _loadPreview,
+                onFieldChange: () =>
+                    ref.read(paymentNotifierProvider.notifier).resetPreview(),
               ),
+              if (paymentState.preview case final preview?) ...[
+                const SizedBox(height: 12),
+                PaymentPreviewCard(
+                  preview: preview,
+                  working: working,
+                  onConfirm: _confirm,
+                ),
+              ],
             ],
             const SizedBox(height: 24),
             Text('Payment History', style: theme.textTheme.titleLarge),
@@ -262,4 +325,20 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       ),
     );
   }
+}
+
+class _PaymentTerms {
+  const _PaymentTerms({
+    required this.quote,
+    required this.installmentAmount,
+    required this.dueDate,
+    required this.periodicRate,
+    required this.installmentId,
+  });
+
+  final LoanPayoffQuote quote;
+  final String installmentAmount;
+  final String dueDate;
+  final double periodicRate;
+  final String installmentId;
 }

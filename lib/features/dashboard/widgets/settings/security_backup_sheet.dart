@@ -1,17 +1,42 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lending_nelson/core/presentation/design_system/design_system.dart';
+import 'package:lending_nelson/core/security/privacy_window_service.dart';
+import 'package:lending_nelson/core/security/session_security_service.dart';
 
 /// High-Trust Security & Backup Sheet.
-class SecurityBackupSheet extends StatefulWidget {
+class SecurityBackupSheet extends ConsumerStatefulWidget {
   const SecurityBackupSheet({super.key});
 
   @override
-  State<SecurityBackupSheet> createState() => _SecurityBackupSheetState();
+  ConsumerState<SecurityBackupSheet> createState() =>
+      _SecurityBackupSheetState();
 }
 
-class _SecurityBackupSheetState extends State<SecurityBackupSheet> {
-  bool _biometrics = true;
+class _SecurityBackupSheetState extends ConsumerState<SecurityBackupSheet> {
+  bool _biometrics = false;
   bool _maskPII = true;
+  bool _secureWindow = false;
+  bool _potentiallyRooted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSecurityState();
+  }
+
+  Future<void> _loadSecurityState() async {
+    final biometric = await ref
+        .read(sessionSecurityServiceProvider)
+        .isBiometricEnabled();
+    final rooted = await PrivacyWindowService.isDevicePotentiallyRooted();
+    if (mounted) {
+      setState(() {
+        _biometrics = biometric;
+        _potentiallyRooted = rooted;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +90,25 @@ class _SecurityBackupSheetState extends State<SecurityBackupSheet> {
                     'Require fingerprint or PIN when restoring app',
                   ),
                   value: _biometrics,
-                  onChanged: (val) => setState(() => _biometrics = val),
+                  onChanged: (value) async {
+                    final enabled = await ref
+                        .read(sessionSecurityServiceProvider)
+                        .setBiometricEnabled(value);
+                    if (mounted) setState(() => _biometrics = enabled && value);
+                  },
+                ),
+                SwitchListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Protect sensitive screen previews'),
+                  subtitle: const Text(
+                    'Block screenshots and recent-app previews while enabled',
+                  ),
+                  value: _secureWindow,
+                  onChanged: (value) async {
+                    await PrivacyWindowService.setSecureWindow(value);
+                    if (mounted) setState(() => _secureWindow = value);
+                  },
                 ),
                 SwitchListTile(
                   dense: true,
@@ -82,8 +125,22 @@ class _SecurityBackupSheetState extends State<SecurityBackupSheet> {
                   contentPadding: EdgeInsets.zero,
                   leading: Icon(Icons.verified_user_outlined),
                   title: Text('Local Database Status'),
-                  subtitle: Text('AES-256 Encrypted SQLite Storage'),
+                  subtitle: Text(
+                    'Sensitive fields and queued payloads use AES-256 '
+                    'encryption with a hardware-backed key where available',
+                  ),
                 ),
+                if (_potentiallyRooted)
+                  const ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.warning_amber, color: Colors.orange),
+                    title: Text('Device integrity warning'),
+                    subtitle: Text(
+                      'This device may be rooted. Access is not blocked; an '
+                      'administrator should review the device.',
+                    ),
+                  ),
               ],
             ),
             const SizedBox(height: 14),

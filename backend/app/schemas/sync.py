@@ -15,12 +15,20 @@ class SyncQueueItem(BaseModel):
     transaction_uuid: str
     endpoint: str = Field(
         pattern=(
-            r"^/api/v1/(?:borrowers(?:/[0-9a-fA-F-]{36})?"
+            r"^/api/v1/(?:"
+            r"borrowers(?:/[0-9a-fA-F-]{36}"
+            r"(?:/(?:notes|documents)"
+            r"|/loans/[0-9a-fA-F-]{36}/(?:notes|documents))?)?"
             r"|loans(?:/[0-9a-fA-F-]{36}/payments"
-            r"(?:/[0-9a-fA-F-]{36}/reversal)?)?)$"
+            r"(?:/[0-9a-fA-F-]{36}/reversal)?)?"
+            r"|notes/[0-9a-fA-F-]{36}"
+            r"|documents/[0-9a-fA-F-]{36}"
+            r"|collection-tasks(?:/[0-9a-fA-F-]{36}"
+            r"/(?:complete|promise-status)|/[0-9a-fA-F-]{36}/[0-9]+/complete)?"
+            r"|notifications/(?:read-all|[0-9a-fA-F-]{36}/read))$"
         )
     )
-    method: Literal["POST", "PUT", "DELETE"]
+    method: Literal["POST", "PUT", "PATCH", "DELETE"]
     payload: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
 

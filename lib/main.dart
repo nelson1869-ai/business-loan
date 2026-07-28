@@ -1,7 +1,15 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app/app.dart';
+import 'app/app_router.dart';
+import 'core/background/background_sync_worker.dart';
+import 'core/notifications/local_notification_service.dart';
+import 'core/notifications/firebase_mobile_services.dart';
+import 'core/telemetry/operational_telemetry.dart';
 
 /// Starts the application inside Riverpod's root provider container.
 ///
@@ -13,6 +21,56 @@ import 'app/app.dart';
 ///  |    main.dart     | --> |     app.dart     |
 ///  +------------------+     +------------------+
 /// ```
-void main() {
-  runApp(const ProviderScope(child: LendingNelsonApp()));
+Future<void> main() async {
+  BindingBase.debugZoneErrorsAreFatal = true;
+  final container = ProviderContainer();
+  final telemetry = container.read(operationalTelemetryProvider);
+
+  await runZonedGuarded(
+    () async {
+      // Flutter's binding captures the current zone. Initialize it in the same
+      // guarded zone that owns runApp so framework callbacks and crash
+      // reporting remain consistent.
+      WidgetsFlutterBinding.ensureInitialized();
+
+      FlutterError.onError = (details) {
+        FlutterError.presentError(details);
+        telemetry.recordCrash(
+          'flutter_framework',
+          details.stack ?? StackTrace.current,
+        );
+      };
+      PlatformDispatcher.instance.onError = (error, stackTrace) {
+        telemetry.recordCrash('unhandled_async', stackTrace);
+        return true;
+      };
+
+      runApp(
+        UncontrolledProviderScope(
+          container: container,
+          child: const LendingNelsonApp(),
+        ),
+      );
+      unawaited(_initializeBackgroundServices(container));
+    },
+    (error, stackTrace) {
+      telemetry.recordCrash('root_zone', stackTrace);
+    },
+  );
+}
+
+Future<void> _initializeBackgroundServices(ProviderContainer container) async {
+  final localNotifications = container.read(localNotificationServiceProvider);
+  try {
+    await localNotifications.initialize(onTap: appRouter.go);
+  } catch (_) {}
+  try {
+    await FirebaseMobileServices.initialize(
+      localNotifications: localNotifications,
+      onNavigation: appRouter.go,
+    );
+  } catch (_) {}
+  try {
+    await BackgroundSyncWorker.initialize();
+  } catch (_) {}
 }

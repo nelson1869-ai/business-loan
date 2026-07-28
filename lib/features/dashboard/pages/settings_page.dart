@@ -37,8 +37,23 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final offlineSyncService = ref.watch(offlineSyncServiceProvider);
-    final pendingCount = ref.watch(offlineSyncPendingCountProvider);
+    final queueState = ref.watch(offlineSyncQueueNotifierProvider);
     final forcedOffline = ref.watch(forcedOfflineModeProvider);
+    final retryableCount = queueState.items
+        .where(
+          (item) =>
+              item.status == QueueItemStatus.pending ||
+              item.status == QueueItemStatus.retryableFailed,
+        )
+        .length;
+    final attentionCount = queueState.items
+        .where(
+          (item) =>
+              item.status == QueueItemStatus.permanentlyFailed ||
+              item.status == QueueItemStatus.conflict,
+        )
+        .length;
+    final unresolvedCount = retryableCount + attentionCount;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings & Administration')),
@@ -214,28 +229,40 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: Badge.count(
-                      count: pendingCount,
-                      isLabelVisible: pendingCount > 0,
+                      count: unresolvedCount,
+                      isLabelVisible: unresolvedCount > 0,
                       child: const Icon(Icons.sync_outlined),
                     ),
                     title: const Text('Sync Offline Data'),
                     subtitle: Text(
-                      pendingCount > 0
-                          ? '$pendingCount item${pendingCount > 1 ? 's' : ''} waiting to sync'
+                      attentionCount > 0
+                          ? '$attentionCount failed item${attentionCount == 1 ? '' : 's'} need attention'
+                          : retryableCount > 0
+                          ? '$retryableCount item${retryableCount == 1 ? '' : 's'} waiting to sync'
                           : 'All local data is fully synced with server',
                     ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: forcedOffline
                         ? null
                         : () async {
-                            final countBefore = await offlineSyncService
-                                .getPendingCount();
+                            final actionableItems = queueState.items
+                                .where(
+                                  (i) =>
+                                      i.status == QueueItemStatus.pending ||
+                                      i.status == QueueItemStatus.retryableFailed,
+                                )
+                                .toList();
+                            final countBefore = actionableItems.length;
                             if (countBefore == 0) {
                               if (!context.mounted) return;
+                              if (attentionCount > 0) {
+                                context.push('/sync-management');
+                                return;
+                              }
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text(
-                                    'No pending offline items. Data up to date!',
+                                    'No pending offline items. Data is up to date.',
                                   ),
                                 ),
                               );
@@ -249,10 +276,21 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                                 ),
                               ),
                             );
-                            await offlineSyncService.drainQueue();
-                            ref.invalidate(offlineSyncPendingCountProvider);
-                            final countAfter = await offlineSyncService
-                                .getPendingCount();
+                            await offlineSyncService.drainQueue(force: true);
+                            ref
+                                .read(
+                                  offlineSyncQueueNotifierProvider.notifier,
+                                )
+                                .refreshQueueState();
+                            final updatedState = await offlineSyncService
+                                .getQueueState();
+                            final countAfter = updatedState.items
+                                .where(
+                                  (i) =>
+                                      i.status == QueueItemStatus.pending ||
+                                      i.status == QueueItemStatus.retryableFailed,
+                                )
+                                .length;
                             final syncedCount = countBefore - countAfter;
                             if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -260,7 +298,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                                 content: Text(
                                   syncedCount > 0
                                       ? 'Successfully synced $syncedCount items to server!'
-                                      : 'Server unreachable. Will retry automatically when online.',
+                                      : 'Sync completed. Check queue status for details.',
                                 ),
                               ),
                             );

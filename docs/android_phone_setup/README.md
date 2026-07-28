@@ -221,7 +221,9 @@ If `adb pair` returns `error: protocol fault (couldn't read status message)`:
 
    flutter run -d "192.168.254.112:40423" --dart-define=API_BASE_URL=http://192.168.254.110:8000
 
-   .\start-phone.ps1 -PhoneAddress 192.168.254.112:40423 -ServerIp 192.168.254.110
+   .\start-phone.ps1 -PhoneAddress 192.168.254.112:43213 -ServerIp 192.168.254.110
+
+   .\.venv\Scripts\python.exe -c "import sys; sys.path.insert(0, r'D:\Development\lending_nelson\backend'); from app.bootstrap import main; main()" owner --reset-password
    ```
 
 3. **USB One-Time Authorization Fallback:**
@@ -234,4 +236,3 @@ If `adb pair` returns `error: protocol fault (couldn't read status message)`:
 3. Confirm the build used the current `API_BASE_URL`.
 4. Confirm FastAPI uses `--host 0.0.0.0`.
 5. Check Windows Firewall access for port `8000`.
-

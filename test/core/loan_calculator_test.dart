@@ -63,6 +63,44 @@ void main() {
       expect(alloc.remainingPrincipal, '0.00');
     });
 
+    test('quotePayoff - early, due-date, and late amounts', () {
+      final start = DateTime(2026, 7, 26);
+      final due = DateTime(2026, 8, 26);
+
+      final early = LoanCalculator.quotePayoff(
+        outstandingPrincipal: '1000.00',
+        periodicRate: 0.10,
+        periodStartDate: start,
+        dueDate: due,
+        effectiveDate: start,
+      );
+      expect(early.interestDue, '0.00');
+      expect(early.payoffAmount, '1000.00');
+      expect(early.daysEarly, 31);
+
+      final onTime = LoanCalculator.quotePayoff(
+        outstandingPrincipal: '1000.00',
+        periodicRate: 0.10,
+        periodStartDate: start,
+        dueDate: due,
+        effectiveDate: due,
+      );
+      expect(onTime.interestDue, '100.00');
+      expect(onTime.payoffAmount, '1100.00');
+      expect(onTime.overdueDays, 0);
+
+      final late = LoanCalculator.quotePayoff(
+        outstandingPrincipal: '1000.00',
+        periodicRate: 0.10,
+        periodStartDate: start,
+        dueDate: due,
+        effectiveDate: DateTime(2026, 9, 26),
+      );
+      expect(late.interestDue, '200.00');
+      expect(late.payoffAmount, '1200.00');
+      expect(late.overdueDays, 31);
+    });
+
     test('buildInstallmentSchedule - 12 month loan', () {
       final schedule = LoanCalculator.buildInstallmentSchedule(
         originalPrincipal: '1000.00',

@@ -218,7 +218,7 @@ void main() {
       await tester.pumpWidget(buildPreview(_fullPreview()));
       await tester.pumpAndSettle();
 
-      expect(find.text('Backend preview'), findsOneWidget);
+      expect(find.text('Payment preview'), findsOneWidget);
       expect(find.text('\$150.00'), findsOneWidget);
       expect(find.text('\$25.00'), findsOneWidget);
       expect(find.text('\$125.00'), findsOneWidget);

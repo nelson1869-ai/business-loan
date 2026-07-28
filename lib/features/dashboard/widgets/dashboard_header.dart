@@ -1,20 +1,44 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
-import '../providers/dashboard_state.dart';
+import '../../../core/network/server_health_service.dart';
 
-class DashboardHeader extends ConsumerWidget {
-  const DashboardHeader({super.key, required this.onRefresh});
-
-  final VoidCallback onRefresh;
+class DashboardHeader extends ConsumerStatefulWidget {
+  const DashboardHeader({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(dashboardProvider);
-    final isOnline = state.isOnline;
+  ConsumerState<DashboardHeader> createState() => _DashboardHeaderState();
+}
+
+class _DashboardHeaderState extends ConsumerState<DashboardHeader> {
+  static const _businessUtcOffset = Duration(hours: 8);
+  Timer? _clockTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _clockTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _clockTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final serverStatus = ref.watch(serverStatusNotifierProvider);
+    final isOnline = serverStatus == ServerStatus.serverReady;
     final theme = Theme.of(context);
-    final now = DateTime.now();
+    // Lending Nelson operates on Philippine/Singapore business time. Using an
+    // explicit UTC offset keeps Android emulators configured as UTC from
+    // displaying yesterday's date.
+    final now = DateTime.now().toUtc().add(_businessUtcOffset);
     final dayNames = [
       'Monday',
       'Tuesday',
@@ -69,20 +93,6 @@ class DashboardHeader extends ConsumerWidget {
           ),
         ),
         _StatusBadge(isOnline: isOnline),
-        const SizedBox(width: 4),
-        IconButton(
-          icon: const Badge(
-            label: Text('3'),
-            child: Icon(Icons.notifications_outlined),
-          ),
-          tooltip: 'Notifications',
-          onPressed: () => context.push('/notifications'),
-        ),
-        IconButton(
-          icon: const Icon(Icons.refresh),
-          tooltip: 'Refresh dashboard',
-          onPressed: onRefresh,
-        ),
       ],
     );
   }
@@ -123,7 +133,7 @@ class _StatusBadge extends StatelessWidget {
           ),
           const SizedBox(width: 4),
           Text(
-            isOnline ? 'Online' : 'Offline',
+            isOnline ? 'Server ready' : 'Server offline',
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,

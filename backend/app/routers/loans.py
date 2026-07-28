@@ -6,11 +6,13 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy.exc import IntegrityError
 
+from app.config import get_settings
 from app.dependencies import CurrentUser, DbSession
 from app.models.loan import Loan
 from app.schemas.loan import (
     LoanCreate,
     LoanDetailResponse,
+    LoanExplanationResponse,
     LoanPage,
     LoanQuoteRequest,
     LoanQuoteResponse,
@@ -20,6 +22,11 @@ from app.schemas.loan import (
     LoanWorkflowResponse,
 )
 from app.services import borrower_service, loan_service
+from app.services.ai_loan_explanation_service import (
+    AIExplanationUnavailable,
+    explain_loan,
+)
+from app.services.webhook_service import dispatch_n8n_event
 
 router = APIRouter(prefix="/api/v1/loans", tags=["Loans"])
 
@@ -75,6 +82,16 @@ async def create_draft_loan(
         db, payload, current_user, initial_status="Draft"
     )
     await db.commit()
+    await dispatch_n8n_event(
+        "loan_created",
+        {
+            "loan_id": loan.id,
+            "borrower_name": borrower.full_name,
+            "principal": float(loan.principal_amount),
+            "status": loan.status,
+            "created_by": current_user.username,
+        },
+    )
     reloaded = await loan_service.get_loan(db, loan.id)
     return _detail(reloaded)
 
@@ -185,6 +202,33 @@ async def get_one_loan(
             status_code=status.HTTP_404_NOT_FOUND, detail="Loan not found"
         )
     return _detail(loan)
+
+
+@router.post(
+    "/{loan_id}/explanation",
+    response_model=LoanExplanationResponse,
+    responses={503: {"description": "AI explanation service unavailable"}},
+)
+async def explain_one_loan(
+    loan_id: str,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> LoanExplanationResponse:
+    """Explain allowlisted loan figures without sending borrower identity."""
+    del current_user
+    loan = await loan_service.get_loan(db, loan_id)
+    if loan is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Loan not found",
+        )
+    try:
+        return await explain_loan(loan, get_settings())
+    except AIExplanationUnavailable as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(error),
+        ) from error
 
 
 @router.post("/{loan_id}/workflow/{action}", response_model=LoanWorkflowResponse)

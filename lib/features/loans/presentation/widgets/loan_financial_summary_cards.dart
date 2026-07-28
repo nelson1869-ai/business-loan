@@ -66,7 +66,7 @@ class LoanFinancialSummaryCards extends StatelessWidget {
               color: theme.colorScheme.primary,
             ),
             _MetricCard(
-              label: 'Paid Amount',
+              label: 'Paid Principal',
               value: formatCurrency(paidAmount.toStringAsFixed(2)),
               icon: Icons.check_circle_outline,
               color: Colors.green,

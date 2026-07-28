@@ -30,9 +30,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   }
 
   Future<void> _navigateToNext() async {
-    final sessionCheck = ref.read(authRepositoryProvider).hasStoredSession();
-    await Future<void>.delayed(const Duration(milliseconds: 1500));
-    final hasStoredSession = await sessionCheck;
+    final hasStoredSession = await ref
+        .read(authRepositoryProvider)
+        .hasStoredSession();
     if (!mounted) return;
 
     context.go(hasStoredSession ? '/dashboard' : '/login');
@@ -64,8 +64,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
               'Secure Mobile Lending',
               style: TextStyle(color: Colors.grey, fontSize: 16),
             ),
-            SizedBox(height: 48),
-            CircularProgressIndicator(color: AppTheme.accentColor),
           ],
         ),
       ),

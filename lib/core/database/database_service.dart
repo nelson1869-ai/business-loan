@@ -4,7 +4,7 @@ import 'dart:async';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
-/// Opens, initializes, and manages normalized SQLite database schema (v6).
+/// Opens, initializes, and manages the local SQLite database schema.
 ///
 /// File: `lib/core/database/database_service.dart`
 class DatabaseService {
@@ -14,7 +14,12 @@ class DatabaseService {
   final String? _dbPath;
 
   Future<Database> get database async {
-    if (_db != null) return _db!;
+    // sqflite may return the same cached database handle to multiple service
+    // instances. A disposed owner (or a debug engine restart) can therefore
+    // close a handle still referenced here. Never hand callers a closed
+    // connection; reopen it transparently.
+    if (_db case final db? when db.isOpen) return db;
+    _db = null;
     _db = await _initDatabase();
     await _ensureColumnsExist(_db!);
     return _db!;
@@ -73,7 +78,11 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 7,
+      version: 9,
+      // Foreground UI and WorkManager run in separate provider containers.
+      // They must not share sqflite's cached handle because disposing the
+      // background container would otherwise close the foreground connection.
+      singleInstance: false,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -318,6 +327,8 @@ class DatabaseService {
         updated_at TEXT NOT NULL
       )
     ''');
+    await _createLocalJsonCache(db);
+    await _createAssistantIndexes(db);
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -351,6 +362,37 @@ class DatabaseService {
     if (oldVersion < 7) {
       await _upgradeToVersion7(db);
     }
+    if (oldVersion < 8) {
+      await _createLocalJsonCache(db);
+    }
+    if (oldVersion < 9) {
+      await _createAssistantIndexes(db);
+    }
+  }
+
+  Future<void> _createAssistantIndexes(Database db) async {
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_loans_borrower_status '
+      'ON loans (borrower_id, status)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_schedules_status_due '
+      'ON loan_schedules (status, due_date)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_repayments_loan_effective '
+      'ON repayments (loan_id, effective_date)',
+    );
+  }
+
+  Future<void> _createLocalJsonCache(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS local_json_cache (
+        cache_key TEXT PRIMARY KEY,
+        value_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
   }
 
   Future<void> _upgradeToVersion7(Database db) async {

@@ -70,36 +70,20 @@ class LoanOverviewTab extends StatelessWidget {
                   : loan.borrowerId,
             ),
             _InfoRow(label: 'Account Status', value: loan.status),
-            _InfoRow(
-              label: 'Assigned Officer',
-              value: loan.createdByUserId.isNotEmpty
-                  ? loan.createdByUserId
-                  : 'System Officer',
-            ),
+            _InfoRow(label: 'Assigned Officer', value: 'Recorded by system'),
           ],
         ),
         const SizedBox(height: 16),
         const _SectionCard(
           title: 'Guarantor Information',
           icon: Icons.verified_user_outlined,
-          children: [
-            _InfoRow(label: 'Guarantor Name', value: 'Registered Co-Maker'),
-            _InfoRow(label: 'Guarantor Phone', value: '0917****888'),
-            _InfoRow(label: 'Relationship', value: 'Business Associate'),
-          ],
+          children: [_InfoRow(label: 'Status', value: 'Not provided')],
         ),
         const SizedBox(height: 16),
         const _SectionCard(
           title: 'Collateral Assets',
           icon: Icons.inventory_2_outlined,
-          children: [
-            _InfoRow(label: 'Asset Type', value: 'Vehicle / Property Chattel'),
-            _InfoRow(label: 'Appraised Value', value: '\$15,000.00'),
-            _InfoRow(
-              label: 'Verification Status',
-              value: 'Verified & Registered',
-            ),
-          ],
+          children: [_InfoRow(label: 'Status', value: 'Not provided')],
         ),
         const SizedBox(height: 32),
       ],
@@ -164,18 +148,26 @@ class _InfoRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+          Expanded(
+            flex: 2,
+            child: Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
-          Text(
-            value,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w600,
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 3,
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],

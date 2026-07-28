@@ -292,28 +292,34 @@ class _MetricRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              color: Theme.of(
-                context,
-              ).colorScheme.onSurface.withValues(alpha: 0.7),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
             ),
           ),
-          Text(
-            value,
-            style: TextStyle(
-              fontWeight: isHighlight || isError
-                  ? FontWeight.bold
-                  : FontWeight.w600,
-              color: isError
-                  ? Colors.red
-                  : isHighlight
-                  ? Theme.of(context).colorScheme.primary
-                  : null,
+          const SizedBox(width: 12),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: TextStyle(
+                fontWeight: isHighlight || isError
+                    ? FontWeight.bold
+                    : FontWeight.w600,
+                color: isError
+                    ? Colors.red
+                    : isHighlight
+                    ? Theme.of(context).colorScheme.primary
+                    : null,
+              ),
             ),
           ),
         ],

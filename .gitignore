@@ -76,3 +76,5 @@ coverage/
 dist/
 release/
 build/
+prompt/
+docs/admin_credentials/

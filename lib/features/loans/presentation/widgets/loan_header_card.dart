@@ -24,37 +24,33 @@ class LoanHeaderCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Top Row: Loan Number & Status Badges
+            // Top Row: Loan Number & Status
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.receipt_long,
-                      color: colorScheme.primary,
-                      size: 22,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Loan #$shortId',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.receipt_long,
+                        color: colorScheme.primary,
+                        size: 22,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          'Loan #$shortId',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                Row(
-                  children: [
-                    _Badge(label: loan.status, color: statusColor),
-                    const SizedBox(width: 6),
-                    const _Badge(
-                      label: 'Synced',
-                      color: Colors.teal,
-                      icon: Icons.cloud_done,
-                    ),
-                  ],
-                ),
+                const SizedBox(width: 8),
+                _Badge(label: loan.status, color: statusColor),
               ],
             ),
             const Divider(height: 20),
@@ -70,9 +66,7 @@ class LoanHeaderCard extends StatelessWidget {
             _InfoRow(
               icon: Icons.badge_outlined,
               label: 'Loan Officer',
-              value: loan.createdByUserId.isNotEmpty
-                  ? loan.createdByUserId
-                  : 'System Officer',
+              value: 'Recorded by system',
             ),
             const SizedBox(height: 6),
             Row(
@@ -161,9 +155,8 @@ class _InfoRow extends StatelessWidget {
 class _Badge extends StatelessWidget {
   final String label;
   final Color color;
-  final IconData? icon;
 
-  const _Badge({required this.label, required this.color, this.icon});
+  const _Badge({required this.label, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -177,10 +170,6 @@ class _Badge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (icon != null) ...[
-            Icon(icon, size: 12, color: color),
-            const SizedBox(width: 4),
-          ],
           Text(
             label,
             style: TextStyle(
