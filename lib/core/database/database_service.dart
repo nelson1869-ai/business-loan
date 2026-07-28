@@ -14,7 +14,12 @@ class DatabaseService {
   final String? _dbPath;
 
   Future<Database> get database async {
-    if (_db != null) return _db!;
+    // sqflite may return the same cached database handle to multiple service
+    // instances. A disposed owner (or a debug engine restart) can therefore
+    // close a handle still referenced here. Never hand callers a closed
+    // connection; reopen it transparently.
+    if (_db case final db? when db.isOpen) return db;
+    _db = null;
     _db = await _initDatabase();
     await _ensureColumnsExist(_db!);
     return _db!;
@@ -74,6 +79,10 @@ class DatabaseService {
     return await openDatabase(
       path,
       version: 8,
+      // Foreground UI and WorkManager run in separate provider containers.
+      // They must not share sqflite's cached handle because disposing the
+      // background container would otherwise close the foreground connection.
+      singleInstance: false,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
