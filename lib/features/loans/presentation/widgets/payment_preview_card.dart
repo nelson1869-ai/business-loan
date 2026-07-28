@@ -25,7 +25,7 @@ class PaymentPreviewCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Backend preview', style: theme.textTheme.titleLarge),
+            Text('Payment preview', style: theme.textTheme.titleLarge),
             InfoRow('Payment', formatCurrency(preview.paymentAmount)),
             InfoRow(
               'Total interest owed',

@@ -68,6 +68,27 @@ void main() {
     expect(loan.installments.single.installmentNumber, 1);
   });
 
+  test(
+    'explanation sends only the loan id and parses structured output',
+    () async {
+      adapter.responseData = <String, dynamic>{
+        'summary': 'This loan has ten scheduled payments.',
+        'keyPoints': <String>['The regular payment is \$129.50.'],
+        'generatedAt': '2026-07-28T12:00:00Z',
+        'model': 'openai/gpt-oss-20b',
+        'disclaimer': 'AI-generated explanation.',
+      };
+
+      final explanation = await repository.explainLoan('loan-1');
+
+      expect(adapter.lastRequest?.method, 'POST');
+      expect(adapter.lastRequest?.path, '/api/v1/loans/loan-1/explanation');
+      expect(adapter.lastRequest?.data, isNull);
+      expect(explanation.keyPoints, hasLength(1));
+      expect(explanation.model, 'openai/gpt-oss-20b');
+    },
+  );
+
   test('backend detail is exposed as a non-retryable exception', () async {
     adapter
       ..statusCode = 422

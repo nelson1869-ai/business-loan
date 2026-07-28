@@ -15,12 +15,12 @@ class SyncManagementScreen extends ConsumerWidget {
 
     final isOnline = serverStatus == ServerStatus.serverReady;
     final lastSynced = queueState.lastSyncedAt != null
-        ? queueState.lastSyncedAt!.toLocal().toString().split('.').first
+        ? _formatBusinessDateTime(queueState.lastSyncedAt!)
         : 'Never';
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sync & Storage Management'),
+        title: const Text('Sync & Storage'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -42,47 +42,64 @@ class SyncManagementScreen extends ConsumerWidget {
             elevation: 2,
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Icon(
-                    isOnline ? Icons.wifi : Icons.wifi_off,
-                    size: 36,
-                    color: isOnline ? Colors.green : Colors.grey,
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          isOnline
-                              ? 'Backend Server Connected'
-                              : 'Working Offline (Saved on Device)',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
+                  Row(
+                    children: [
+                      Icon(
+                        isOnline ? Icons.wifi : Icons.wifi_off,
+                        size: 36,
+                        color: isOnline ? Colors.green : Colors.grey,
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isOnline
+                                  ? 'Backend Server Connected'
+                                  : 'Working Offline (Saved on Device)',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Last Synced: $lastSynced',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade700,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Last Synced: $lastSynced',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade700,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 16),
                   ElevatedButton.icon(
                     onPressed: () async {
-                      await syncService.drainQueue();
+                      await syncService.retryAllFailed();
                       await ref
                           .read(offlineSyncQueueNotifierProvider.notifier)
                           .refreshQueueState();
                     },
                     icon: const Icon(Icons.sync, size: 18),
-                    label: const Text('Sync Now'),
+                    label: const Text('Sync / Retry All'),
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      await syncService.clearAllFailed();
+                      await ref
+                          .read(offlineSyncQueueNotifierProvider.notifier)
+                          .refreshQueueState();
+                    },
+                    icon: const Icon(Icons.delete_sweep, size: 18),
+                    label: const Text('Clear Failed'),
                   ),
                 ],
               ),
@@ -147,7 +164,7 @@ class SyncManagementScreen extends ConsumerWidget {
                     ),
                   ),
                   title: Text(
-                    '${item.method} ${item.endpoint}',
+                    _operationLabel(item),
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
@@ -156,9 +173,7 @@ class SyncManagementScreen extends ConsumerWidget {
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Entity: ${item.entityType} | ID: ${item.entityLocalId ?? "N/A"}',
-                      ),
+                      Text('Reference: ${_shortReference(item.entityLocalId)}'),
                       Text(
                         'Status: ${item.status.name} (Retries: ${item.retryCount})',
                         style: TextStyle(color: _statusColor(item.status)),
@@ -283,5 +298,45 @@ class SyncManagementScreen extends ConsumerWidget {
       case QueueItemStatus.cancelled:
         return Icons.cancel_outlined;
     }
+  }
+
+  String _operationLabel(OfflineQueueItemModel item) {
+    final action = switch (item.method.toUpperCase()) {
+      'POST' => 'Create or update',
+      'PUT' || 'PATCH' => 'Update',
+      'DELETE' => 'Delete',
+      _ => 'Sync',
+    };
+    final entity = item.entityType.trim().isEmpty
+        ? 'record'
+        : item.entityType.replaceAll('_', ' ');
+    return '$action $entity';
+  }
+
+  String _shortReference(String? value) {
+    if (value == null || value.isEmpty) return 'Not available';
+    return value.length > 8 ? value.substring(0, 8).toUpperCase() : value;
+  }
+
+  String _formatBusinessDateTime(DateTime value) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final date = value.toUtc().add(const Duration(hours: 8));
+    final time =
+        '${date.hour.toString().padLeft(2, '0')}:'
+        '${date.minute.toString().padLeft(2, '0')}';
+    return '${months[date.month - 1]} ${date.day}, ${date.year} $time';
   }
 }

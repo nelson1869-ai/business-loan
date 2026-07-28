@@ -79,10 +79,15 @@ class LoansTabView extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'Loan #${loan.id.length >= 8 ? loan.id.substring(0, 8) : loan.id}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    Expanded(
+                      child: Text(
+                        'Loan #${loan.id.length >= 8 ? loan.id.substring(0, 8) : loan.id}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
                     ),
+                    const SizedBox(width: 8),
                     _StatusChip(status: loan.status),
                   ],
                 ),

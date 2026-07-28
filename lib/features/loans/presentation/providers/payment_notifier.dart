@@ -35,36 +35,53 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
     required String loanId,
     required String amount,
     required String effectiveDate,
+    required String outstandingPrincipal,
+    required String interestDue,
+    required String dueDate,
+    required int daysEarly,
+    required int overdueDays,
+    required String scheduledPayment,
+    required double periodicRate,
+    required String installmentId,
   }) async {
     state = const PaymentState(working: true);
-    final localRepo = ref.read(localLoanRepositoryProvider);
-    final loan = await localRepo.getLoan(loanId);
-    final outstandingPr = loan?.outstandingPrincipal ?? '0.00';
     final alloc = LoanCalculator.allocatePayment(
       paymentAmount: amount,
-      interestDue: '0.00',
-      outstandingPrincipal: outstandingPr,
+      interestDue: interestDue,
+      outstandingPrincipal: outstandingPrincipal,
+    );
+    final amountCents = LoanCalculator.parseCents(amount, 'paymentAmount');
+    final scheduledCents = LoanCalculator.parseCents(
+      scheduledPayment,
+      'scheduledPayment',
     );
     state = PaymentState(
       preview: PaymentPreview(
         loanId: loanId,
-        installmentId: 'offline-inst-1',
+        installmentId: installmentId,
         paymentAmount: amount,
         effectiveDate: effectiveDate,
-        dueDate: effectiveDate,
-        daysEarly: 0,
-        overdueDays: 0,
-        accruedInterest: '0.00',
-        totalInterestBefore: '0.00',
-        principalBefore: outstandingPr,
+        dueDate: dueDate,
+        daysEarly: daysEarly,
+        overdueDays: overdueDays,
+        accruedInterest: interestDue,
+        totalInterestBefore: interestDue,
+        principalBefore: outstandingPrincipal,
         appliedInterest: alloc.appliedToInterest,
         appliedPrincipal: alloc.appliedToPrincipal,
         unappliedCredit: alloc.unappliedCredit,
         interestAfter: alloc.remainingInterest,
         principalAfter: alloc.remainingPrincipal,
-        amountAboveScheduled: '0.00',
-        nextPeriodInterest: '0.00',
-        isPayoff: alloc.remainingPrincipal == '0.00',
+        amountAboveScheduled: LoanCalculator.formatCents(
+          (amountCents - scheduledCents).clamp(0, amountCents).toInt(),
+        ),
+        nextPeriodInterest: LoanCalculator.calculatePeriodInterest(
+          alloc.remainingPrincipal,
+          periodicRate,
+        ),
+        isPayoff:
+            alloc.remainingInterest == '0.00' &&
+            alloc.remainingPrincipal == '0.00',
       ),
     );
   }
@@ -75,6 +92,8 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
     required String effectiveDate,
     required String note,
   }) async {
+    final preview = state.preview;
+    if (preview == null) return;
     final fingerprint = '$amount|$effectiveDate|$note';
     if (_fingerprint != fingerprint) {
       _fingerprint = fingerprint;
@@ -88,8 +107,10 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
       amount: amount,
       effectiveDate: effectiveDate,
       note: note,
+      preview: preview,
     );
     await localRepo.savePayment(offlinePayment, syncStatus: 'pending');
+    await localRepo.applyPaymentPreview(preview);
     await syncService.enqueue(
       endpoint: ApiEndpoints.loanPayments(loanId),
       method: 'POST',
@@ -155,24 +176,25 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
     required String amount,
     required String effectiveDate,
     required String note,
+    required PaymentPreview preview,
   }) => LoanPayment(
     id: _requestId ?? const Uuid().v4(),
     requestId: _requestId ?? const Uuid().v4(),
     loanId: loanId,
-    installmentId: null,
+    installmentId: preview.installmentId,
     entryType: 'Payment',
     reversalOfPaymentId: null,
     amount: amount,
     effectiveDate: effectiveDate,
     note: note.trim().isEmpty ? null : note.trim(),
     createdAt: DateTime.now().toUtc().toIso8601String(),
-    allocation: const PaymentAllocation(
-      appliedInterest: '0.00',
-      appliedPrincipal: '0.00',
-      unappliedCredit: '0.00',
-      interestAfter: '0.00',
-      principalAfter: '0.00',
-      overdueDays: 0,
+    allocation: PaymentAllocation(
+      appliedInterest: preview.appliedInterest,
+      appliedPrincipal: preview.appliedPrincipal,
+      unappliedCredit: preview.unappliedCredit,
+      interestAfter: preview.interestAfter,
+      principalAfter: preview.principalAfter,
+      overdueDays: preview.overdueDays,
     ),
   );
 

@@ -20,7 +20,9 @@ class ApiErrorMapper {
       400 => _safeDetail(error) ?? 'The request could not be processed.',
       401 => 'Your session has expired. Please sign in again.',
       403 => 'You do not have permission to perform this action.',
-      404 => 'The requested record was not found.',
+      404 =>
+        _safeDetail(error) ??
+            'I could not find a matching record. Try a name or another request.',
       409 => _safeDetail(error) ?? 'The record changed or already exists.',
       413 => 'The selected file is too large.',
       422 => _safeDetail(error) ?? 'Check the entered values and try again.',

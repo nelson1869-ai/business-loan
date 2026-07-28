@@ -48,7 +48,30 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Dashboard'),
+        toolbarHeight: 48,
+        titleSpacing: 16,
+        titleTextStyle: theme.textTheme.titleLarge?.copyWith(
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+        ),
+        elevation: 0,
+        scrolledUnderElevation: 3.0,
+        shadowColor: Colors.black.withValues(alpha: 0.4),
+        surfaceTintColor: theme.colorScheme.surface,
+        backgroundColor: theme.colorScheme.surface,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1.0),
+          child: Container(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.25),
+            height: 1.0,
+          ),
+        ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined),
+            tooltip: 'Notifications',
+            onPressed: () => context.push('/notifications'),
+          ),
           Consumer(
             builder: (context, ref, child) {
               final pendingCount = ref.watch(offlineSyncPendingCountProvider);
@@ -71,6 +94,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       body: RefreshIndicator(
         onRefresh: () => ref.read(dashboardProvider.notifier).loadDashboard(),
         child: _buildBody(context, theme, state),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => context.push('/admin-assistant'),
+        icon: const Icon(Icons.auto_awesome),
+        label: const Text('Ask Admin AI'),
       ),
     );
   }
@@ -107,9 +135,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        DashboardHeader(
-          onRefresh: () => ref.read(dashboardProvider.notifier).loadDashboard(),
-        ),
+        const DashboardHeader(),
         const SizedBox(height: 16),
         OwnerFinancialSummaryCard(
           totalPrincipalDisbursed: metrics.totalPrincipalDisbursed,

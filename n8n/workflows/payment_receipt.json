@@ -1,0 +1,81 @@
+{
+  "name": "Lending Nelson - Payment Receipt SMS & Alert",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lending-events",
+        "options": {}
+      },
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.body.event }}",
+              "value2": "payment_recorded"
+            }
+          ]
+        }
+      },
+      "name": "Is Payment Event?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.semaphore.co/api/v4/messages",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"apikey\": \"YOUR_SEMAPHORE_API_KEY\",\n  \"number\": \"={{ $json.body.payload.borrower_phone }}\",\n  \"message\": \"Thank you! We received your loan payment of P{{ $json.body.payload.amount_paid }} for Loan #{{ $json.body.payload.loan_id }}. Remaining balance: P{{ $json.body.payload.remaining_balance }}.\"\n}",
+        "options": {}
+      },
+      "name": "Send Borrower SMS (Semaphore/Twilio)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        680,
+        220
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Is Payment Event?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Payment Event?": {
+      "main": [
+        [
+          {
+            "node": "Send Borrower SMS (Semaphore/Twilio)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {}
+}

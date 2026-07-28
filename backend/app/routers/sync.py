@@ -24,6 +24,7 @@ from app.schemas.sync import (
 )
 from app.services import borrower_service, loan_service, payment_service
 from app.services import note_service
+from app.models.document import Document
 from app.models.note import Note
 from app.models.sync_receipt import SyncReceipt
 from app.routers import (
@@ -153,8 +154,13 @@ async def _replay_item(
         return
 
     if item.endpoint.startswith("/api/v1/documents/") and item.method == "DELETE":
+        document_id = item.endpoint.rsplit("/", maxsplit=1)[-1]
+        # DELETE is idempotent during offline replay. If the document was
+        # already removed, the server is already in the requested state.
+        if await db.get(Document, document_id) is None:
+            return
         await documents.delete_document(
-            item.endpoint.rsplit("/", maxsplit=1)[-1],
+            document_id,
             db,
             current_user,
         )

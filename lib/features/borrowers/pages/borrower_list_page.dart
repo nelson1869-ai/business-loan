@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_mapper.dart';
+import '../data/borrower_repository.dart';
 import '../providers/borrowers_state.dart';
 import '../widgets/borrower_card.dart';
 
@@ -189,9 +190,13 @@ class _BorrowerListPageState extends ConsumerState<BorrowerListPage> {
                                 .deleteBorrower(borrower.id);
                           } catch (error) {
                             if (!context.mounted) return;
+                            final message =
+                                error is BorrowerHasOpenLoansException
+                                ? error.message
+                                : ApiErrorMapper.message(error);
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text(ApiErrorMapper.message(error)),
+                                content: Text(message),
                                 backgroundColor: Theme.of(
                                   context,
                                 ).colorScheme.error,

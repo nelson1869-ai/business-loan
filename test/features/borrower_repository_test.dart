@@ -103,13 +103,7 @@ void main() {
 
     await expectLater(
       repository.deleteBorrower(borrower.id),
-      throwsA(
-        isA<StateError>().having(
-          (error) => error.message,
-          'message',
-          contains('loans remain open'),
-        ),
-      ),
+      throwsA(isA<BorrowerHasOpenLoansException>()),
     );
     expect(await repository.getBorrower(borrower.id), isNotNull);
   });

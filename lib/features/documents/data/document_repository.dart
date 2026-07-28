@@ -47,10 +47,24 @@ class DocumentRepository {
         : ApiEndpoints.loanDocuments(borrowerId, loanId);
     try {
       final response = await _dio.get<List<dynamic>>(endpoint);
-      await _cache.write(
-        _key(borrowerId, loanId),
-        response.data ?? const <dynamic>[],
-      );
+      final remoteRows = response.data ?? const <dynamic>[];
+      final cached = await _cache.read(_key(borrowerId, loanId));
+      final localPending = (cached is List ? cached : const <dynamic>[])
+          .whereType<Map<String, dynamic>>()
+          .where((item) => item['uploadedByUserId'] == 'local-officer')
+          .where((local) {
+            return !remoteRows.whereType<Map<String, dynamic>>().any(
+              (remote) =>
+                  remote['fileName'] == local['fileName'] &&
+                  remote['title'] == local['title'] &&
+                  remote['sizeBytes'] == local['sizeBytes'],
+            );
+          })
+          .map((item) => Map<String, dynamic>.from(item));
+      await _cache.write(_key(borrowerId, loanId), [
+        ...localPending,
+        ...remoteRows,
+      ]);
     } catch (_) {}
   }
 

@@ -25,21 +25,17 @@ class NotificationFilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: filters.map((filter) {
-          final isSelected = selectedFilter == filter;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: AppFilterChip(
-              label: filter,
-              isSelected: isSelected,
-              onSelected: () => onFilterChanged(filter),
-            ),
-          );
-        }).toList(),
-      ),
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: filters.map((filter) {
+        final isSelected = selectedFilter == filter;
+        return AppFilterChip(
+          label: filter,
+          isSelected: isSelected,
+          onSelected: () => onFilterChanged(filter),
+        );
+      }).toList(),
     );
   }
 }

@@ -36,9 +36,8 @@ class DashboardRepository {
 
   /// Compiles dashboard statistics and lists from online endpoints or local SQLite cache.
   Future<DashboardState> loadDashboard() async {
-    // Dashboard rendering is derived exclusively from SQLite. Refreshing the
-    // cache is intentionally detached from this foreground future.
-    final isOnline = _foregroundReadsUseNetwork;
+    // Check server health to resolve actual online/offline status
+    final isOnline = await _healthService.isServerReachable();
     unawaited(_refreshPrimaryCaches());
 
     // 1. Resolve borrowers (remote first if online, fallback to local SQLite)
@@ -265,7 +264,6 @@ class DashboardRepository {
     );
   }
 
-  bool get _foregroundReadsUseNetwork => false;
 
   Future<void> _refreshPrimaryCaches() async {
     try {

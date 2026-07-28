@@ -1,0 +1,97 @@
+{
+  "name": "Lending Nelson - Telegram Manager Approval Bot",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lending-events",
+        "options": {}
+      },
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.body.event }}",
+              "value2": "loan_created"
+            }
+          ]
+        }
+      },
+      "name": "Is New Loan?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_MANAGER_CHAT_ID",
+        "text": "=📢 *NEW LOAN APPLICATION CREATED*\n\n👤 *Borrower:* {{ $json.body.payload.borrower_name }}\n💰 *Principal:* ₱{{ $json.body.payload.principal }}\n📌 *Status:* {{ $json.body.payload.status }}\n🧑‍💼 *Submitted By:* {{ $json.body.payload.created_by }}\n🆔 *Loan ID:* `{{ $json.body.payload.loan_id }}`\n\nTap below to approve or review in Lending Nelson:",
+        "additionalFields": {
+          "parse_mode": "Markdown",
+          "reply_markup": "inline_keyboard",
+          "inline_keyboard": {
+            "rows": [
+              {
+                "buttons": [
+                  {
+                    "text": "🟢 Approve Loan",
+                    "callback_data": "approve_{{ $json.body.payload.loan_id }}"
+                  },
+                  {
+                    "text": "🔴 Reject Loan",
+                    "callback_data": "reject_{{ $json.body.payload.loan_id }}"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "name": "Send Telegram Alert to Manager",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        680,
+        220
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Is New Loan?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is New Loan?": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Alert to Manager",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {}
+}

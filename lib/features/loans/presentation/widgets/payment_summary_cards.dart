@@ -33,7 +33,7 @@ class PaymentSummaryCards extends StatelessWidget {
       }
     }
 
-    final dueTodayStr = installmentAmount != null
+    final nextInstallmentStr = installmentAmount != null
         ? formatCurrency(installmentAmount!)
         : '\$0.00';
 
@@ -56,8 +56,8 @@ class PaymentSummaryCards extends StatelessWidget {
               color: theme.colorScheme.primary,
             ),
             _MetricCard(
-              label: 'Today\'s Due',
-              value: dueTodayStr,
+              label: 'Next Installment',
+              value: nextInstallmentStr,
               icon: Icons.schedule_send_outlined,
               color: Colors.teal,
             ),
@@ -75,7 +75,9 @@ class PaymentSummaryCards extends StatelessWidget {
             ),
             _MetricCard(
               label: 'Next Due Date',
-              value: formatDateShort(loan.firstDueDate),
+              value: loan.status == 'Paid'
+                  ? 'None'
+                  : formatDateShort(loan.firstDueDate),
               icon: Icons.calendar_month_outlined,
               color: Colors.indigo,
             ),

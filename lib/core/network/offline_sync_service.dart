@@ -313,7 +313,7 @@ class OfflineSyncService {
   }
 
   /// Replays pending/retryable queued items and removes server-confirmed rows.
-  Future<void> drainQueue() async {
+  Future<void> drainQueue({bool force = false}) async {
     if (_isDraining || _isForcedOffline()) return;
     _isDraining = true;
     try {
@@ -326,6 +326,7 @@ class OfflineSyncService {
 
       final now = DateTime.now().toUtc();
       final eligibleRows = rows.where((row) {
+        if (force) return true;
         final nextRetryStr = row['next_retry_at'] as String?;
         if (nextRetryStr != null) {
           final nextRetry = DateTime.tryParse(nextRetryStr);
@@ -706,6 +707,28 @@ class OfflineSyncService {
       'offline_sync_queue',
       where: 'transaction_uuid = ?',
       whereArgs: [transactionUuid],
+    );
+    onQueueChanged?.call();
+  }
+
+  /// Reset all failed items (retryable or permanently failed) back to pending and drain immediately.
+  Future<void> retryAllFailed() async {
+    final database = await _databaseService.database;
+    await database.update(
+      'offline_sync_queue',
+      {'status': QueueItemStatus.pending.toDbValue(), 'next_retry_at': null},
+      where: "status IN ('retryableFailed', 'permanentlyFailed')",
+    );
+    onQueueChanged?.call();
+    unawaited(drainQueue(force: true));
+  }
+
+  /// Removes all failed and cancelled items from the offline sync queue.
+  Future<void> clearAllFailed() async {
+    final database = await _databaseService.database;
+    await database.delete(
+      'offline_sync_queue',
+      where: "status IN ('retryableFailed', 'permanentlyFailed', 'cancelled')",
     );
     onQueueChanged?.call();
   }

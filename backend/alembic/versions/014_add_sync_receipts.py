@@ -1,7 +1,7 @@
 """Add durable offline synchronization receipts.
 
 Revision ID: 014
-Revises: 013
+Revises: 013_harden_integrations
 """
 
 from collections.abc import Sequence
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "014"
-down_revision: str | None = "013"
+down_revision: str | None = "013_harden_integrations"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

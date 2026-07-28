@@ -1,8 +1,7 @@
-import 'dart:typed_data';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/presentation/design_system/design_system.dart';
 import '../../../core/network/api_error_mapper.dart';
@@ -13,15 +12,22 @@ import '../data/document_repository.dart';
 import '../domain/app_document.dart';
 import '../providers/document_provider.dart';
 
-class DocumentListView extends ConsumerWidget {
+class DocumentListView extends ConsumerStatefulWidget {
   const DocumentListView({super.key, required this.borrowerId, this.loanId});
 
   final String borrowerId;
   final String? loanId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final scope = (borrowerId: borrowerId, loanId: loanId);
+  ConsumerState<DocumentListView> createState() => _DocumentListViewState();
+}
+
+class _DocumentListViewState extends ConsumerState<DocumentListView> {
+  bool _isUploading = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final scope = (borrowerId: widget.borrowerId, loanId: widget.loanId);
     final documents = ref.watch(documentsProvider(scope));
     return RefreshIndicator(
       onRefresh: () async {
@@ -52,9 +58,18 @@ class DocumentListView extends ConsumerWidget {
           padding: const EdgeInsets.all(16),
           children: [
             FilledButton.icon(
-              onPressed: () => _upload(context, ref, scope),
-              icon: const Icon(Icons.upload_file_outlined),
-              label: const Text('Upload Document'),
+              onPressed: _isUploading
+                  ? null
+                  : () => _upload(context, ref, scope),
+              icon: _isUploading
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.upload_file_outlined),
+              label: Text(
+                _isUploading ? 'Preparing upload…' : 'Upload Document',
+              ),
             ),
             const SizedBox(height: 12),
             if (items.isEmpty)
@@ -113,8 +128,9 @@ class DocumentListView extends ConsumerWidget {
     );
     if (source == null || !context.mounted) return;
 
-    if (source != 'file') {
-      try {
+    setState(() => _isUploading = true);
+    try {
+      if (source != 'file') {
         final capture = ref.read(documentCaptureServiceProvider);
         final prepared = source == 'camera'
             ? await capture.captureCamera()
@@ -130,44 +146,59 @@ class DocumentListView extends ConsumerWidget {
           contentType: prepared.contentType,
           bytes: prepared.bytes,
         );
-      } on DocumentOptimizationException catch (error) {
-        if (context.mounted) _message(context, error.message);
+        return;
       }
-      return;
-    }
 
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
-      withData: true,
-    );
-    if (result == null || !context.mounted) return;
-    final file = result.files.single;
-    final bytes = file.bytes;
-    if (bytes == null) {
-      _message(context, 'The selected file could not be read.');
-      return;
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
+        withData: true,
+      );
+      if (result == null || !context.mounted) return;
+      final file = result.files.single;
+      final bytes = file.bytes;
+      if (bytes == null) {
+        _message(context, 'The selected file could not be read.');
+        return;
+      }
+      if (bytes.length > maxDocumentBytes) {
+        _message(context, 'Select a document no larger than 700 KB.');
+        return;
+      }
+      final extension = (file.extension ?? '').toLowerCase();
+      final contentType = switch (extension) {
+        'pdf' => 'application/pdf',
+        'jpg' || 'jpeg' => 'image/jpeg',
+        'png' => 'image/png',
+        'webp' => 'image/webp',
+        _ => throw const DocumentOptimizationException(
+          'Unsupported document type.',
+        ),
+      };
+      await _uploadBytes(
+        context,
+        ref,
+        scope,
+        fileName: file.name,
+        contentType: contentType,
+        bytes: bytes,
+      );
+    } on DocumentOptimizationException catch (error) {
+      if (context.mounted) _message(context, error.message);
+    } on PlatformException catch (error) {
+      if (context.mounted) {
+        _message(
+          context,
+          error.message ?? 'Photo access was unavailable or denied.',
+        );
+      }
+    } catch (error) {
+      if (context.mounted) {
+        _message(context, ApiErrorMapper.message(error));
+      }
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
     }
-    if (bytes.length > 700000) {
-      _message(context, 'Select a document no larger than 700 KB.');
-      return;
-    }
-    final extension = (file.extension ?? '').toLowerCase();
-    final contentType = switch (extension) {
-      'pdf' => 'application/pdf',
-      'jpg' || 'jpeg' => 'image/jpeg',
-      'png' => 'image/png',
-      'webp' => 'image/webp',
-      _ => '',
-    };
-    await _uploadBytes(
-      context,
-      ref,
-      scope,
-      fileName: file.name,
-      contentType: contentType,
-      bytes: bytes,
-    );
   }
 
   Future<void> _uploadBytes(

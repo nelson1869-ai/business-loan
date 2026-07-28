@@ -93,31 +93,6 @@ class BorrowerHeaderCard extends ConsumerWidget {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    IconButton.filledTonal(
-                      icon: const Icon(Icons.call_outlined, size: 20),
-                      tooltip: 'Call Borrower',
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Calling ${borrower.fullName}...'),
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(width: 4),
-                    IconButton.filledTonal(
-                      icon: const Icon(Icons.sms_outlined, size: 20),
-                      tooltip: 'SMS Borrower',
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Sending SMS to ${borrower.fullName}...',
-                            ),
-                          ),
-                        );
-                      },
-                    ),
                     PopupMenuButton<String>(
                       icon: const Icon(Icons.more_vert),
                       onSelected: (val) => _handleMenuAction(context, ref, val),
@@ -152,6 +127,35 @@ class BorrowerHeaderCard extends ConsumerWidget {
                       ],
                     ),
                   ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                FilledButton.tonalIcon(
+                  icon: const Icon(Icons.call_outlined, size: 18),
+                  label: const Text('Call'),
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Calling ${borrower.fullName}...'),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(width: 8),
+                FilledButton.tonalIcon(
+                  icon: const Icon(Icons.sms_outlined, size: 18),
+                  label: const Text('Message'),
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Sending SMS to ${borrower.fullName}...'),
+                      ),
+                    );
+                  },
                 ),
               ],
             ),

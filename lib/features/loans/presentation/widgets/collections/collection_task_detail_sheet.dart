@@ -61,8 +61,9 @@ class CollectionTaskDetailSheet extends StatelessWidget {
             ),
           ),
           const Divider(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            spacing: 20,
+            runSpacing: 12,
             children: [
               _DetailStat(
                 label: 'Amount Due Today',
@@ -83,20 +84,12 @@ class CollectionTaskDetailSheet extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           AppSectionCard(
-            title: 'Officer Notes & Promise History',
+            title: 'Officer Notes',
             icon: Icons.note_alt_outlined,
             children: [
               Text(
-                'Previous Visit: Customer requested morning visit after 9:00 AM.',
+                'No officer notes or payment promises have been recorded for this task.',
                 style: theme.textTheme.bodySmall,
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Promise Date: Pay full installment on or before Friday.',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.amber.shade800,
-                ),
               ),
             ],
           ),
@@ -106,18 +99,10 @@ class CollectionTaskDetailSheet extends StatelessWidget {
             icon: Icons.timeline_outlined,
             children: [
               _TimelineStep(
-                title: 'Task Created',
-                subtitle: 'Scheduled for Today 9:00 AM',
-                isDone: true,
-              ),
-              _TimelineStep(
-                title: 'SMS Reminder Sent',
-                subtitle: 'Sent at 8:15 AM',
-                isDone: true,
-              ),
-              _TimelineStep(
-                title: 'Field Visit',
-                subtitle: 'In Progress',
+                title: 'Collection task available',
+                subtitle: item.isOverdue
+                    ? 'Installment is overdue'
+                    : 'Installment is pending',
                 isDone: false,
               ),
             ],

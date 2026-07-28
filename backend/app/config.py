@@ -2,7 +2,7 @@
 
 from functools import lru_cache
 
-from pydantic import Field, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ALLOWED_ENVIRONMENTS = {"development", "dev", "test", "staging", "production", "prod"}
@@ -29,6 +29,23 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = Field(default=15, gt=0)
     refresh_token_expire_days: int = Field(default=7, gt=0)
     cors_origins: str
+    n8n_webhook_url: str | None = None
+    n8n_webhook_secret: str | None = None
+    nvidia_api_key: SecretStr | None = None
+    nvidia_base_url: str | None = None
+    ai_enabled: bool = True
+    ai_provider: str = "nvidia"
+    ai_model: str = "openai/gpt-oss-20b"
+    ai_explanations_enabled: bool = True
+    ai_timeout_seconds: float = Field(default=20.0, gt=0, le=120)
+    ai_max_output_tokens: int = Field(default=160, ge=64, le=300)
+    ai_temperature: float = Field(default=0.2, ge=0, le=1)
+    ai_max_retries: int = Field(default=0, ge=0, le=1)
+    ai_cache_ttl_seconds: int = Field(default=300, ge=0, le=3600)
+    ai_failure_cooldown_seconds: int = Field(default=120, ge=0, le=3600)
+    assistant_rate_limit_per_minute: int = Field(default=30, ge=5, le=300)
+    business_timezone: str = "Asia/Manila"
+    currency_code: str = Field(default="PHP", min_length=3, max_length=3)
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -81,6 +98,25 @@ class Settings(BaseSettings):
         return [
             origin.strip() for origin in self.cors_origins.split(",") if origin.strip()
         ]
+
+    @property
+    def ai_explanations_available(self) -> bool:
+        """Return whether the optional AI explanation integration is configured."""
+        return (
+            self.ai_explanations_enabled
+            and self.ai_enabled
+            and self.ai_provider.lower() == "nvidia"
+            and self.nvidia_api_key is not None
+            and bool(self.nvidia_api_key.get_secret_value().strip())
+            and self.nvidia_base_url is not None
+            and bool(self.nvidia_base_url.strip())
+        )
+
+    @field_validator("currency_code")
+    @classmethod
+    def normalize_currency_code(cls, value: str) -> str:
+        """Store an ISO-style uppercase currency code."""
+        return value.upper()
 
 
 @lru_cache

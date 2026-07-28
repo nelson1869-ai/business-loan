@@ -20,6 +20,9 @@ class ApiEndpoints {
   /// Payment collection for one loan.
   static String loanPayments(String loanId) => '$loans/$loanId/payments';
 
+  /// Read-only AI explanation for one persisted loan.
+  static String loanExplanation(String loanId) => '$loans/$loanId/explanation';
+
   /// Offline mutation batch endpoint.
   static const String syncDrain = '/api/v1/sync/drain';
 
@@ -71,6 +74,11 @@ class ApiEndpoints {
   static String userRole(String userId) => '$users/$userId/role';
 
   static const String businessSettings = '/api/v1/business-settings';
+
+  /// Admin-only, read-only business assistant.
+  static const String adminAssistantChat = '/api/v1/admin-assistant/chat';
+  static const String adminAssistantQuestions =
+      '/api/v1/admin-assistant/questions';
 
   /// Health check endpoint for server reachability verification.
   static const String health = '/health';

@@ -44,6 +44,25 @@ class ScheduledInstallment {
   final String remainingPrincipal;
 }
 
+/// Date-sensitive interest and payoff quote for the active loan period.
+class LoanPayoffQuote {
+  const LoanPayoffQuote({
+    required this.interestDue,
+    required this.payoffAmount,
+    required this.elapsedDays,
+    required this.scheduledPeriodDays,
+    required this.daysEarly,
+    required this.overdueDays,
+  });
+
+  final String interestDue;
+  final String payoffAmount;
+  final int elapsedDays;
+  final int scheduledPeriodDays;
+  final int daysEarly;
+  final int overdueDays;
+}
+
 /// Pure Dart financial calculation engine with exact cent precision (ROUND_HALF_UP).
 class LoanCalculator {
   /// Converts string money format "123.45" to integer cents.
@@ -171,6 +190,61 @@ class LoanCalculator {
       unappliedCredit: formatCents(unappliedCredit),
       remainingInterest: formatCents(iCents - appliedInterest),
       remainingPrincipal: formatCents(prCents - appliedPrincipal),
+    );
+  }
+
+  /// Quotes accrued interest and full payoff for an effective date.
+  ///
+  /// This mirrors the backend's straight-line proration for an early, on-time,
+  /// or late payment within the active installment period.
+  static LoanPayoffQuote quotePayoff({
+    required String outstandingPrincipal,
+    required double periodicRate,
+    required DateTime periodStartDate,
+    required DateTime dueDate,
+    required DateTime effectiveDate,
+  }) {
+    final periodStart = DateTime(
+      periodStartDate.year,
+      periodStartDate.month,
+      periodStartDate.day,
+    );
+    final due = DateTime(dueDate.year, dueDate.month, dueDate.day);
+    final effective = DateTime(
+      effectiveDate.year,
+      effectiveDate.month,
+      effectiveDate.day,
+    );
+    final scheduledDays = due.difference(periodStart).inDays;
+    if (scheduledDays <= 0) {
+      throw const LoanCalculationException(
+        'dueDate must follow periodStartDate',
+      );
+    }
+    if (effective.isBefore(periodStart)) {
+      throw const LoanCalculationException(
+        'effectiveDate must not precede periodStartDate',
+      );
+    }
+
+    final elapsedDays = effective.difference(periodStart).inDays;
+    final interest = calculateProratedInterest(
+      outstandingPrincipal: outstandingPrincipal,
+      periodicRate: periodicRate,
+      elapsedDays: elapsedDays,
+      scheduledPeriodDays: scheduledDays,
+    );
+    final payoffCents =
+        parseCents(outstandingPrincipal, 'outstandingPrincipal') +
+        parseCents(interest, 'interestDue');
+
+    return LoanPayoffQuote(
+      interestDue: interest,
+      payoffAmount: formatCents(payoffCents),
+      elapsedDays: elapsedDays,
+      scheduledPeriodDays: scheduledDays,
+      daysEarly: max(due.difference(effective).inDays, 0),
+      overdueDays: max(effective.difference(due).inDays, 0),
     );
   }
 

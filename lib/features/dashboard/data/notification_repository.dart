@@ -18,14 +18,29 @@ class NotificationRepository {
   static const _cacheKey = 'notifications';
 
   Future<List<AppNotification>> load() async {
-    final cached = await _cache.read(_cacheKey);
-    unawaited(_refresh());
-    return (cached is List ? cached : const <dynamic>[])
-        .map(
-          (item) =>
-              AppNotification.fromJson(Map<String, dynamic>.from(item as Map)),
-        )
-        .toList(growable: false);
+    try {
+      final cached = await _cache.read(_cacheKey);
+      final cachedItems = _parse(cached);
+      if (cachedItems.isNotEmpty) {
+        unawaited(_refresh());
+        return cachedItems;
+      }
+    } catch (_) {
+      // A stale or unreadable cache must never prevent the inbox from loading.
+    }
+
+    try {
+      final response = await _dio.get<List<dynamic>>(
+        ApiEndpoints.notifications,
+      );
+      final data = response.data ?? const <dynamic>[];
+      await _cache.write(_cacheKey, data);
+      return _parse(data);
+    } catch (_) {
+      // An empty offline inbox is a valid state. New alerts will load when the
+      // connection returns and the user refreshes.
+      return const <AppNotification>[];
+    }
   }
 
   Future<void> _refresh() async {
@@ -35,6 +50,21 @@ class NotificationRepository {
       );
       await _cache.write(_cacheKey, response.data ?? const <dynamic>[]);
     } catch (_) {}
+  }
+
+  List<AppNotification> _parse(Object? value) {
+    if (value is! List) return const <AppNotification>[];
+    final result = <AppNotification>[];
+    for (final item in value) {
+      try {
+        if (item is Map) {
+          result.add(AppNotification.fromJson(Map<String, dynamic>.from(item)));
+        }
+      } catch (_) {
+        // Skip only the malformed record and preserve the rest of the inbox.
+      }
+    }
+    return List.unmodifiable(result);
   }
 
   Future<void> markRead(String notificationId) async {

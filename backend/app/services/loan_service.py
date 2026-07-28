@@ -104,7 +104,10 @@ async def create_loan(
         payload.number_of_payments,
     )
     due_dates = build_due_dates(payload)
-    loan_id = str(uuid4())
+    # Offline clients use request_id as the canonical resource id so dependent
+    # queued mutations (payments, notes, documents) remain addressable after
+    # loan creation is replayed on the server.
+    loan_id = payload.request_id or str(uuid4())
     loan = Loan(
         id=loan_id,
         request_id=payload.request_id or str(uuid4()),

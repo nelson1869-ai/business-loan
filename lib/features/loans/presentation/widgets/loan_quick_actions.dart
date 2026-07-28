@@ -7,12 +7,14 @@ import '../../domain/models/loan.dart';
 class LoanQuickActions extends StatelessWidget {
   final Loan loan;
   final VoidCallback onShare;
+  final VoidCallback onExplain;
   final VoidCallback? onReversePayment;
 
   const LoanQuickActions({
     super.key,
     required this.loan,
     required this.onShare,
+    required this.onExplain,
     this.onReversePayment,
   });
 
@@ -34,6 +36,11 @@ class LoanQuickActions extends StatelessWidget {
           onPressed: onShare,
           icon: const Icon(Icons.share_outlined, size: 18),
           label: const Text('Share Schedule'),
+        ),
+        OutlinedButton.icon(
+          onPressed: onExplain,
+          icon: const Icon(Icons.auto_awesome_outlined, size: 18),
+          label: const Text('Explain Loan'),
         ),
         OutlinedButton.icon(
           onPressed: () {

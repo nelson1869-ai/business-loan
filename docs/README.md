@@ -12,6 +12,7 @@ Operational references:
 | Area | Document | Purpose |
 | --- | --- | --- |
 | Quick start | [QUICK_START.md](QUICK_START.md) | Production configuration and release commands |
+| Operations | [Admin credentials](admin_credentials/README.md) | Safe reference for the admin username and password storage |
 | Local testing | [Local Wi-Fi Android testing](local_wifi_testing/README.md) | Run the Android debug client against a backend PC on the same trusted Wi-Fi |
 | Architecture | [System overview](architecture/SYSTEM_OVERVIEW.md) | Components, ownership, and sources of truth |
 | Architecture | [Data flows](architecture/DATA_FLOWS.md) | Login, loan, payment, projection, and sync flows |

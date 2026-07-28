@@ -10,6 +10,13 @@ import '../../../core/security/encryption_service.dart';
 
 import '../domain/borrower_model.dart';
 
+class BorrowerHasOpenLoansException implements Exception {
+  const BorrowerHasOpenLoansException();
+
+  String get message =>
+      'This borrower cannot be deleted while an active loan remains open.';
+}
+
 class BorrowerRepository {
   final DatabaseService _dbService;
   final EncryptionService _encryption;
@@ -130,7 +137,7 @@ class BorrowerRepository {
       return loan['status'] != 'Paid' && loan['status'] != 'Cancelled';
     });
     if (hasOpenLoan) {
-      throw StateError('Borrower cannot be deleted while loans remain open');
+      throw const BorrowerHasOpenLoansException();
     }
 
     final existingList = await db.query(

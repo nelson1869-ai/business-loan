@@ -27,6 +27,7 @@ import 'package:lending_nelson/features/loans/presentation/todays_collections_pa
 
 import 'package:lending_nelson/features/dashboard/pages/notifications_center_page.dart';
 import 'package:lending_nelson/features/dashboard/pages/reports_analytics_page.dart';
+import 'package:lending_nelson/features/dashboard/pages/admin_assistant_page.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/',
@@ -65,6 +66,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/reports',
       builder: (context, state) => const ReportsAnalyticsPage(),
+    ),
+    GoRoute(
+      path: '/admin-assistant',
+      builder: (context, state) => const AdminAssistantPage(),
     ),
     GoRoute(
       path: '/borrowers/register',
@@ -200,7 +205,7 @@ class _MainShellState extends ConsumerState<MainShell> {
                             color: Colors.white,
                             onPressed: () => ref
                                 .read(offlineSyncServiceProvider)
-                                .drainQueue(),
+                                .drainQueue(force: true),
                             icon: const Icon(Icons.refresh, size: 18),
                           ),
                       ],
@@ -252,7 +257,9 @@ class _MainShellState extends ConsumerState<MainShell> {
         queueState.retryableFailedCount +
         queueState.permanentlyFailedCount +
         queueState.conflictCount;
-    final lastSync = queueState.lastSyncedAt?.toLocal();
+    final lastSync = queueState.lastSyncedAt?.toUtc().add(
+      const Duration(hours: 8),
+    );
     final lastSyncLabel = lastSync == null
         ? 'No completed sync yet'
         : 'Last sync ${lastSync.hour.toString().padLeft(2, '0')}:'

@@ -51,13 +51,22 @@ final loanDetailProvider = FutureProvider.autoDispose.family<Loan, String>((
     localLoan = await localRepo.getLoan(loanId);
   } catch (_) {}
 
-  unawaited(() async {
-    try {
-      if (!await healthService.isServerReachable()) return;
+  if (localLoan != null && await localRepo.isLoanPending(loanId)) {
+    return localLoan;
+  }
+
+  // Payment previews are calculated against the live backend balance. Return
+  // that same live snapshot while online so the amount cards and preview
+  // cannot disagree because of an older local cache entry.
+  try {
+    if (await healthService.isServerReachable()) {
       final remote = await remoteRepo.getLoan(loanId);
       await localRepo.saveLoan(remote);
-    } catch (_) {}
-  }());
+      return remote;
+    }
+  } catch (_) {
+    // Preserve offline-first behavior when the health check or request fails.
+  }
 
   if (localLoan != null) return localLoan;
   throw StateError('Loan #$loanId not found locally or on server');

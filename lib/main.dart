@@ -1,6 +1,6 @@
 import 'dart:async';
-import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -22,24 +22,29 @@ import 'core/telemetry/operational_telemetry.dart';
 ///  +------------------+     +------------------+
 /// ```
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  BindingBase.debugZoneErrorsAreFatal = true;
   final container = ProviderContainer();
   final telemetry = container.read(operationalTelemetryProvider);
 
-  FlutterError.onError = (details) {
-    FlutterError.presentError(details);
-    telemetry.recordCrash(
-      'flutter_framework',
-      details.stack ?? StackTrace.current,
-    );
-  };
-  PlatformDispatcher.instance.onError = (error, stackTrace) {
-    telemetry.recordCrash('unhandled_async', stackTrace);
-    return true;
-  };
-
   await runZonedGuarded(
     () async {
+      // Flutter's binding captures the current zone. Initialize it in the same
+      // guarded zone that owns runApp so framework callbacks and crash
+      // reporting remain consistent.
+      WidgetsFlutterBinding.ensureInitialized();
+
+      FlutterError.onError = (details) {
+        FlutterError.presentError(details);
+        telemetry.recordCrash(
+          'flutter_framework',
+          details.stack ?? StackTrace.current,
+        );
+      };
+      PlatformDispatcher.instance.onError = (error, stackTrace) {
+        telemetry.recordCrash('unhandled_async', stackTrace);
+        return true;
+      };
+
       runApp(
         UncontrolledProviderScope(
           container: container,

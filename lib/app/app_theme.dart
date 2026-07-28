@@ -180,7 +180,9 @@ class AppTheme {
       ),
       appBarTheme: const AppBarTheme(
         backgroundColor: lightBg,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
+        scrolledUnderElevation: 2.0,
         centerTitle: false,
         iconTheme: IconThemeData(color: primaryColor),
         titleTextStyle: TextStyle(
@@ -234,7 +236,9 @@ class AppTheme {
       ),
       appBarTheme: const AppBarTheme(
         backgroundColor: darkBg,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
+        scrolledUnderElevation: 2.0,
         centerTitle: false,
         iconTheme: IconThemeData(color: Colors.white),
         titleTextStyle: TextStyle(
