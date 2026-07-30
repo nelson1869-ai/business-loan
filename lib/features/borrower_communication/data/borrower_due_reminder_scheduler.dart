@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/database/local_json_cache.dart';
 import '../../../core/notifications/local_notification_service.dart';
 import '../../loans/data/repositories/local_loan_repository.dart';
 import '../../loans/domain/models/installment.dart';
@@ -12,17 +13,26 @@ class BorrowerDueReminderScheduler {
   const BorrowerDueReminderScheduler(
     this._loans,
     this._notifications, {
+    this.cache,
     this.now,
   });
 
   final LocalLoanRepository _loans;
   final LocalNotificationService _notifications;
+  final LocalJsonCache? cache;
   final DateTime Function()? now;
+  static const _scheduledIdsKey = 'borrower_due_reminder_notification_ids';
 
   /// Refreshes reminders without requiring network access or changing sync data.
   Future<void> refresh() async {
     final current = now?.call() ?? DateTime.now();
+    final previousIds = await _readScheduledIds();
+    for (final id in previousIds) {
+      await _notifications.cancel(id);
+    }
+
     final loans = await _loans.getLoans();
+    final scheduledIds = <int>{};
     for (final loan in loans) {
       final nextInstallment = loan.installments
           .where(_isOpenInstallment)
@@ -38,6 +48,9 @@ class BorrowerDueReminderScheduler {
           dueDate,
         ).difference(_dateOnly(current)).inDays;
         if (daysUntilDue < 0) {
+          scheduledIds.add(
+            _id(loan, installment, OfficerDueReminderStage.overdue),
+          );
           await _scheduleStage(
             loan,
             installment,
@@ -48,6 +61,9 @@ class BorrowerDueReminderScheduler {
           continue;
         }
         if (daysUntilDue > 0) {
+          scheduledIds.add(
+            _id(loan, installment, OfficerDueReminderStage.approaching),
+          );
           await _scheduleStage(
             loan,
             installment,
@@ -58,6 +74,9 @@ class BorrowerDueReminderScheduler {
             current,
           );
         }
+        scheduledIds
+          ..add(_id(loan, installment, OfficerDueReminderStage.dueToday))
+          ..add(_id(loan, installment, OfficerDueReminderStage.overdue));
         await _scheduleStage(
           loan,
           installment,
@@ -76,19 +95,31 @@ class BorrowerDueReminderScheduler {
         );
       }
     }
+    await cache?.write(_scheduledIdsKey, scheduledIds.toList(growable: false));
   }
 
   /// Schedules a one-day follow-up selected explicitly by the officer.
   Future<void> snooze(Loan loan) async {
     final current = now?.call() ?? DateTime.now();
+    for (final installment in loan.installments) {
+      await _cancelAll(loan, installment);
+    }
+    final snoozeId = _stableId('${loan.id}:manual-snooze');
+    await _notifications.cancel(snoozeId);
     await _notifications.schedule(
-      id: _stableId('${loan.id}:manual-snooze'),
+      id: snoozeId,
       title: 'Payment follow-up reminder',
       body: 'A borrower follow-up is ready for your review.',
       at: current.add(const Duration(days: 1)),
       navigationPath: '/loans/${loan.id}/send',
       category: ReminderCategory.payments,
     );
+  }
+
+  Future<Set<int>> _readScheduledIds() async {
+    final value = await cache?.read(_scheduledIdsKey);
+    if (value is! List) return const <int>{};
+    return value.whereType<num>().map((item) => item.toInt()).toSet();
   }
 
   Future<void> _scheduleStage(
@@ -159,5 +190,6 @@ final borrowerDueReminderSchedulerProvider =
       return BorrowerDueReminderScheduler(
         ref.watch(localLoanRepositoryProvider),
         ref.watch(localNotificationServiceProvider),
+        cache: ref.watch(localJsonCacheProvider),
       );
     });

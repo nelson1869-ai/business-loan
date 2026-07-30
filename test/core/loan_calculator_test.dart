@@ -3,6 +3,26 @@ import 'package:lending_nelson/core/utils/loan_calculator.dart';
 
 void main() {
   group('LoanCalculator Tests', () {
+    test('parseCents converts decimal money without floating-point math', () {
+      expect(
+        LoanCalculator.parseCents('999999999999.99', 'amount'),
+        99999999999999,
+      );
+      expect(LoanCalculator.parseCents('0.1', 'amount'), 10);
+      expect(LoanCalculator.parseCents('0.01', 'amount'), 1);
+    });
+
+    test('parseCents rejects excess precision and invalid values', () {
+      expect(
+        () => LoanCalculator.parseCents('1.001', 'amount'),
+        throwsA(isA<LoanCalculationException>()),
+      );
+      expect(
+        () => LoanCalculator.parseCents('-1.00', 'amount'),
+        throwsA(isA<LoanCalculationException>()),
+      );
+    });
+
     test('calculatePeriodInterest - standard calculation', () {
       final interest = LoanCalculator.calculatePeriodInterest('1000.00', 0.05);
       expect(interest, '50.00');

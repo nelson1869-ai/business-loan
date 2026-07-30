@@ -21,19 +21,8 @@ class Borrower {
     required this.createdAt,
   });
 
-  factory Borrower.fromJson(Map<String, dynamic> json) {
-    return Borrower(
-      id: (json['id'] ?? '').toString(),
-      firstName: (json['firstName'] ?? json['first_name'] ?? '').toString(),
-      lastName: (json['lastName'] ?? json['last_name'] ?? '').toString(),
-      nationalId: (json['nationalId'] ?? json['national_id'] ?? '').toString(),
-      phone: (json['phone'] ?? '').toString(),
-      dateOfBirth: (json['dateOfBirth'] ?? json['date_of_birth'] ?? '')
-          .toString(),
-      status: (json['status'] ?? 'Active').toString(),
-      createdAt: (json['createdAt'] ?? json['created_at'] ?? '').toString(),
-    );
-  }
+  factory Borrower.fromJson(Map<String, dynamic> json) =>
+      Borrower.fromMap(json);
 
   factory Borrower.fromMap(Map<String, dynamic> map) {
     return Borrower(

@@ -71,14 +71,16 @@ class LoanCalculator {
     if (trimmed.isEmpty) {
       throw LoanCalculationException('$fieldName must not be empty');
     }
-    final parsed = double.tryParse(trimmed);
-    if (parsed == null || !parsed.isFinite) {
+    final match = RegExp(r'^([0-9]+)(?:\.([0-9]{1,2}))?$').firstMatch(trimmed);
+    if (match == null) {
       throw LoanCalculationException('$fieldName must be a valid number');
     }
-    if (parsed < 0) {
-      throw LoanCalculationException('$fieldName must not be negative');
+    final whole = int.tryParse(match.group(1)!);
+    if (whole == null || whole > 92233720368547758) {
+      throw LoanCalculationException('$fieldName is too large');
     }
-    return (parsed * 100 + (parsed >= 0 ? 0.5 : -0.5)).floor();
+    final fraction = (match.group(2) ?? '').padRight(2, '0');
+    return whole * 100 + (fraction.isEmpty ? 0 : int.parse(fraction));
   }
 
   /// Formats integer cents to standard money string "123.45".

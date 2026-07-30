@@ -9,6 +9,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     SmallInteger,
@@ -26,6 +27,7 @@ class Loan(Base):
 
     __tablename__ = "loans"
     __table_args__ = (
+        Index("ix_loans_borrower_status", "borrower_id", "status"),
         UniqueConstraint("request_id", name="uq_loans_request_id"),
         CheckConstraint("original_principal > 0", name="ck_loans_original_principal"),
         CheckConstraint(
@@ -131,6 +133,7 @@ class Installment(Base):
 
     __tablename__ = "installments"
     __table_args__ = (
+        Index("ix_installments_status_due_date", "status", "due_date"),
         UniqueConstraint(
             "loan_id",
             "installment_number",

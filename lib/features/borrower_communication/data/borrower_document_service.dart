@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
@@ -30,10 +31,17 @@ class BorrowerDocumentService {
       throw const BorrowerDocumentException('No payment receipt is selected.');
     }
 
+    final regularFont = pw.Font.ttf(
+      await rootBundle.load('assets/fonts/Roboto-Regular.ttf'),
+    );
+    final boldFont = pw.Font.ttf(
+      await rootBundle.load('assets/fonts/Roboto-Bold.ttf'),
+    );
     final document = pw.Document(
       title: _title(type),
       author: 'Lending Nelson',
       creator: 'Lending Nelson Android',
+      theme: pw.ThemeData.withFont(base: regularFont, bold: boldFont),
     );
     final generatedAt = DateTime.now();
     document.addPage(

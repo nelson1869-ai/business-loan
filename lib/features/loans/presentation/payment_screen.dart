@@ -109,15 +109,15 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       return null;
     }
 
-    var remainingCredit = double.tryParse(loan.unappliedCredit) ?? 0;
-    final expected = double.tryParse(installment.expectedPayment) ?? 0;
-    final paid = double.tryParse(installment.paidAmount) ?? 0;
-    final installmentAmount = (expected - paid - remainingCredit).clamp(
-      0.0,
-      double.infinity,
-    );
     final periodicRate = monthlyRate / loan.paymentsPerMonth;
     try {
+      final remainingCents =
+          LoanCalculator.parseCents(
+            installment.expectedPayment,
+            'expectedPayment',
+          ) -
+          LoanCalculator.parseCents(installment.paidAmount, 'paidAmount') -
+          LoanCalculator.parseCents(loan.unappliedCredit, 'unappliedCredit');
       final quote = LoanCalculator.quotePayoff(
         outstandingPrincipal: loan.outstandingPrincipal,
         periodicRate: periodicRate,
@@ -127,7 +127,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       );
       return _PaymentTerms(
         quote: quote,
-        installmentAmount: installmentAmount.toStringAsFixed(2),
+        installmentAmount: LoanCalculator.formatCents(
+          remainingCents < 0 ? 0 : remainingCents,
+        ),
         dueDate: installment.dueDate,
         periodicRate: periodicRate,
         installmentId: installment.id,

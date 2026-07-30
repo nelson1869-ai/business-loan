@@ -202,18 +202,19 @@ def classify_question(message: str) -> AssistantIntent:
             or "past payments" in text
         ):
             return "borrower_payment_history"
-        if (
-            "next" in text
-            or "due date" in text
-        ) and ("payment" in text or "due" in text):
-            return "borrower_next_payment"
-        if (
-            "overdue" in text
-            or "late installment" in text
-            or "late" in text
+        if ("next" in text or "due date" in text) and (
+            "payment" in text or "due" in text
         ):
+            return "borrower_next_payment"
+        if "overdue" in text or "late installment" in text or "late" in text:
             return "borrower_overdue_installments"
-        if "summary" in text or "position" in text or "details" in text or "status" in text or "profile" in text:
+        if (
+            "summary" in text
+            or "position" in text
+            or "details" in text
+            or "status" in text
+            or "profile" in text
+        ):
             return "borrower_loan_summary"
         if any(
             token in text
@@ -236,9 +237,7 @@ def classify_question(message: str) -> AssistantIntent:
         )
     ):
         return "unpaid_today"
-    if "tomorrow" in text and any(
-        term in text for term in ("due", "pay", "payment")
-    ):
+    if "tomorrow" in text and any(term in text for term in ("due", "pay", "payment")):
         return "due_tomorrow"
     if any(
         term in text
