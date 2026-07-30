@@ -73,6 +73,10 @@ class AdminAssistantTests(unittest.IsolatedAsyncioTestCase):
             "collections_this_month",
         )
         self.assertEqual(
+            classify_question("collections"),
+            "collections_this_month",
+        )
+        self.assertEqual(
             classify_question("Summarize portfolio performance"),
             "portfolio_summary",
         )
@@ -82,6 +86,10 @@ class AdminAssistantTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(
             classify_question("How much did they borrow?"),
+            "borrower_principal",
+        )
+        self.assertEqual(
+            classify_question("how much borrow of nelson?"),
             "borrower_principal",
         )
         self.assertEqual(
@@ -116,22 +124,18 @@ class AdminAssistantTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(match.route, "admin_assistant.borrower_principal")
         self.assertGreaterEqual(match.confidence, 80)
 
-    def test_realistic_english_and_taglish_route_evaluation(self) -> None:
+    def test_realistic_english_route_evaluation(self) -> None:
         cases = {
-            "Magkano ang nakolekta ngayong buwan?": "collections_this_month",
-            "Sino ang hindi nagbayad today?": "unpaid_today",
-            "Sino ang due bukas?": "due_tomorrow",
-            "Listahan ng borrowers": "borrower_directory",
-            "Magkano utang ni Juan Dela Cruz?": "borrower_balance",
-            "Kailan susunod na bayad ni Juan Dela Cruz?": "borrower_next_payment",
-            "Magkano hiniram ni Juan Dela Cruz?": "borrower_principal",
+            "How much was collected this month?": "collections_this_month",
+            "collections": "collections_this_month",
+            "Who has not paid today?": "unpaid_today",
+            "Who is due tomorrow?": "due_tomorrow",
+            "Show list of borrowers": "borrower_directory",
+            "How much does Juan Dela Cruz owe?": "borrower_balance",
+            "When is the next payment of Juan Dela Cruz?": "borrower_next_payment",
+            "How much did Juan Dela Cruz borrow?": "borrower_principal",
+            "how much borrow of nelson?": "borrower_principal",
             "Show payments made by Juan Dela Cruz": "borrower_payment_history",
-            "Listahan sang borrowers": "borrower_directory",
-            "Pila utang ni Juan Dela Cruz?": "borrower_balance",
-            "Pila gin-utang ni Juan Dela Cruz?": "borrower_principal",
-            "San-o ang sunod nga bayad ni Juan Dela Cruz?": "borrower_next_payment",
-            "Sin-o ang due buwas?": "due_tomorrow",
-            "Pila ang nakolekta sini nga bulan?": "collections_this_month",
         }
 
         for question, expected in cases.items():

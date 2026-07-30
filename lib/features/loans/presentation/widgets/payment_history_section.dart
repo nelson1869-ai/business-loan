@@ -9,11 +9,13 @@ class PaymentHistorySection extends StatelessWidget {
     required this.payments,
     required this.working,
     required this.onReverse,
+    this.onSendToBorrower,
   });
 
   final List<LoanPayment> payments;
   final bool working;
   final ValueChanged<LoanPayment> onReverse;
+  final ValueChanged<LoanPayment>? onSendToBorrower;
 
   @override
   Widget build(BuildContext context) {
@@ -34,6 +36,11 @@ class PaymentHistorySection extends StatelessWidget {
             onReverse: i == 0 && latestCanReverse && !working
                 ? () => onReverse(payments[i])
                 : null,
+            onSendToBorrower:
+                payments[i].entryType == 'Payment' &&
+                    !reversedIds.contains(payments[i].id)
+                ? () => onSendToBorrower?.call(payments[i])
+                : null,
           ),
       ],
     );
@@ -45,11 +52,13 @@ class _PaymentTile extends StatelessWidget {
     required this.payment,
     required this.isReversed,
     this.onReverse,
+    this.onSendToBorrower,
   });
 
   final LoanPayment payment;
   final bool isReversed;
   final VoidCallback? onReverse;
+  final VoidCallback? onSendToBorrower;
 
   @override
   Widget build(BuildContext context) {
@@ -117,6 +126,14 @@ class _PaymentTile extends StatelessWidget {
               onPressed: onReverse,
               icon: const Icon(Icons.undo),
               label: const Text('Reverse Payment'),
+            ),
+          ],
+          if (onSendToBorrower != null) ...[
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: onSendToBorrower,
+              icon: const Icon(Icons.send_to_mobile_outlined),
+              label: const Text('Send Receipt to Borrower'),
             ),
           ],
         ],

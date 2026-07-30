@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +8,9 @@ import '../../../core/network/api_error_mapper.dart';
 import '../../../core/utils/loan_calculator.dart';
 import '../../../core/utils/formatters.dart';
 import '../domain/models/payment.dart';
+import '../../borrower_communication/presentation/borrower_communication_provider.dart';
+import '../../borrower_communication/presentation/send_to_borrower_sheet.dart';
+import '../../borrower_communication/data/borrower_due_reminder_scheduler.dart';
 import '../domain/models/loan.dart';
 import 'providers/loans_provider.dart';
 import 'providers/payment_notifier.dart';
@@ -170,6 +175,12 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     if (ref.read(paymentNotifierProvider).error != null) return;
     ref.invalidate(loanPaymentsProvider(widget.loanId));
     ref.invalidate(loanDetailProvider(widget.loanId));
+    unawaited(
+      ref
+          .read(borrowerDueReminderSchedulerProvider)
+          .refresh()
+          .catchError((_) {}),
+    );
     _amountController.clear();
     _noteController.clear();
     if (mounted) {
@@ -198,11 +209,28 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     if (ref.read(paymentNotifierProvider).error != null) return;
     ref.invalidate(loanPaymentsProvider(widget.loanId));
     ref.invalidate(loanDetailProvider(widget.loanId));
+    unawaited(
+      ref
+          .read(borrowerDueReminderSchedulerProvider)
+          .refresh()
+          .catchError((_) {}),
+    );
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Payment reversed successfully')),
       );
     }
+  }
+
+  Future<void> _sendReceipt(Loan loan, LoanPayment payment) {
+    return SendToBorrowerSheet.show(
+      context,
+      BorrowerCommunicationRequest(
+        borrowerId: loan.borrowerId,
+        loan: loan,
+        payment: payment,
+      ),
+    );
   }
 
   @override
@@ -321,6 +349,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                       payments: payments,
                       working: working,
                       onReverse: _reversePayment,
+                      onSendToBorrower: loan == null
+                          ? null
+                          : (payment) => _sendReceipt(loan, payment),
                     ),
             ),
           ],

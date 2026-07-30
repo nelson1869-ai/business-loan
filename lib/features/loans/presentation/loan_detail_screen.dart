@@ -3,9 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_mapper.dart';
-import 'package:url_launcher/url_launcher.dart';
-
-import '../../../core/utils/formatters.dart';
+import '../../borrower_communication/presentation/borrower_communication_provider.dart';
+import '../../borrower_communication/presentation/send_to_borrower_sheet.dart';
 import '../data/models/loan_explanation.dart';
 import '../data/repositories/remote_loan_repository.dart';
 import '../domain/models/loan.dart';
@@ -50,9 +49,9 @@ class LoanDetailScreen extends ConsumerWidget {
           title: const Text('Loan Details'),
           actions: <Widget>[
             IconButton(
-              tooltip: 'Share schedule',
-              icon: const Icon(Icons.share_outlined),
-              onPressed: () => _shareSchedule(context, ref),
+              tooltip: 'Send to borrower',
+              icon: const Icon(Icons.send_to_mobile_outlined),
+              onPressed: () => _sendToBorrower(context, ref),
             ),
             IconButton(
               tooltip: 'Refresh loan',
@@ -68,7 +67,7 @@ class LoanDetailScreen extends ConsumerWidget {
                   loan: initialLoan!,
                   onRecordPayment: () =>
                       context.push('/loans/$loanId/payments'),
-                  onShareSchedule: () => _shareSchedule(context, ref),
+                  onShareSchedule: () => _sendToBorrower(context, ref),
                   onExplain: () => _explainLoan(context, ref),
                 ),
           error: (Object error, StackTrace stackTrace) => initialLoan == null
@@ -77,13 +76,13 @@ class LoanDetailScreen extends ConsumerWidget {
                   loan: initialLoan!,
                   onRecordPayment: () =>
                       context.push('/loans/$loanId/payments'),
-                  onShareSchedule: () => _shareSchedule(context, ref),
+                  onShareSchedule: () => _sendToBorrower(context, ref),
                   onExplain: () => _explainLoan(context, ref),
                 ),
           data: (Loan loan) => _LoanDetailContent(
             loan: loan,
             onRecordPayment: () => context.push('/loans/$loanId/payments'),
-            onShareSchedule: () => _shareSchedule(context, ref),
+            onShareSchedule: () => _sendToBorrower(context, ref),
             onExplain: () => _explainLoan(context, ref),
           ),
         ),
@@ -91,39 +90,13 @@ class LoanDetailScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _shareSchedule(BuildContext context, WidgetRef ref) async {
-    final loan = ref.read(loanDetailProvider(loanId)).valueOrNull;
-    if (loan == null) return;
-
-    final buf = StringBuffer()
-      ..writeln('📋 Repayment Schedule — ${loan.status}')
-      ..writeln('━━━━━━━━━━━━━━━━━━━━━━━')
-      ..writeln('Principal: ${formatCurrency(loan.originalPrincipal)}')
-      ..writeln('Outstanding: ${formatCurrency(loan.outstandingPrincipal)}')
-      ..writeln('Rate: ${formatInterestRate(loan.monthlyRate)} / mo')
-      ..writeln('First due: ${formatDateShort(loan.firstDueDate)}')
-      ..writeln('Final due: ${formatDateShort(loan.finalDueDate)}')
-      ..writeln('');
-
-    if (loan.installments.isNotEmpty) {
-      buf.writeln('Installments:');
-      for (final inst in loan.installments) {
-        buf.writeln(
-          '  #${inst.installmentNumber} — ${formatDateShort(inst.dueDate)} — '
-          '${formatCurrency(inst.expectedPayment)} — ${inst.status}',
-        );
-      }
-    }
-
-    final text = buf.toString();
-
-    if (!context.mounted) return;
-    showModalBottomSheet<void>(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => _ShareSheet(loan: loan, text: text),
+  Future<void> _sendToBorrower(BuildContext context, WidgetRef ref) async {
+    final loan =
+        ref.read(loanDetailProvider(loanId)).valueOrNull ?? initialLoan;
+    if (loan == null || !context.mounted) return;
+    await SendToBorrowerSheet.show(
+      context,
+      BorrowerCommunicationRequest(borrowerId: loan.borrowerId, loan: loan),
     );
   }
 
@@ -214,7 +187,7 @@ class _LoanDetailContent extends StatelessWidget {
                   // Quick Actions Bar
                   LoanQuickActions(
                     loan: loan,
-                    onShare: onShareSchedule,
+                    onSendToBorrower: onShareSchedule,
                     onExplain: onExplain,
                   ),
                   const SizedBox(height: 8),
@@ -356,126 +329,5 @@ class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
   @override
   bool shouldRebuild(_SliverTabBarDelegate oldDelegate) {
     return false;
-  }
-}
-
-class _ShareSheet extends StatelessWidget {
-  const _ShareSheet({required this.loan, required this.text});
-
-  final Loan loan;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final encoded = Uri.encodeComponent(text);
-
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        top: 12,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 40,
-            height: 4,
-            margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade400,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          Text(
-            'Share Schedule',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _ShareOption(
-                  icon: Icons.chat,
-                  label: 'WhatsApp',
-                  color: const Color(0xFF25D366),
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    _launch('https://wa.me/?text=$encoded');
-                  },
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _ShareOption(
-                  icon: Icons.sms_outlined,
-                  label: 'SMS',
-                  color: Colors.blue,
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    _launch('sms:?body=$encoded');
-                  },
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _launch(String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
-  }
-}
-
-class _ShareOption extends StatelessWidget {
-  const _ShareOption({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return OutlinedButton(
-      onPressed: onTap,
-      style: OutlinedButton.styleFrom(
-        side: BorderSide(color: color.withValues(alpha: 0.4)),
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 28),
-          const SizedBox(height: 6),
-          Text(
-            label,
-            style: TextStyle(color: color, fontWeight: FontWeight.w600),
-          ),
-        ],
-      ),
-    );
   }
 }

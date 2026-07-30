@@ -6,10 +6,10 @@ import 'package:lending_nelson/features/borrowers/widgets/pii_masked_text.dart';
 void main() {
   group('Formatters & PII Masking Tests', () {
     test('formatCurrency handles thousand separators correctly', () {
-      expect(formatCurrency('467000.28'), '\$467,000.28');
-      expect(formatCurrency('1000.00'), '\$1,000.00');
-      expect(formatCurrency('0.00'), '\$0.00');
-      expect(formatCurrency('-500.00'), '-\$500.00');
+      expect(formatCurrency('467000.28'), '₱467,000.28');
+      expect(formatCurrency('1000.00'), '₱1,000.00');
+      expect(formatCurrency('0.00'), '₱0.00');
+      expect(formatCurrency('-500.00'), '-₱500.00');
     });
 
     testWidgets(

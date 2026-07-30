@@ -24,6 +24,7 @@ import 'package:lending_nelson/features/loans/presentation/loan_detail_screen.da
 import 'package:lending_nelson/features/loans/presentation/loans_list_page.dart';
 import 'package:lending_nelson/features/loans/presentation/payment_screen.dart';
 import 'package:lending_nelson/features/loans/presentation/todays_collections_page.dart';
+import 'package:lending_nelson/features/borrower_communication/presentation/send_to_borrower_notification_page.dart';
 
 import 'package:lending_nelson/features/dashboard/pages/notifications_center_page.dart';
 import 'package:lending_nelson/features/dashboard/pages/reports_analytics_page.dart';
@@ -105,6 +106,12 @@ final appRouter = GoRouter(
               PaymentScreen(loanId: state.pathParameters['loanId']!),
         ),
       ],
+    ),
+    GoRoute(
+      path: '/loans/:loanId/send',
+      builder: (context, state) => SendToBorrowerNotificationPage(
+        loanId: state.pathParameters['loanId']!,
+      ),
     ),
     GoRoute(
       path: '/collections/today',

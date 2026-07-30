@@ -21,14 +21,7 @@ class LocalAdminAssistantService {
     final tomorrow = _date(now.add(const Duration(days: 1)));
     final lastSync = await _lastSync();
 
-    if ({
-      'hi',
-      'hello',
-      'hey',
-      'help',
-      'kumusta',
-      'tulong',
-    }.contains(text.trim())) {
+    if ({'hi', 'hello', 'hey', 'help'}.contains(text.trim())) {
       return _reply(
         'You are offline, but synchronized records are ready. Ask for the '
         'borrower list, portfolio, collections, due accounts, or a borrower balance.',
@@ -86,13 +79,12 @@ class LocalAdminAssistantService {
       );
     }
 
-    if ((text.contains('this month') || text.contains('ngayong buwan')) &&
-        (text.contains('collect') ||
-            text.contains('income') ||
-            text.contains('received') ||
-            text.contains('nakolekta') ||
-            text.contains('koleksyon') ||
-            text.contains('kita'))) {
+    final asksCollections =
+        text.contains('collect') ||
+        text.contains('income') ||
+        text.contains('received') ||
+        text.contains('repayment');
+    if (asksCollections) {
       final monthStart =
           '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-01';
       final rows = await db.query(
@@ -133,20 +125,16 @@ class LocalAdminAssistantService {
     }
 
     final asksTomorrowPayments =
-        (text.contains('tomorrow') || text.contains('bukas')) &&
+        text.contains('tomorrow') &&
         (text.contains('due') ||
             text.contains('pay') ||
             text.contains('installment'));
     if (text.contains('not paid today') ||
         text.contains('due today') ||
-        text.contains('hindi nagbayad today') ||
-        text.contains('di nagbayad today') ||
-        text.contains('due ngayon') ||
+        text.contains('unpaid today') ||
         asksTomorrowPayments ||
         text.contains('overdue')) {
-      final target = (text.contains('tomorrow') || text.contains('bukas'))
-          ? tomorrow
-          : today;
+      final target = text.contains('tomorrow') ? tomorrow : today;
       final operator = text.contains('overdue') ? '<' : '=';
       final rows = await db.rawQuery(
         '''
@@ -207,10 +195,20 @@ class LocalAdminAssistantService {
     final borrowerRows = await _decryptBorrowerNames(encryptedBorrowerRows);
     final matches = selectedBorrowerId == null
         ? borrowerRows.where((row) {
-            final name = '${row['first_name'] ?? ''} ${row['last_name'] ?? ''}'
+            final firstName = (row['first_name'] ?? '')
+                .toString()
                 .trim()
                 .toLowerCase();
-            return name.isNotEmpty && text.contains(name);
+            final lastName = (row['last_name'] ?? '')
+                .toString()
+                .trim()
+                .toLowerCase();
+            final fullName = '$firstName $lastName'.trim();
+            if (fullName.isEmpty) return false;
+            if (text.contains(fullName)) return true;
+            if (firstName.length >= 3 && text.contains(firstName)) return true;
+            if (lastName.length >= 3 && text.contains(lastName)) return true;
+            return false;
           }).toList()
         : borrowerRows
               .where((row) => row['id']?.toString() == selectedBorrowerId)
@@ -491,18 +489,16 @@ class LocalAdminAssistantService {
       'show all borrower',
       'borrower directory',
       'all borrower',
-      'listahan ng borrower',
-      'mga borrower',
-      'hanapin borrower',
       'find borrower',
       'search borrower',
       'search for borrower',
+      'borrowers',
     ].any(text.contains);
   }
 
   String? _borrowerSearchTerm(String text) {
     final match = RegExp(
-      r'(?:find|search(?:\s+for)?|hanapin)\s+(?:the\s+)?borrower\s+(.+)',
+      r'(?:find|search(?:\s+for)?)\s+(?:the\s+)?borrower\s+(.+)',
     ).firstMatch(text);
     final value = match
         ?.group(1)
@@ -514,38 +510,33 @@ class LocalAdminAssistantService {
   bool _asksForOriginalPrincipal(String text) {
     return const [
       'how much borrowed',
+      'how much borrow',
       'how much did',
       'how much they borrow',
+      'how much loan',
       'borrow amount',
       'borrowed amount',
       'loan amount',
       'original principal',
-      'magkano hiniram',
-      'halaga ng utang',
     ].any(text.contains);
   }
 
   bool _asksForPaymentHistory(String text) => const [
     'payment history',
     'payments made',
-    'mga binayad',
-    'nakaraang bayad',
+    'ledger',
+    'past payments',
   ].any(text.contains);
 
   bool _asksForNextPayment(String text) {
-    return const [
-      'next payment',
-      'next due',
-      'susunod',
-      'kailan',
-    ].any(text.contains);
+    return const ['next payment', 'next due', 'due date'].any(text.contains);
   }
 
   bool _asksForOverdueInstallments(String text) => const [
     'overdue installment',
     'late installment',
-    'lampas due',
-    'huling bayad',
+    'overdue',
+    'late',
   ].any(text.contains);
 
   bool _asksForLoanSummary(String text) => const [
@@ -553,6 +544,9 @@ class LocalAdminAssistantService {
     'loan position',
     'loan details',
     'summary',
+    'details',
+    'status',
+    'profile',
   ].any(text.contains);
 
   String _maskedBorrowerReference(Object? id) {

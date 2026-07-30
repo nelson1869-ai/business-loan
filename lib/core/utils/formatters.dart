@@ -64,12 +64,12 @@ String formatInterestRate(String rate) {
 /// thousand-separator commas (e.g. `"1000.00"` → `"$1,000.00"`).
 /// Returns `$amount` as-is if parsing fails.
 String formatCurrency(String amount) {
-  final value = double.tryParse(amount);
-  if (value == null) return '\$$amount';
-  final isNegative = value < 0;
-  final absVal = value.abs();
-  final parts = absVal.toStringAsFixed(2).split('.');
-  final intPart = parts[0];
+  final match = RegExp(r'^(-?)(\d+)(?:\.(\d+))?$').firstMatch(amount.trim());
+  if (match == null) return '₱$amount';
+  final isNegative = match.group(1) == '-';
+  final intPart = match.group(2)!;
+  final rawFraction = match.group(3) ?? '';
+  final fraction = rawFraction.padRight(2, '0').substring(0, 2);
   final formatted = StringBuffer();
   for (var i = 0; i < intPart.length; i++) {
     if (i > 0 && (intPart.length - i) % 3 == 0) {
@@ -77,8 +77,8 @@ String formatCurrency(String amount) {
     }
     formatted.write(intPart[i]);
   }
-  final prefix = isNegative ? '-\$' : '\$';
-  return '$prefix${formatted.toString()}.${parts[1]}';
+  final prefix = isNegative ? '-₱' : '₱';
+  return '$prefix${formatted.toString()}.$fraction';
 }
 
 /// A reusable label–value row used in payment cards and history tiles.

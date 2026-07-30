@@ -1,17 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../borrower_communication/presentation/borrower_communication_provider.dart';
+import '../../borrower_communication/presentation/send_to_borrower_sheet.dart';
+import '../../loans/domain/models/loan.dart';
 import '../domain/borrower_model.dart';
 
 /// Large Material 3 Quick Actions Bar for Borrower Profile.
 class BorrowerQuickActions extends StatelessWidget {
   final Borrower borrower;
   final String? activeLoanId;
+  final Loan? activeLoan;
   final VoidCallback? onAddNote;
 
   const BorrowerQuickActions({
     super.key,
     required this.borrower,
     this.activeLoanId,
+    this.activeLoan,
     this.onAddNote,
   });
 
@@ -42,6 +47,18 @@ class BorrowerQuickActions extends StatelessWidget {
             icon: const Icon(Icons.note_add_outlined, size: 18),
             label: const Text('Add Note'),
           ),
+        OutlinedButton.icon(
+          onPressed: () => SendToBorrowerSheet.show(
+            context,
+            BorrowerCommunicationRequest(
+              borrowerId: borrower.id,
+              borrower: borrower,
+              loan: activeLoan,
+            ),
+          ),
+          icon: const Icon(Icons.send_to_mobile_outlined, size: 18),
+          label: const Text('Send to Borrower'),
+        ),
         OutlinedButton.icon(
           onPressed: () {
             ScaffoldMessenger.of(context).showSnackBar(

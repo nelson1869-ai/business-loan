@@ -28,7 +28,7 @@ void main() {
       ScrollViewKeyboardDismissBehavior.onDrag,
     );
 
-    await tester.tap(find.text('\$500.00'));
+    await tester.tap(find.text('₱500.00'));
     await tester.pumpAndSettle();
     final reverseButton = find.text('Reverse Payment');
     await tester.ensureVisible(reverseButton);

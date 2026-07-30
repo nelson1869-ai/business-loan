@@ -10,6 +10,7 @@ import 'core/background/background_sync_worker.dart';
 import 'core/notifications/local_notification_service.dart';
 import 'core/notifications/firebase_mobile_services.dart';
 import 'core/telemetry/operational_telemetry.dart';
+import 'features/borrower_communication/data/borrower_due_reminder_scheduler.dart';
 
 /// Starts the application inside Riverpod's root provider container.
 ///
@@ -63,6 +64,8 @@ Future<void> _initializeBackgroundServices(ProviderContainer container) async {
   final localNotifications = container.read(localNotificationServiceProvider);
   try {
     await localNotifications.initialize(onTap: appRouter.go);
+    await localNotifications.requestPermission();
+    await container.read(borrowerDueReminderSchedulerProvider).refresh();
   } catch (error, stackTrace) {
     container
         .read(operationalTelemetryProvider)

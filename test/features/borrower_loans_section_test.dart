@@ -52,10 +52,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Loans'), findsOneWidget);
-    expect(find.text('\$1,000.00'), findsOneWidget);
+    expect(find.text('₱1,000.00'), findsOneWidget);
     expect(find.textContaining('10 payments'), findsOneWidget);
 
-    await tester.tap(find.text('\$1,000.00'));
+    await tester.tap(find.text('₱1,000.00'));
     await tester.pumpAndSettle();
     expect(find.text('Opened loan-1'), findsOneWidget);
   });

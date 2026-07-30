@@ -219,13 +219,13 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Payment preview'), findsOneWidget);
-      expect(find.text('\$150.00'), findsOneWidget);
-      expect(find.text('\$25.00'), findsOneWidget);
-      expect(find.text('\$125.00'), findsOneWidget);
-      expect(find.text('\$10.00'), findsOneWidget);
-      expect(find.text('\$75.00'), findsOneWidget);
-      expect(find.text('\$875.00'), findsOneWidget);
-      expect(find.text('\$28.50'), findsOneWidget);
+      expect(find.text('₱150.00'), findsOneWidget);
+      expect(find.text('₱25.00'), findsOneWidget);
+      expect(find.text('₱125.00'), findsOneWidget);
+      expect(find.text('₱10.00'), findsOneWidget);
+      expect(find.text('₱75.00'), findsOneWidget);
+      expect(find.text('₱875.00'), findsOneWidget);
+      expect(find.text('₱28.50'), findsOneWidget);
     });
 
     testWidgets('shows overdue indicator when overdueDays > 0', (tester) async {
@@ -243,7 +243,7 @@ void main() {
       expect(find.text('5'), findsOneWidget);
       expect(find.textContaining('Days early'), findsOneWidget);
       expect(find.textContaining('Unapplied credit'), findsOneWidget);
-      expect(find.text('\$5.00'), findsWidgets);
+      expect(find.text('₱5.00'), findsWidgets);
     });
 
     testWidgets('shows Confirm Payoff when isPayoff is true', (tester) async {

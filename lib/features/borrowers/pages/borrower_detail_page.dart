@@ -155,7 +155,11 @@ class _BorrowerDetailContent extends ConsumerWidget {
         activeLoanId: activeLoan?.id,
       ),
       const SizedBox(height: 14),
-      BorrowerQuickActions(borrower: borrower, activeLoanId: activeLoan?.id),
+      BorrowerQuickActions(
+        borrower: borrower,
+        activeLoanId: activeLoan?.id,
+        activeLoan: activeLoan,
+      ),
       const SizedBox(height: 16),
       BorrowerFinancialSnapshot(loans: loans),
       const SizedBox(height: 16),

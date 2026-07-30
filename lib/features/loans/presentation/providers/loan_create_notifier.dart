@@ -14,6 +14,7 @@ import '../../../borrowers/domain/borrower_model.dart';
 import '../../../../core/network/offline_sync_service.dart';
 import '../../../../core/network/api_endpoints.dart';
 import 'loans_provider.dart';
+import '../../../borrower_communication/data/borrower_due_reminder_scheduler.dart';
 
 class LoanCreateState {
   final bool isSubmitting;
@@ -155,6 +156,12 @@ class LoanCreateNotifier extends StateNotifier<LoanCreateState> {
       );
       unawaited(syncService.drainQueue());
       ref.invalidate(borrowerLoansProvider(borrowerId));
+      unawaited(
+        ref
+            .read(borrowerDueReminderSchedulerProvider)
+            .refresh()
+            .catchError((_) {}),
+      );
       state = LoanCreateState(createdLoan: loan);
       return loan;
     } catch (error) {

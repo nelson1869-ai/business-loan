@@ -6,14 +6,14 @@ import '../../domain/models/loan.dart';
 /// Quick Actions Bar for Loan Details.
 class LoanQuickActions extends StatelessWidget {
   final Loan loan;
-  final VoidCallback onShare;
+  final VoidCallback onSendToBorrower;
   final VoidCallback onExplain;
   final VoidCallback? onReversePayment;
 
   const LoanQuickActions({
     super.key,
     required this.loan,
-    required this.onShare,
+    required this.onSendToBorrower,
     required this.onExplain,
     this.onReversePayment,
   });
@@ -33,9 +33,9 @@ class LoanQuickActions extends StatelessWidget {
             label: const Text('Record Payment'),
           ),
         FilledButton.tonalIcon(
-          onPressed: onShare,
-          icon: const Icon(Icons.share_outlined, size: 18),
-          label: const Text('Share Schedule'),
+          onPressed: onSendToBorrower,
+          icon: const Icon(Icons.send_to_mobile_outlined, size: 18),
+          label: const Text('Send to Borrower'),
         ),
         OutlinedButton.icon(
           onPressed: onExplain,

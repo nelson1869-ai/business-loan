@@ -103,6 +103,24 @@ void main() {
     expect(reply.answerSource, 'offline');
   });
 
+  test(
+    'offline ungrammatical borrow query with first name returns principal',
+    () async {
+      final reply = await service.answer('how much borrow of Alex?');
+
+      expect(reply.answer, contains('original principal'));
+      expect(reply.answer, contains('PHP 1000.00'));
+      expect(reply.answerSource, 'offline');
+    },
+  );
+
+  test('offline collections query returns collection total', () async {
+    final reply = await service.answer('collections');
+
+    expect(reply.answer, contains('collections this month'));
+    expect(reply.answerSource, 'offline');
+  });
+
   test('offline borrower next payment uses synchronized schedule', () async {
     final reply = await service.answer('When is Alex Morgan next payment?');
 

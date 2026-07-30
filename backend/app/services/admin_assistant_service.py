@@ -137,7 +137,7 @@ def assert_ai_payload_allowlisted(payload: AnonymousAIPayload) -> dict[str, obje
 def classify_question(message: str) -> AssistantIntent:
     """Resolve an intent locally without model-generated tools or arguments."""
     text = _normalize_phrase(message)
-    if text.strip("!.,? ") in {"hi", "hello", "hey", "help", "kumusta", "tulong"}:
+    if text.strip("!.,? ") in {"hi", "hello", "hey", "help"}:
         return "help"
     if any(
         term in text
@@ -148,14 +148,10 @@ def classify_question(message: str) -> AssistantIntent:
             "show all borrower",
             "borrower directory",
             "all borrower",
-            "listahan ng borrower",
-            "mga borrower",
-            "hanapin borrower",
             "find borrower",
             "search borrower",
             "search for borrower",
-            "listahan sang borrower",
-            "mga nangutang",
+            "borrowers",
         )
     ):
         return "borrower_directory"
@@ -175,19 +171,11 @@ def classify_question(message: str) -> AssistantIntent:
             "borrow",
             "loan amount",
             "principal",
-            "hiniram",
-            "utang",
             "owe",
             "owes",
             "next payment",
             "payment history",
             "payments made",
-            "susunod",
-            "kailan",
-            "pila",
-            "gin utang",
-            "ginhulam",
-            "san o",
         )
     )
     if borrower_hint:
@@ -195,44 +183,37 @@ def classify_question(message: str) -> AssistantIntent:
             token in text
             for token in (
                 "how much borrowed",
+                "how much borrow",
                 "how much did",
                 "how much they borrow",
+                "how much loan",
                 "borrow amount",
                 "borrowed amount",
                 "loan amount",
                 "original principal",
-                "magkano hiniram",
-                "halaga ng utang",
-                "pila gin utang",
-                "pila ginhulam",
             )
         ):
             return "borrower_principal"
         if (
             "history" in text
             or "payments made" in text
-            or "mga binayad" in text
-            or "nakaraang bayad" in text
-            or "mga nabayran" in text
+            or "payment history" in text
+            or "ledger" in text
+            or "past payments" in text
         ):
             return "borrower_payment_history"
         if (
             "next" in text
-            or "susunod" in text
-            or "kailan" in text
-            or "san o" in text
-            or "sunod" in text
-        ) and ("payment" in text or "due" in text or "bayad" in text):
+            or "due date" in text
+        ) and ("payment" in text or "due" in text):
             return "borrower_next_payment"
         if (
             "overdue" in text
             or "late installment" in text
-            or "huling bayad" in text
-            or "lampas due" in text
-            or "nalapas" in text
+            or "late" in text
         ):
             return "borrower_overdue_installments"
-        if "summary" in text or "position" in text:
+        if "summary" in text or "position" in text or "details" in text or "status" in text or "profile" in text:
             return "borrower_loan_summary"
         if any(
             token in text
@@ -241,29 +222,22 @@ def classify_question(message: str) -> AssistantIntent:
                 "owes",
                 "balance",
                 "outstanding",
-                "natitirang utang",
-                "magkano utang",
-                "pila utang",
-                "saldo",
             )
         ):
             return "borrower_balance"
+        return "borrower_balance"
     if any(
         term in text
         for term in (
             "not paid today",
             "unpaid today",
             "due today",
-            "hindi nagbayad today",
-            "di nagbayad today",
-            "due ngayon",
-            "bayran subong",
-            "wala nagbayad subong",
+            "unpaid installments",
         )
     ):
         return "unpaid_today"
-    if any(day in text for day in ("tomorrow", "bukas", "buwas")) and any(
-        term in text for term in ("due", "pay", "payment", "bayad", "magbayad")
+    if "tomorrow" in text and any(
+        term in text for term in ("due", "pay", "payment")
     ):
         return "due_tomorrow"
     if any(
@@ -272,31 +246,20 @@ def classify_question(message: str) -> AssistantIntent:
             "overdue",
             "late payment",
             "past due",
-            "lampas due",
-            "late na",
-            "nalapas",
+            "late",
         )
     ):
         return "overdue"
     if any(
         term in text
         for term in (
-            "this month",
-            "monthly",
-            "ngayong buwan",
-            "sini nga bulan",
-            "subong nga bulan",
-        )
-    ) and any(
-        term in text
-        for term in (
             "income",
             "collected",
             "collection",
+            "collections",
             "received",
-            "nakolekta",
-            "koleksyon",
-            "kita",
+            "repayment",
+            "repayments",
         )
     ):
         return "collections_this_month"
@@ -308,7 +271,7 @@ def classify_question(message: str) -> AssistantIntent:
             "dashboard summary",
             "active loans",
             "outstanding",
-            "kabug usan nga portfolio",
+            "business",
         )
     ):
         return "portfolio_summary"
@@ -690,23 +653,22 @@ def _borrower_name_tokens(message: str) -> list[str]:
     stopwords = {
         "a",
         "about",
-        "ang",
         "borrow",
         "borrowed",
         "borrower",
+        "by",
         "did",
         "does",
         "due",
+        "for",
         "history",
         "how",
         "installment",
-        "kailan",
+        "is",
         "loan",
-        "magkano",
-        "mga",
         "much",
-        "ni",
         "next",
+        "of",
         "owe",
         "owes",
         "payment",
@@ -714,11 +676,9 @@ def _borrower_name_tokens(message: str) -> list[str]:
         "show",
         "still",
         "summary",
-        "susunod",
         "the",
         "their",
         "they",
-        "utang",
         "what",
     }
     return [

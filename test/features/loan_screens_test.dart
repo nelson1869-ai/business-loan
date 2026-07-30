@@ -136,17 +136,17 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Installment Schedule'), findsOneWidget);
-    expect(find.text('Payment 1 · \$129.50'), findsOneWidget);
+    expect(find.text('Payment 1 · ₱129.50'), findsOneWidget);
     expect(find.text('8/5/2026 · Scheduled'), findsOneWidget);
 
-    await tester.ensureVisible(find.text('Payment 1 · \$129.50'));
+    await tester.ensureVisible(find.text('Payment 1 · ₱129.50'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Payment 1 · \$129.50'));
+    await tester.tap(find.text('Payment 1 · ₱129.50'));
     await tester.pumpAndSettle();
     expect(find.text('Interest'), findsOneWidget);
-    expect(find.text('\$50.00'), findsOneWidget);
+    expect(find.text('₱50.00'), findsOneWidget);
     expect(find.text('Remaining principal'), findsOneWidget);
-    expect(find.text('\$920.50'), findsOneWidget);
+    expect(find.text('₱920.50'), findsOneWidget);
   });
 }
 

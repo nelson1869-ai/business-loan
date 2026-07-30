@@ -28,6 +28,7 @@ class LocalNotificationService {
   /// Initializes channels and tap handling.
   Future<void> initialize({void Function(String payload)? onTap}) async {
     timezone_data.initializeTimeZones();
+    tz.setLocalLocation(tz.getLocation('Asia/Manila'));
     await _plugin.initialize(
       settings: const InitializationSettings(
         android: AndroidInitializationSettings('@mipmap/ic_launcher'),
