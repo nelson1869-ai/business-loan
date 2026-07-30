@@ -99,9 +99,15 @@ Future<void> createCollectionFollowUp(
     if (taskType == 'PromiseToPay')
       'promiseDate': promiseDate?.toIso8601String().substring(0, 10),
   });
-  final reminderAt = taskType == 'PromiseToPay' && promiseDate != null
+  final preferredReminderAt = taskType == 'PromiseToPay' && promiseDate != null
       ? DateTime(promiseDate.year, promiseDate.month, promiseDate.day, 8)
       : dueAt;
+  final current = DateTime.now();
+  final reminderAt = preferredReminderAt.isAfter(current)
+      ? preferredReminderAt
+      : dueAt.isAfter(current)
+      ? dueAt
+      : current.add(const Duration(minutes: 1));
   await ref
       .read(localNotificationServiceProvider)
       .schedule(
@@ -127,8 +133,18 @@ int _stableReminderId(String value) {
   });
 }
 
-Future<void> completeScheduledFollowUp(WidgetRef ref, String taskId) async {
-  await ref.read(collectionTaskRepositoryProvider).completeScheduled(taskId);
+Future<void> completeScheduledFollowUp(
+  WidgetRef ref,
+  CollectionFollowUp task,
+) async {
+  await ref.read(collectionTaskRepositoryProvider).completeScheduled(task.id);
+  await ref
+      .read(localNotificationServiceProvider)
+      .cancel(
+        _stableReminderId(
+          '${task.loanId}:${task.installmentNumber}:${task.taskType}',
+        ),
+      );
   ref.invalidate(collectionFollowUpsProvider);
   ref.invalidate(completedCollectionTasksProvider);
 }

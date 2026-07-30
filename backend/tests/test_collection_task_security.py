@@ -4,6 +4,7 @@ import unittest
 from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
+from uuid import uuid4
 
 from fastapi import HTTPException
 
@@ -12,6 +13,31 @@ from app.schemas.collection_task import CollectionTaskCreate, PromiseStatusUpdat
 
 
 class CollectionTaskSecurityTests(unittest.IsolatedAsyncioTestCase):
+    async def test_client_generated_task_id_is_preserved(self) -> None:
+        task_id = uuid4()
+        borrower = SimpleNamespace(id="borrower-1", status="Active")
+        loan = SimpleNamespace(id="loan-1", borrower_id="borrower-1")
+        assignee = SimpleNamespace(id="admin-1", role="admin")
+        added = []
+        db = SimpleNamespace(
+            get=AsyncMock(side_effect=[borrower, loan, assignee]),
+            add=added.append,
+            flush=AsyncMock(),
+            commit=AsyncMock(),
+            refresh=AsyncMock(),
+        )
+        payload = CollectionTaskCreate(
+            id=task_id,
+            borrowerId="borrower-1",
+            loanId="loan-1",
+            taskType="Call",
+            dueAt=datetime.now(UTC) + timedelta(hours=1),
+        )
+
+        task = await collection_tasks.create_task(payload, db, assignee)
+
+        self.assertEqual(task.id, str(task_id))
+
     async def test_officer_cannot_assign_another_user(self) -> None:
         borrower = SimpleNamespace(id="borrower-1", status="Active")
         loan = SimpleNamespace(id="loan-1", borrower_id="borrower-1")

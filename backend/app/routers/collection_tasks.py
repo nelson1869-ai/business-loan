@@ -121,6 +121,7 @@ async def create_task(
             status_code=422, detail="Promise date cannot be in the past"
         )
     task = CollectionTaskState(
+        id=str(payload.id) if payload.id is not None else str(uuid4()),
         borrower_id=borrower.id,
         loan_id=loan.id,
         installment_number=payload.installment_number,

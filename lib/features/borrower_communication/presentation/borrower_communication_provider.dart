@@ -6,6 +6,8 @@ import '../../loans/data/repositories/local_loan_repository.dart';
 import '../../loans/domain/models/loan.dart';
 import '../../loans/domain/models/payment.dart';
 import '../domain/borrower_communication_context.dart';
+import '../data/borrower_communication_log_repository.dart';
+import '../domain/borrower_communication_log.dart';
 
 class BorrowerCommunicationRequest {
   const BorrowerCommunicationRequest({
@@ -52,4 +54,11 @@ final borrowerCommunicationContextProvider = FutureProvider.autoDispose
         payment: request.payment,
         payments: payments,
       );
+    });
+
+final borrowerCommunicationHistoryProvider = FutureProvider.autoDispose
+    .family<List<BorrowerCommunicationLog>, String>((ref, borrowerId) {
+      return ref
+          .watch(borrowerCommunicationLogRepositoryProvider)
+          .forBorrower(borrowerId);
     });

@@ -78,7 +78,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 10,
+      version: 11,
       // Foreground UI and WorkManager run in separate provider containers.
       // They must not share sqflite's cached handle because disposing the
       // background container would otherwise close the foreground connection.
@@ -332,6 +332,7 @@ class DatabaseService {
     ''');
     await _createLocalJsonCache(db);
     await _createAssistantIndexes(db);
+    await _createBorrowerCommunicationLog(db);
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -374,6 +375,31 @@ class DatabaseService {
     if (oldVersion < 10) {
       await _upgradeToVersion10(db);
     }
+    if (oldVersion < 11) {
+      await _createBorrowerCommunicationLog(db);
+    }
+  }
+
+  Future<void> _createBorrowerCommunicationLog(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS borrower_communication_logs (
+        id TEXT PRIMARY KEY,
+        borrower_id TEXT NOT NULL,
+        loan_id TEXT,
+        payment_id TEXT,
+        message_type TEXT NOT NULL,
+        channel TEXT NOT NULL,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (borrower_id) REFERENCES borrowers (id) ON DELETE CASCADE,
+        FOREIGN KEY (loan_id) REFERENCES loans (id) ON DELETE SET NULL
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_communication_borrower_created '
+      'ON borrower_communication_logs (borrower_id, created_at DESC)',
+    );
   }
 
   Future<void> _upgradeToVersion10(Database db) async {

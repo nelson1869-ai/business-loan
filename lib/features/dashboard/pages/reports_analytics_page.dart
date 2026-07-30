@@ -43,76 +43,79 @@ class _ReportsAnalyticsPageState extends ConsumerState<ReportsAnalyticsPage> {
         ),
         title: const Text('Executive Reports & Analytics'),
       ),
-      body: dashboardState.isLoading
-          ? ListView(
-              padding: const EdgeInsets.all(16),
-              children: const [
-                AppCardSkeleton(),
-                SizedBox(height: 12),
-                AppCardSkeleton(),
-                SizedBox(height: 12),
-                AppCardSkeleton(),
-              ],
-            )
-          : dashboardState.error != null
-          ? Center(
-              child: AppErrorState(
-                error: dashboardState.error!,
-                onRetry: () =>
-                    ref.read(dashboardProvider.notifier).loadDashboard(),
-              ),
-            )
-          : RefreshIndicator(
-              onRefresh: () async =>
-                  ref.read(dashboardProvider.notifier).loadDashboard(),
-              child: ListView(
+      body: SafeArea(
+        top: false,
+        child: dashboardState.isLoading
+            ? ListView(
                 padding: const EdgeInsets.all(16),
-                children: [
-                  // 1. Executive Header Card
-                  ReportsHeaderCard(
-                    selectedPeriod: _selectedPeriod,
-                    isOnline: dashboardState.isOnline,
-                    report: reportAsync.valueOrNull,
-                    onPeriodChanged: (val) {
-                      setState(() => _selectedPeriod = val);
-                    },
-                  ),
-                  const SizedBox(height: 14),
-                  // 2. Key Performance Indicators Grid
-                  if (dashboardState.metrics != null)
-                    reportAsync.when(
-                      loading: () => const AppCardSkeleton(),
-                      error: (error, _) => AppErrorState(
-                        error: ApiErrorMapper.message(error),
-                        onRetry: () => ref.invalidate(
-                          financialReportProvider(_selectedPeriod),
-                        ),
-                      ),
-                      data: (report) => ReportsKpiCards(
-                        metrics: dashboardState.metrics!,
-                        report: report,
-                      ),
-                    ),
-                  const SizedBox(height: 16),
-                  // 3. Visual Trend Charts
-                  const ReportsTrendCharts(),
-                  const SizedBox(height: 16),
-                  // 4. Officer Leaderboard Table
-                  reportAsync.valueOrNull == null
-                      ? const SizedBox.shrink()
-                      : ReportsOfficerLeaderboard(
-                          report: reportAsync.requireValue,
-                        ),
-                  const SizedBox(height: 16),
-                  // 5. Risk & PAR Aging Analysis Card
-                  reportAsync.valueOrNull == null
-                      ? const SizedBox.shrink()
-                      : ReportsRiskAnalysisCard(
-                          report: reportAsync.requireValue,
-                        ),
+                children: const [
+                  AppCardSkeleton(),
+                  SizedBox(height: 12),
+                  AppCardSkeleton(),
+                  SizedBox(height: 12),
+                  AppCardSkeleton(),
                 ],
+              )
+            : dashboardState.error != null
+            ? Center(
+                child: AppErrorState(
+                  error: dashboardState.error!,
+                  onRetry: () =>
+                      ref.read(dashboardProvider.notifier).loadDashboard(),
+                ),
+              )
+            : RefreshIndicator(
+                onRefresh: () async =>
+                    ref.read(dashboardProvider.notifier).loadDashboard(),
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    // 1. Executive Header Card
+                    ReportsHeaderCard(
+                      selectedPeriod: _selectedPeriod,
+                      isOnline: dashboardState.isOnline,
+                      report: reportAsync.valueOrNull,
+                      onPeriodChanged: (val) {
+                        setState(() => _selectedPeriod = val);
+                      },
+                    ),
+                    const SizedBox(height: 14),
+                    // 2. Key Performance Indicators Grid
+                    if (dashboardState.metrics != null)
+                      reportAsync.when(
+                        loading: () => const AppCardSkeleton(),
+                        error: (error, _) => AppErrorState(
+                          error: ApiErrorMapper.message(error),
+                          onRetry: () => ref.invalidate(
+                            financialReportProvider(_selectedPeriod),
+                          ),
+                        ),
+                        data: (report) => ReportsKpiCards(
+                          metrics: dashboardState.metrics!,
+                          report: report,
+                        ),
+                      ),
+                    const SizedBox(height: 16),
+                    // 3. Visual Trend Charts
+                    const ReportsTrendCharts(),
+                    const SizedBox(height: 16),
+                    // 4. Officer Leaderboard Table
+                    reportAsync.valueOrNull == null
+                        ? const SizedBox.shrink()
+                        : ReportsOfficerLeaderboard(
+                            report: reportAsync.requireValue,
+                          ),
+                    const SizedBox(height: 16),
+                    // 5. Risk & PAR Aging Analysis Card
+                    reportAsync.valueOrNull == null
+                        ? const SizedBox.shrink()
+                        : ReportsRiskAnalysisCard(
+                            report: reportAsync.requireValue,
+                          ),
+                  ],
+                ),
               ),
-            ),
+      ),
     );
   }
 }

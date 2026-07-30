@@ -299,24 +299,15 @@ class LocalLoanRepository {
     for (final row in rows) {
       final loanId = (row['id'] ?? '').toString();
       if (loanId.isEmpty) continue;
-      final dataStr = row['data_json'] as String?;
-      if (dataStr != null && dataStr.isNotEmpty) {
-        try {
-          final data = jsonDecode(dataStr) as Map<String, dynamic>;
-          results.add(Loan.fromJson(data));
-          continue;
-        } catch (_) {}
-      }
-
       final scheduleRows = await db.query(
         'loan_schedules',
         where: 'loan_id = ?',
         whereArgs: [loanId],
         orderBy: 'installment_number ASC',
       );
-      final installments = scheduleRows
+      final scheduleJson = scheduleRows
           .map(
-            (s) => Installment.fromJson({
+            (s) => <String, dynamic>{
               'id': (s['id'] ?? '').toString(),
               'loanId': (s['loan_id'] ?? loanId).toString(),
               'installmentNumber':
@@ -329,9 +320,25 @@ class LocalLoanRepository {
               'paidAmount': (s['paid_amount'] ?? '0.00').toString(),
               'status': (s['status'] ?? 'Scheduled').toString(),
               'createdAt': (s['created_at'] ?? '').toString(),
-            }),
+            },
           )
-          .toList();
+          .toList(growable: false);
+
+      final dataStr = row['data_json'] as String?;
+      if (dataStr != null && dataStr.isNotEmpty) {
+        try {
+          final data = jsonDecode(dataStr) as Map<String, dynamic>;
+          final cachedInstallments = data['installments'];
+          if (scheduleJson.isNotEmpty &&
+              (cachedInstallments is! List || cachedInstallments.isEmpty)) {
+            data['installments'] = scheduleJson;
+          }
+          results.add(Loan.fromJson(data));
+          continue;
+        } catch (_) {}
+      }
+
+      final installments = scheduleJson.map(Installment.fromJson).toList();
 
       results.add(
         Loan(

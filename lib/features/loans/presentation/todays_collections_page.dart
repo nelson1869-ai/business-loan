@@ -45,150 +45,162 @@ class _TodaysCollectionsPageState extends ConsumerState<TodaysCollectionsPage> {
         ),
         title: const Text('Collection Tasks & Follow-ups'),
       ),
-      body: data.when(
-        loading: () => ListView(
-          padding: const EdgeInsets.all(16),
-          children: const [
-            AppCardSkeleton(),
-            SizedBox(height: 12),
-            AppCardSkeleton(),
-            SizedBox(height: 12),
-            AppCardSkeleton(),
-          ],
-        ),
-        error: (Object e, _) => Center(
-          child: AppErrorState(
-            error: ApiErrorMapper.message(e),
-            onRetry: () => ref.invalidate(todaysCollectionsProvider),
+      body: SafeArea(
+        top: false,
+        child: data.when(
+          loading: () => ListView(
+            padding: const EdgeInsets.all(16),
+            children: const [
+              AppCardSkeleton(),
+              SizedBox(height: 12),
+              AppCardSkeleton(),
+              SizedBox(height: 12),
+              AppCardSkeleton(),
+            ],
           ),
-        ),
-        data: (collection) {
-          final items = _filterItems(collection.dueItems);
+          error: (Object e, _) => Center(
+            child: AppErrorState(
+              error: ApiErrorMapper.message(e),
+              onRetry: () => ref.invalidate(todaysCollectionsProvider),
+            ),
+          ),
+          data: (collection) {
+            final scheduledFollowUps =
+                followUps.valueOrNull ?? const <CollectionFollowUp>[];
+            final items = _filterItems(collection.dueItems);
 
-          return RefreshIndicator(
-            onRefresh: () async => ref.invalidate(todaysCollectionsProvider),
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                // 1. Officer Greeting & Header Card
-                CollectionHeaderCard(collection: collection),
-                const SizedBox(height: 14),
-                if (collection.dueItems.isNotEmpty) ...[
-                  FilledButton.icon(
-                    onPressed: () =>
-                        _showScheduleDialog(context, collection.dueItems),
-                    icon: const Icon(Icons.add_task_outlined),
-                    label: const Text('Schedule Follow-up'),
+            return RefreshIndicator(
+              onRefresh: () async => ref.invalidate(todaysCollectionsProvider),
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  // 1. Officer Greeting & Header Card
+                  CollectionHeaderCard(
+                    collection: collection,
+                    followUps: scheduledFollowUps,
                   ),
                   const SizedBox(height: 14),
-                ],
-                // 2. Summary Metric Cards
-                CollectionSummaryCards(collection: collection),
-                const SizedBox(height: 16),
-                // 3. Multi-State Filter Chips Bar
-                CollectionFilterBar(
-                  selectedFilter: _selectedFilter,
-                  onFilterChanged: (val) {
-                    setState(() => _selectedFilter = val);
-                  },
-                ),
-                const SizedBox(height: 14),
-                // 4. Task List Section Header
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Daily Tasks (${items.length})',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                  if (collection.dueItems.isNotEmpty) ...[
+                    FilledButton.icon(
+                      onPressed: () =>
+                          _showScheduleDialog(context, collection.dueItems),
+                      icon: const Icon(Icons.add_task_outlined),
+                      label: const Text('Schedule Follow-up'),
                     ),
-                    Text(
-                      'Sorted by Due Time',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
+                    const SizedBox(height: 14),
                   ],
-                ),
-                const SizedBox(height: 10),
-                // 5. Expandable Task List or Empty State
-                if (items.isEmpty)
-                  AppEmptyState(
-                    icon: Icons.task_alt_outlined,
-                    title: 'No Tasks Match Filter',
-                    description:
-                        'You have no scheduled collection tasks matching standard criteria.',
-                    actionLabel: 'Reset Filter',
-                    onAction: () {
-                      setState(() => _selectedFilter = 'All');
-                    },
-                  )
-                else
-                  ...items.map((item) {
-                    final key = '${item.loanId}:${item.installmentNumber}';
-                    return CollectionTaskCard(
-                      item: item,
-                      isCompleted:
-                          completed.valueOrNull?.contains(key) ?? false,
-                      onComplete: () async {
-                        await completeCollectionTask(
-                          ref,
-                          item.loanId,
-                          item.installmentNumber,
-                        );
-                      },
-                    );
-                  }),
-                const SizedBox(height: 16),
-                Text(
-                  'Scheduled Follow-ups',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
+                  // 2. Summary Metric Cards
+                  CollectionSummaryCards(
+                    collection: collection,
+                    followUps: scheduledFollowUps,
                   ),
-                ),
-                const SizedBox(height: 8),
-                followUps.when(
-                  loading: () => const LinearProgressIndicator(),
-                  error: (error, _) => Text(ApiErrorMapper.message(error)),
-                  data: (tasks) => tasks.isEmpty
-                      ? const Text('No scheduled follow-ups')
-                      : Column(
-                          children: tasks.map((task) {
-                            return Card(
-                              child: ListTile(
-                                leading: const Icon(Icons.event_note_outlined),
-                                title: Text(
-                                  '${task.taskType} · ${task.priority}',
-                                ),
-                                subtitle: Text(
-                                  '${formatDateOnly(task.dueAt.toLocal())} '
-                                  '${TimeOfDay.fromDateTime(task.dueAt.toLocal()).format(context)}'
-                                  '${task.promisedAmount == null ? '' : '\nPromise: ${task.promisedAmount} on ${formatDateOnly(task.promiseDate!.toLocal())} · ${task.promiseStatus}'}'
-                                  '${task.description == null ? '' : '\n${task.description}'}',
-                                ),
-                                trailing: task.status == 'Completed'
-                                    ? const AppStatusChip(status: 'Completed')
-                                    : IconButton(
-                                        tooltip: 'Complete follow-up',
-                                        icon: const Icon(
-                                          Icons.check_circle_outline,
-                                        ),
-                                        onPressed: () =>
-                                            completeScheduledFollowUp(
-                                              ref,
-                                              task.id,
-                                            ),
-                                      ),
-                              ),
-                            );
-                          }).toList(),
+                  const SizedBox(height: 16),
+                  // 3. Multi-State Filter Chips Bar
+                  CollectionFilterBar(
+                    selectedFilter: _selectedFilter,
+                    onFilterChanged: (val) {
+                      setState(() => _selectedFilter = val);
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  // 4. Task List Section Header
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Daily Tasks (${items.length})',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        'Sorted by Due Time',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
-                ),
-              ],
-            ),
-          );
-        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  // 5. Expandable Task List or Empty State
+                  if (items.isEmpty)
+                    AppEmptyState(
+                      icon: Icons.task_alt_outlined,
+                      title: 'No Tasks Match Filter',
+                      description:
+                          'You have no scheduled collection tasks matching standard criteria.',
+                      actionLabel: 'Reset Filter',
+                      onAction: () {
+                        setState(() => _selectedFilter = 'All');
+                      },
+                    )
+                  else
+                    ...items.map((item) {
+                      final key = '${item.loanId}:${item.installmentNumber}';
+                      return CollectionTaskCard(
+                        item: item,
+                        isCompleted:
+                            completed.valueOrNull?.contains(key) ?? false,
+                        onComplete: () async {
+                          await completeCollectionTask(
+                            ref,
+                            item.loanId,
+                            item.installmentNumber,
+                          );
+                        },
+                      );
+                    }),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Scheduled Follow-ups',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  followUps.when(
+                    loading: () => const LinearProgressIndicator(),
+                    error: (error, _) => Text(ApiErrorMapper.message(error)),
+                    data: (tasks) => tasks.isEmpty
+                        ? const Text('No scheduled follow-ups')
+                        : Column(
+                            children: tasks.map((task) {
+                              return Card(
+                                child: ListTile(
+                                  leading: const Icon(
+                                    Icons.event_note_outlined,
+                                  ),
+                                  title: Text(
+                                    '${task.taskType} · ${task.priority}',
+                                  ),
+                                  subtitle: Text(
+                                    '${formatDateOnly(task.dueAt.toLocal())} '
+                                    '${TimeOfDay.fromDateTime(task.dueAt.toLocal()).format(context)}'
+                                    '${task.promisedAmount == null ? '' : '\nPromise: ${task.promisedAmount} on ${formatDateOnly(task.promiseDate!.toLocal())} · ${task.promiseStatus}'}'
+                                    '${task.description == null ? '' : '\n${task.description}'}',
+                                  ),
+                                  trailing: task.status == 'Completed'
+                                      ? const AppStatusChip(status: 'Completed')
+                                      : IconButton(
+                                          tooltip: 'Complete follow-up',
+                                          icon: const Icon(
+                                            Icons.check_circle_outline,
+                                          ),
+                                          onPressed: () =>
+                                              completeScheduledFollowUp(
+                                                ref,
+                                                task,
+                                              ),
+                                        ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }

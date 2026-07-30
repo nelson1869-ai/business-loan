@@ -3,6 +3,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -14,6 +15,7 @@ TaskStatus = Literal["Pending", "Completed", "Cancelled"]
 
 
 class CollectionTaskCreate(BaseModel):
+    id: UUID | None = None
     borrower_id: str
     loan_id: str
     installment_number: int | None = Field(default=None, ge=1)

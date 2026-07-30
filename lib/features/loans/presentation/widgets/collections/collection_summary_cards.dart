@@ -2,18 +2,38 @@ import 'package:flutter/material.dart';
 import 'package:lending_nelson/core/presentation/design_system/design_system.dart';
 import 'package:lending_nelson/core/utils/formatters.dart';
 import 'package:lending_nelson/features/loans/presentation/providers/loans_provider.dart';
+import 'package:lending_nelson/features/loans/presentation/providers/collection_task_state_provider.dart';
 
 /// Responsive grid card displaying Collection Summary Metrics.
 class CollectionSummaryCards extends StatelessWidget {
   final TodaysCollectionData collection;
+  final List<CollectionFollowUp> followUps;
 
-  const CollectionSummaryCards({super.key, required this.collection});
+  const CollectionSummaryCards({
+    super.key,
+    required this.collection,
+    required this.followUps,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final overdueCount = collection.dueItems.where((i) => i.isOverdue).length;
+    final current = DateTime.now();
+    final pendingFollowUps = followUps.where(
+      (task) => task.status == 'Pending',
+    );
+    final overdueCount =
+        collection.dueItems.where((item) => item.isOverdue).length +
+        pendingFollowUps.where((task) => task.dueAt.isBefore(current)).length;
+    final promiseCount = followUps
+        .where((task) => task.taskType == 'PromiseToPay')
+        .length;
+    final today = DateUtils.dateOnly(current);
+    final visitCount = followUps.where((task) {
+      return task.taskType == 'Visit' &&
+          DateUtils.isSameDay(task.dueAt.toLocal(), today);
+    }).length;
     final totalDue = double.tryParse(collection.totalDueToday) ?? 0;
     final totalCollected = double.tryParse(collection.totalCollectedToday) ?? 0;
     final remaining = (totalDue - totalCollected).clamp(0, double.infinity);
@@ -32,15 +52,16 @@ class CollectionSummaryCards extends StatelessWidget {
           children: [
             AppMetricCard(
               label: "Today's Visits",
-              value: '${collection.dueItems.length} Visits',
+              value: '$visitCount Visits',
               icon: Icons.directions_walk_outlined,
               color: theme.colorScheme.primary,
             ),
             AppMetricCard(
               label: 'Promise To Pay',
-              value: 'Unavailable',
-              icon: Icons.info_outline,
-              color: theme.colorScheme.outline,
+              value:
+                  '$promiseCount ${promiseCount == 1 ? 'Promise' : 'Promises'}',
+              icon: Icons.handshake_outlined,
+              color: theme.colorScheme.primary,
             ),
             AppMetricCard(
               label: 'Overdue Tasks',

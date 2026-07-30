@@ -7,10 +7,12 @@ import 'package:open_filex/open_filex.dart';
 import '../../../core/presentation/design_system/app_bottom_sheet.dart';
 import '../../loans/domain/models/loan.dart';
 import '../data/borrower_communication_service.dart';
+import '../data/borrower_communication_log_repository.dart';
 import '../data/borrower_document_service.dart';
 import '../data/borrower_due_reminder_scheduler.dart';
 import '../domain/borrower_communication_context.dart';
 import '../domain/borrower_message_template_service.dart';
+import '../domain/borrower_communication_log.dart';
 import '../domain/phone_number.dart';
 import 'borrower_communication_provider.dart';
 import 'message_preview_dialog.dart';
@@ -153,19 +155,35 @@ class _SendToBorrowerSheetState extends ConsumerState<SendToBorrowerSheet> {
             padding: EdgeInsets.symmetric(vertical: 8),
             child: LinearProgressIndicator(),
           ),
+        _tile(
+          Icons.history_outlined,
+          'Communication History',
+          'See messages opened or confirmed sent',
+          () => _showCommunicationHistory(data.borrower.id),
+        ),
         if (actions.contains(SendToBorrowerAction.paymentReminder))
           _tile(
             Icons.notifications_active_outlined,
             'Send Payment Reminder',
             'Review the next due or overdue installment',
-            () => _preview(data, _templates.paymentReminder(data), phone),
+            () => _preview(
+              data,
+              _templates.paymentReminder(data),
+              phone,
+              'Payment reminder',
+            ),
           ),
         if (actions.contains(SendToBorrowerAction.loanSummary))
           _tile(
             Icons.account_balance_wallet_outlined,
             'Send Loan Summary',
             'Current locally stored loan snapshot',
-            () => _preview(data, _templates.loanSummary(data), phone),
+            () => _preview(
+              data,
+              _templates.loanSummary(data),
+              phone,
+              'Loan summary',
+            ),
           ),
         if (actions.contains(SendToBorrowerAction.paymentSchedule))
           _tile(
@@ -208,6 +226,7 @@ class _SendToBorrowerSheetState extends ConsumerState<SendToBorrowerSheet> {
                       : _templates.loanSummary(data))
                 : _templates.paymentReceipt(data),
             phone,
+            data.payment == null ? 'Loan summary' : 'Payment receipt',
           ),
         ),
         _tile(
@@ -223,6 +242,7 @@ class _SendToBorrowerSheetState extends ConsumerState<SendToBorrowerSheet> {
                       : _templates.scheduleSummary(data))
                 : _templates.paymentReceipt(data),
             phone,
+            data.payment == null ? 'Schedule summary' : 'Payment receipt',
           ),
         ),
       ],
@@ -250,6 +270,7 @@ class _SendToBorrowerSheetState extends ConsumerState<SendToBorrowerSheet> {
     BorrowerCommunicationContext data,
     String message,
     PhilippinePhoneNumber? phone,
+    String messageType,
   ) async {
     final result = await MessagePreviewDialog.show(
       context,
@@ -262,16 +283,147 @@ class _SendToBorrowerSheetState extends ConsumerState<SendToBorrowerSheet> {
       final service = ref.read(borrowerCommunicationServiceProvider);
       if (result.action == MessagePreviewAction.share) {
         await service.shareText(result.message);
+        await _recordCommunication(
+          data,
+          messageType,
+          'Share sheet',
+          BorrowerCommunicationStatus.openedShareSheet,
+        );
       } else if (phone == null) {
         _feedback('Add a valid Philippine mobile number before opening SMS.');
       } else if (!await service.openSmsDraft(phone, result.message)) {
         _feedback('No SMS application could open the prepared message.');
+      } else {
+        final log = await _recordCommunication(
+          data,
+          messageType,
+          'SMS',
+          BorrowerCommunicationStatus.openedInSms,
+        );
+        if (!mounted) return;
+        final sent = await _confirmSmsOutcome();
+        if (sent == null || !mounted) return;
+        await ref
+            .read(borrowerCommunicationLogRepositoryProvider)
+            .updateStatus(
+              log.id,
+              sent
+                  ? BorrowerCommunicationStatus.confirmedSent
+                  : BorrowerCommunicationStatus.notSent,
+            );
+        ref.invalidate(borrowerCommunicationHistoryProvider(data.borrower.id));
+        if (mounted) {
+          _feedback(sent ? 'Marked as sent.' : 'Marked as not sent.');
+        }
       }
     } catch (_) {
       if (mounted) _feedback('The sharing application could not be opened.');
     } finally {
       if (mounted) setState(() => _working = false);
     }
+  }
+
+  Future<BorrowerCommunicationLog> _recordCommunication(
+    BorrowerCommunicationContext data,
+    String messageType,
+    String channel,
+    BorrowerCommunicationStatus status,
+  ) async {
+    final log = await ref
+        .read(borrowerCommunicationLogRepositoryProvider)
+        .record(
+          borrowerId: data.borrower.id,
+          loanId: data.loan?.id,
+          paymentId: data.payment?.id,
+          messageType: messageType,
+          channel: channel,
+          status: status,
+        );
+    ref.invalidate(borrowerCommunicationHistoryProvider(data.borrower.id));
+    return log;
+  }
+
+  Future<bool?> _confirmSmsOutcome() {
+    return showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Was the SMS sent?'),
+        content: const Text(
+          'Android does not tell Lending Nelson whether you pressed Send. '
+          'Confirm the result after returning from your SMS app.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Not sent'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Yes, sent'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showCommunicationHistory(String borrowerId) async {
+    final history = await ref.read(
+      borrowerCommunicationHistoryProvider(borrowerId).future,
+    );
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.7,
+          ),
+          child: history.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Text('No communication activity recorded yet.'),
+                )
+              : ListView.builder(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                  itemCount: history.length,
+                  itemBuilder: (_, index) {
+                    final item = history[index];
+                    return ListTile(
+                      leading: Icon(
+                        item.status == BorrowerCommunicationStatus.confirmedSent
+                            ? Icons.mark_email_read_outlined
+                            : Icons.sms_outlined,
+                      ),
+                      title: Text(item.messageType),
+                      subtitle: Text(
+                        '${_statusLabel(item.status)} · ${item.channel}\n'
+                        '${_dateTimeLabel(item.updatedAt.toLocal())}',
+                      ),
+                      isThreeLine: true,
+                    );
+                  },
+                ),
+        ),
+      ),
+    );
+  }
+
+  String _statusLabel(BorrowerCommunicationStatus status) => switch (status) {
+    BorrowerCommunicationStatus.openedInSms => 'Opened in SMS',
+    BorrowerCommunicationStatus.confirmedSent => 'Confirmed sent',
+    BorrowerCommunicationStatus.notSent => 'Not sent',
+    BorrowerCommunicationStatus.openedShareSheet => 'Opened share sheet',
+  };
+
+  String _dateTimeLabel(DateTime value) {
+    final date = '${value.month}/${value.day}/${value.year}';
+    final hour = value.hour % 12 == 0 ? 12 : value.hour % 12;
+    final minute = value.minute.toString().padLeft(2, '0');
+    final period = value.hour >= 12 ? 'PM' : 'AM';
+    return '$date $hour:$minute $period';
   }
 
   Future<void> _document(

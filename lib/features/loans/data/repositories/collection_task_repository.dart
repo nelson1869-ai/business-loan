@@ -1,7 +1,5 @@
 import 'dart:async';
-import 'dart:convert';
 
-import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -23,18 +21,42 @@ class CollectionTaskRepository {
 
   Future<List<Map<String, dynamic>>> list() async {
     final cached = await _cache.read(_tasksKey);
+    if (cached is! List || cached.isEmpty) {
+      try {
+        final response = await _dio.get<List<dynamic>>(
+          ApiEndpoints.collectionTasks,
+        );
+        final items = response.data ?? const <dynamic>[];
+        await _cache.write(_tasksKey, items);
+        return items
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList(growable: false);
+      } catch (_) {
+        return const <Map<String, dynamic>>[];
+      }
+    }
     unawaited(_refreshTasks());
-    return (cached is List ? cached : const <dynamic>[])
+    return cached
         .map((item) => Map<String, dynamic>.from(item as Map))
         .toList(growable: false);
   }
 
   Future<Set<String>> completedInstallments() async {
     final cached = await _cache.read(_completedKey);
+    if (cached is! List || cached.isEmpty) {
+      try {
+        final response = await _dio.get<List<dynamic>>(
+          ApiEndpoints.completedCollectionTasks,
+        );
+        final items = response.data ?? const <dynamic>[];
+        await _cache.write(_completedKey, items);
+        return items.map((value) => '$value').toSet();
+      } catch (_) {
+        return const <String>{};
+      }
+    }
     unawaited(_refreshCompleted());
-    return (cached is List ? cached : const <dynamic>[])
-        .map((value) => '$value')
-        .toSet();
+    return cached.map((value) => '$value').toSet();
   }
 
   Future<void> _refreshTasks() async {
@@ -56,19 +78,20 @@ class CollectionTaskRepository {
   }
 
   Future<void> create(Map<String, dynamic> payload) async {
-    final fingerprint = sha256.convert(utf8.encode(jsonEncode(payload)));
+    final localId = const Uuid().v4();
+    final requestPayload = <String, dynamic>{...payload, 'id': localId};
     final cached = await _cache.read(_tasksKey);
     final tasks = cached is List ? List<dynamic>.from(cached) : <dynamic>[];
-    tasks.insert(0, {...payload, 'id': const Uuid().v4(), 'status': 'Pending'});
+    tasks.insert(0, {...requestPayload, 'status': 'Pending'});
     await _cache.write(_tasksKey, tasks);
     await _sync.enqueue(
       endpoint: ApiEndpoints.collectionTasks,
       method: 'POST',
-      payload: payload,
+      payload: requestPayload,
       entityType: payload['taskType'] == 'PromiseToPay'
           ? 'promise_to_pay'
           : 'collection_task',
-      entityLocalId: '$fingerprint',
+      entityLocalId: localId,
       operationType: 'create',
       dependencyIds: ['${payload['borrowerId']}', '${payload['loanId']}'],
     );
@@ -85,6 +108,7 @@ class CollectionTaskRepository {
       entityType: 'collection_task',
       entityLocalId: taskId,
       operationType: 'complete',
+      dependencyIds: [taskId],
     );
     unawaited(_sync.drainQueue());
   }
@@ -98,7 +122,7 @@ class CollectionTaskRepository {
     final completed = cached is List
         ? cached.map((value) => '$value').toSet()
         : <String>{};
-    completed.add('${loanId}_$installmentNumber');
+    completed.add('$loanId:$installmentNumber');
     await _cache.write(_completedKey, completed.toList());
     await _sync.enqueue(
       endpoint: endpoint,
