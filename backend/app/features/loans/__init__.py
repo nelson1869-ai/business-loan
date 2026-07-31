@@ -1,0 +1,1 @@
+"""Loans feature domain."""

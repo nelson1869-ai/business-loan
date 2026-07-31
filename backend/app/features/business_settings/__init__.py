@@ -1,0 +1,1 @@
+"""Business Settings feature domain."""

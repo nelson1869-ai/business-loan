@@ -1,0 +1,1 @@
+"""Admin Assistant feature domain."""
