@@ -17,7 +17,7 @@ dependencies:
   go_router: ^16.0.0
 
   # Networking
-  dio: ^5.9.0
+  dio: ^5.10.0
 
   # Local Storage
   flutter_secure_storage: ^9.2.4
@@ -27,7 +27,7 @@ dependencies:
 
   # Utilities
   uuid: ^4.5.1
-  file_picker: ^10.3.8
+  file_picker: ^10.3.10
 
   # Connectivity
   connectivity_plus: ^6.1.5
@@ -40,7 +40,7 @@ dependencies:
   image_picker: ^1.2.3
   image_cropper: ^12.2.1
   flutter_image_compress: ^2.5.1
-  pdf: ^3.12.0
+  pdf: ^3.13.0
   path_provider: ^2.1.6
   open_filex: ^4.7.0
   share_plus: ^12.0.2

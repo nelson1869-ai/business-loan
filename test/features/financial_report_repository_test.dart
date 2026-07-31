@@ -44,6 +44,16 @@ void main() {
       final databaseService = DatabaseService(dbPath: inMemoryDatabasePath);
       addTearDown(databaseService.close);
       final db = await databaseService.database;
+      await db.insert('borrowers', {
+        'id': 'borrower-1',
+        'first_name': 'Test',
+        'last_name': 'Borrower',
+        'national_id': 'enc_id',
+        'phone': 'enc_phone',
+        'date_of_birth': '1990-01-01',
+        'status': 'Active',
+        'created_at': '2026-01-01T00:00:00Z',
+      });
       await db.insert('loans', {
         'id': 'loan-1',
         'borrower_id': 'borrower-1',

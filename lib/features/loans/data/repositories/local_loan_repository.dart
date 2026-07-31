@@ -232,7 +232,7 @@ class LocalLoanRepository {
     final now = DateTime.now().toUtc().toIso8601String();
 
     await db.transaction((txn) async {
-      await txn.insert('loans', {
+      final loanMap = {
         'id': loan.id,
         'server_id': syncStatus == 'synced' ? loan.id : null,
         'borrower_id': loan.borrowerId,
@@ -251,10 +251,20 @@ class LocalLoanRepository {
         'created_at': loan.createdAt,
         'sync_status': syncStatus,
         'last_synced_at': syncStatus == 'synced' ? now : null,
-      }, conflictAlgorithm: ConflictAlgorithm.replace);
+      };
+
+      final count = await txn.update(
+        'loans',
+        loanMap,
+        where: 'id = ?',
+        whereArgs: [loan.id],
+      );
+      if (count == 0) {
+        await txn.insert('loans', loanMap);
+      }
 
       for (final inst in loan.installments) {
-        await txn.insert('loan_schedules', {
+        final instMap = {
           'id': inst.id,
           'server_id': syncStatus == 'synced' ? inst.id : null,
           'loan_id': loan.id,
@@ -267,7 +277,16 @@ class LocalLoanRepository {
           'status': inst.status,
           'created_at': inst.createdAt,
           'sync_status': syncStatus,
-        }, conflictAlgorithm: ConflictAlgorithm.replace);
+        };
+        final instCount = await txn.update(
+          'loan_schedules',
+          instMap,
+          where: 'id = ?',
+          whereArgs: [inst.id],
+        );
+        if (instCount == 0) {
+          await txn.insert('loan_schedules', instMap);
+        }
       }
     });
   }

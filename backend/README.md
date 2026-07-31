@@ -20,23 +20,6 @@ Run the commands below from `D:\Development\lending_nelson\backend` in PowerShel
 ## Requirements
 
 - Python 3.12 or newer
-- PostgreSQL
-- PowerShell on Windows
-- A PostgreSQL database named `lending_nelson`, or another database configured through `DATABASE_URL`
-
-## 1. Create the virtual environment
-
-```powershell
-Set-Location D:\Development\lending_nelson\backend
-py -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-```
-
-Verify the interpreter:
-
-```powershell
-.\.venv\Scripts\python.exe -c "import sys; print(sys.executable)"
 ```
 
 It should resolve to `backend\.venv\Scripts\python.exe`.
@@ -160,22 +143,6 @@ The OpenAPI document is the authoritative contract for request fields, response 
 
 ## 8. Run backend checks
 
-Compile the application:
-
-```powershell
-.\.venv\Scripts\python.exe -m compileall app
-```
-
-Run the complete unit suite:
-
-```powershell
-.\.venv\Scripts\python.exe -m unittest discover -s tests
-```
-
-Run the migration consistency check:
-
-```powershell
-.\.venv\Scripts\python.exe -m alembic check
 ```
 
 Last verified result:

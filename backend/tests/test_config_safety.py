@@ -85,6 +85,18 @@ class TestConfigSafety(unittest.TestCase):
             ["https://lending.nelson.com", "https://admin.nelson.com"],
         )
 
+    def test_production_unauthenticated_n8n_webhook_rejected(self) -> None:
+        """Verify production rejects N8N_WEBHOOK_URL when N8N_WEBHOOK_SECRET is missing."""
+        with self.assertRaises(ValidationError):
+            Settings(
+                app_env="production",
+                database_url="postgresql+asyncpg://user:pass@localhost:5432/db",
+                jwt_secret_key="a_very_strong_random_production_jwt_secret_key_32_bytes",
+                cors_origins="https://lending.nelson.com",
+                n8n_webhook_url="https://n8n.example.com/webhook/lending",
+                n8n_webhook_secret="",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

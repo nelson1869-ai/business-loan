@@ -94,6 +94,18 @@ class Settings(BaseSettings):
             )
         return value
 
+    @field_validator("n8n_webhook_secret")
+    @classmethod
+    def validate_n8n_webhook_secret(cls, value: str | None, info) -> str | None:
+        """Enforce that n8n webhook authentication fails closed in production and staging."""
+        env = info.data.get("app_env", "").lower().strip()
+        webhook_url = info.data.get("n8n_webhook_url")
+        if env in ("production", "prod", "staging") and webhook_url and not value:
+            raise ValueError(
+                "N8N_WEBHOOK_SECRET must be configured when N8N_WEBHOOK_URL is set in production/staging."
+            )
+        return value
+
     @property
     def cors_origin_list(self) -> list[str]:
         """Return the configured comma-separated origins as a clean list."""

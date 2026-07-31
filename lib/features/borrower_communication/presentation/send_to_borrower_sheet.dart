@@ -380,42 +380,72 @@ class _SendToBorrowerSheetState extends ConsumerState<SendToBorrowerSheet> {
           constraints: BoxConstraints(
             maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.7,
           ),
-          child: history.isEmpty
-              ? const Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Text('No communication activity recorded yet.'),
-                )
-              : ListView.builder(
-                  shrinkWrap: true,
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                  itemCount: history.length,
-                  itemBuilder: (_, index) {
-                    final item = history[index];
-                    return ListTile(
-                      leading: Icon(
-                        item.status == BorrowerCommunicationStatus.confirmedSent
-                            ? Icons.mark_email_read_outlined
-                            : Icons.sms_outlined,
-                      ),
-                      title: Text(item.messageType),
-                      subtitle: Text(
-                        '${_statusLabel(item.status)} · ${item.channel}\n'
-                        '${_dateTimeLabel(item.updatedAt.toLocal())}',
-                      ),
-                      isThreeLine: true,
-                    );
-                  },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
                 ),
+                child: Column(
+                  children: [
+                    Text(
+                      'Device-Local Communication History',
+                      style: Theme.of(sheetContext).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'History stored on this device only. SMS delivery status is reported by user action.',
+                      style: Theme.of(sheetContext).textTheme.bodySmall,
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Flexible(
+                child: history.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Text('No communication activity recorded yet.'),
+                      )
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                        itemCount: history.length,
+                        itemBuilder: (_, index) {
+                          final item = history[index];
+                          return ListTile(
+                            leading: Icon(
+                              item.status ==
+                                      BorrowerCommunicationStatus.confirmedSent
+                                  ? Icons.mark_email_read_outlined
+                                  : Icons.sms_outlined,
+                            ),
+                            title: Text(item.messageType),
+                            subtitle: Text(
+                              '${_statusLabel(item.status)} · ${item.channel}\n'
+                              '${_dateTimeLabel(item.updatedAt.toLocal())}',
+                            ),
+                            isThreeLine: true,
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   String _statusLabel(BorrowerCommunicationStatus status) => switch (status) {
-    BorrowerCommunicationStatus.openedInSms => 'Opened in SMS',
-    BorrowerCommunicationStatus.confirmedSent => 'Confirmed sent',
-    BorrowerCommunicationStatus.notSent => 'Not sent',
-    BorrowerCommunicationStatus.openedShareSheet => 'Opened share sheet',
+    BorrowerCommunicationStatus.openedInSms => 'SMS app opened',
+    BorrowerCommunicationStatus.confirmedSent => 'Marked as sent by user',
+    BorrowerCommunicationStatus.notSent => 'Marked as not sent',
+    BorrowerCommunicationStatus.openedShareSheet => 'Share sheet opened',
   };
 
   String _dateTimeLabel(DateTime value) {

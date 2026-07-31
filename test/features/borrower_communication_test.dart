@@ -228,6 +228,17 @@ void main() {
     final database = DatabaseService(
       dbPath: '${directory.path}${Platform.pathSeparator}reminders.db',
     );
+    final db = await database.database;
+    await db.insert('borrowers', {
+      'id': _borrower.id,
+      'first_name': _borrower.firstName,
+      'last_name': _borrower.lastName,
+      'national_id': 'enc_nat_id',
+      'phone': _borrower.phone,
+      'date_of_birth': _borrower.dateOfBirth,
+      'status': _borrower.status,
+      'created_at': _borrower.createdAt,
+    });
     final repository = LocalLoanRepository(database);
     await repository.saveLoan(_context().loan!, syncStatus: 'pending');
     final notifications = _FakeLocalNotificationService();

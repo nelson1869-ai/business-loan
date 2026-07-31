@@ -83,6 +83,9 @@ class DatabaseService {
       // They must not share sqflite's cached handle because disposing the
       // background container would otherwise close the foreground connection.
       singleInstance: false,
+      onConfigure: (db) async {
+        await db.execute('PRAGMA foreign_keys = ON');
+      },
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );

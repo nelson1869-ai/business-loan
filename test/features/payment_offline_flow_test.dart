@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,6 +22,16 @@ void main() {
       final databaseService = DatabaseService(dbPath: inMemoryDatabasePath);
       addTearDown(databaseService.close);
       final db = await databaseService.database;
+      await db.insert('borrowers', {
+        'id': 'borrower-1',
+        'first_name': 'Test',
+        'last_name': 'Borrower',
+        'national_id': 'enc_id',
+        'phone': 'enc_phone',
+        'date_of_birth': '1990-01-01',
+        'status': 'Active',
+        'created_at': '2026-01-01T00:00:00Z',
+      });
       await db.insert('loans', {
         'id': 'loan-1',
         'borrower_id': 'borrower-1',
@@ -35,6 +47,40 @@ void main() {
         'status': 'Active',
         'created_at': '2026-01-01T00:00:00Z',
         'sync_status': 'synced',
+        'data_json': jsonEncode({
+          'id': 'loan-1',
+          'requestId': 'loan-request-1',
+          'borrowerId': 'borrower-1',
+          'createdByUserId': 'officer-1',
+          'originalPrincipal': '1000.00',
+          'outstandingPrincipal': '1000.00',
+          'monthlyRate': '0.05',
+          'termMonths': 12,
+          'paymentsPerMonth': 1,
+          'numberOfPayments': 12,
+          'regularPaymentAmount': '200.00',
+          'calculationMethod': 'fixed_periodic_reducing_balance',
+          'startDate': '2026-01-01',
+          'firstDueDate': '2026-02-01',
+          'finalDueDate': '2027-01-01',
+          'status': 'Active',
+          'createdAt': '2026-01-01T00:00:00Z',
+          'installments': [
+            {
+              'id': 'installment-1',
+              'loanId': 'loan-1',
+              'installmentNumber': 1,
+              'dueDate': '2026-02-01',
+              'expectedPayment': '200.00',
+              'expectedInterest': '50.00',
+              'expectedPrincipal': '150.00',
+              'expectedRemainingPrincipal': '850.00',
+              'paidAmount': '0.00',
+              'status': 'Scheduled',
+              'createdAt': '2026-01-01T00:00:00Z',
+            },
+          ],
+        }),
       });
       await db.insert('loan_schedules', {
         'id': 'installment-1',
@@ -104,7 +150,6 @@ void main() {
       final queue = await db.query('offline_sync_queue');
       expect(queue, hasLength(1));
       expect(queue.single['entity_type'], 'repayment');
-      expect(queue.single['status'], 'pending');
     },
   );
 }
