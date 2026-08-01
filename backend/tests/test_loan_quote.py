@@ -4,8 +4,8 @@ import unittest
 from datetime import date
 from decimal import Decimal
 
-from app.schemas.loan import LoanQuoteRequest
-from app.services.loan_service import build_quote
+from app.features.loans.schemas import LoanQuoteRequest
+from app.features.loans.service import build_quote
 
 
 class LoanQuoteTests(unittest.TestCase):

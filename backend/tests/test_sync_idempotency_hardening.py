@@ -4,13 +4,13 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.models.sync_receipt import SyncReceipt
-from app.routers.sync import (
+from app.features.sync.models import SyncReceipt
+from app.features.sync.router import (
     SyncReplayError,
     _replay_item,
     drain_sync_queue,
 )
-from app.schemas.sync import SyncBatchRequest, SyncQueueItem
+from app.features.sync.schemas import SyncBatchRequest, SyncQueueItem
 
 
 @pytest.mark.asyncio
@@ -90,7 +90,7 @@ async def test_receipt_and_mutation_share_one_commit(monkeypatch):
         created_at="2026-07-28T12:00:00Z",
     )
     replay = AsyncMock()
-    monkeypatch.setattr("app.routers.sync._replay_item", replay)
+    monkeypatch.setattr("app.features.sync.router._replay_item", replay)
     db = AsyncMock()
     db.add = MagicMock()
     db.get.return_value = None

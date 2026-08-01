@@ -6,7 +6,7 @@ from decimal import Decimal
 
 from pydantic import ValidationError
 
-from app.schemas.loan import LoanCreate
+from app.features.loans.schemas import LoanCreate
 
 
 class LoanCreateSchemaTests(unittest.TestCase):

@@ -9,19 +9,19 @@ from uuid import uuid4
 
 from sqlalchemy import delete, func, select
 
-from app.database import AsyncSessionFactory, engine
-from app.models.audit_log import AuditLog
-from app.models.borrower import Borrower
-from app.models.loan import Installment, Loan
-from app.models.payment import Payment, PaymentAllocation
-from app.models.user import User
-from app.routers.payments import confirm_one_payment, reverse_one_payment
-from app.schemas.payment import (
+from app.core.database import AsyncSessionFactory, engine
+from app.features.admin_assistant.models import AuditLog
+from app.features.borrowers.models import Borrower
+from app.features.loans.models import Installment, Loan
+from app.features.payments.models import Payment, PaymentAllocation
+from app.features.payments.router import confirm_one_payment, reverse_one_payment
+from app.features.payments.schemas import (
     PaymentCreate,
     PaymentPreviewRequest,
     PaymentReversalCreate,
 )
-from app.services.payment_service import preview_payment
+from app.features.payments.service import preview_payment
+from app.features.users.models import User
 
 
 @unittest.skipUnless(

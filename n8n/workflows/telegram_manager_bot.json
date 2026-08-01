@@ -4,7 +4,7 @@
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "lending-events",
+        "path": "lending-manager-alert",
         "options": {}
       },
       "name": "Webhook Trigger",
@@ -20,13 +20,13 @@
         "conditions": {
           "string": [
             {
-              "value1": "={{ $json.body.event }}",
-              "value2": "loan_created"
+              "value1": "={{ $json.body.eventType }}",
+              "value2": "loan.created"
             }
           ]
         }
       },
-      "name": "Is New Loan?",
+      "name": "Is New Loan Event?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
       "position": [
@@ -36,27 +36,10 @@
     },
     {
       "parameters": {
-        "chatId": "YOUR_TELEGRAM_MANAGER_CHAT_ID",
-        "text": "=📢 *NEW LOAN APPLICATION CREATED*\n\n👤 *Borrower:* {{ $json.body.payload.borrower_name }}\n💰 *Principal:* ₱{{ $json.body.payload.principal }}\n📌 *Status:* {{ $json.body.payload.status }}\n🧑‍💼 *Submitted By:* {{ $json.body.payload.created_by }}\n🆔 *Loan ID:* `{{ $json.body.payload.loan_id }}`\n\nTap below to approve or review in Lending Nelson:",
+        "chatId": "={{ $env.TELEGRAM_MANAGER_CHAT_ID }}",
+        "text": "=📢 *NEW LOAN APPLICATION CREATED*\n\n👤 *Borrower:* {{ $json.body.data.borrower_name }}\n💰 *Principal:* ₱{{ $json.body.data.original_principal }}\n📌 *Status:* {{ $json.body.data.status }}\n🧑‍💼 *Submitted By:* {{ $json.body.data.created_by }}\n🆔 *Loan ID:* `{{ $json.body.data.loan_id }}`\n\nReview in Lending Nelson App or Web Dashboard.",
         "additionalFields": {
-          "parse_mode": "Markdown",
-          "reply_markup": "inline_keyboard",
-          "inline_keyboard": {
-            "rows": [
-              {
-                "buttons": [
-                  {
-                    "text": "🟢 Approve Loan",
-                    "callback_data": "approve_{{ $json.body.payload.loan_id }}"
-                  },
-                  {
-                    "text": "🔴 Reject Loan",
-                    "callback_data": "reject_{{ $json.body.payload.loan_id }}"
-                  }
-                ]
-              }
-            ]
-          }
+          "parse_mode": "Markdown"
         }
       },
       "name": "Send Telegram Alert to Manager",
@@ -73,14 +56,14 @@
       "main": [
         [
           {
-            "node": "Is New Loan?",
+            "node": "Is New Loan Event?",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Is New Loan?": {
+    "Is New Loan Event?": {
       "main": [
         [
           {
@@ -93,5 +76,7 @@
     }
   },
   "active": false,
-  "settings": {}
+  "settings": {
+    "executionOrder": "v1"
+  }
 }

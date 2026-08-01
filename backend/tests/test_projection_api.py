@@ -2,8 +2,8 @@
 
 import unittest
 
+from app.features.sync.schemas import SyncQueueItem
 from app.main import app
-from app.schemas.sync import SyncQueueItem
 
 
 class ProjectionApiContractTests(unittest.TestCase):

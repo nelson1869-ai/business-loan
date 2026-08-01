@@ -5,9 +5,9 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
-from app.models.loan import Loan
-from app.models.user import User
-from app.services import loan_service
+from app.features.loans import service as loan_service
+from app.features.loans.models import Loan
+from app.features.users.models import User
 
 
 class TestLoanWorkflowTransitions(unittest.IsolatedAsyncioTestCase):

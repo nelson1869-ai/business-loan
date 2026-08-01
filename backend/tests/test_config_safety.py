@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from pydantic import ValidationError
 
-from app.config import Settings
+from app.core.config import Settings
 
 
 class TestConfigSafety(unittest.TestCase):
@@ -79,6 +79,7 @@ class TestConfigSafety(unittest.TestCase):
             database_url="postgresql+asyncpg://user:pass@localhost:5432/db",
             jwt_secret_key="a_very_strong_random_production_jwt_secret_key_32_bytes",
             cors_origins="https://lending.nelson.com, https://admin.nelson.com",
+            n8n_webhook_secret="a_very_strong_n8n_webhook_secret_32_bytes",
         )
         self.assertEqual(
             settings.cors_origin_list,

@@ -9,13 +9,13 @@ from uuid import uuid4
 from fastapi import HTTPException
 from sqlalchemy import delete, func, select
 
-from app.database import AsyncSessionFactory, engine
-from app.models.audit_log import AuditLog
-from app.models.borrower import Borrower
-from app.models.loan import Installment, Loan
-from app.models.user import User
-from app.routers.loans import create_one_loan
-from app.schemas.loan import LoanCreate
+from app.core.database import AsyncSessionFactory, engine
+from app.features.admin_assistant.models import AuditLog
+from app.features.borrowers.models import Borrower
+from app.features.loans.models import Installment, Loan
+from app.features.loans.router import create_one_loan
+from app.features.loans.schemas import LoanCreate
+from app.features.users.models import User
 
 
 @unittest.skipUnless(

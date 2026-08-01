@@ -6,7 +6,11 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 
 from app.core.dependencies import CurrentUser, DbSession
+from app.features.automation.outbox import process_outbox_batch, publish_outbox_event
 from app.features.automation.schemas import DomainEventEnvelope, EventActor, EventEntity
+from app.features.loans import service as loan_service
+from app.features.loans.calculator import LoanCalculationError
+from app.features.payments import service as payment_service
 from app.features.payments.schemas import (
     PaymentCreate,
     PaymentPage,
@@ -16,9 +20,6 @@ from app.features.payments.schemas import (
     PaymentReversalCreate,
     PaymentReversalResponse,
 )
-from app.services import loan_service, payment_service
-from app.services.loan_calculator import LoanCalculationError
-from app.services.webhook_service import process_outbox_batch, publish_outbox_event
 
 router = APIRouter(prefix="/api/v1/loans/{loan_id}/payments", tags=["Payments"])
 

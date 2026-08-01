@@ -6,9 +6,10 @@ from unittest.mock import AsyncMock
 
 from fastapi import HTTPException
 
-from app.routers import business_settings, users
-from app.schemas.business_setting import BusinessSettingUpdate
-from app.schemas.user import UserRoleUpdate
+from app.features.business_settings import router as business_settings
+from app.features.business_settings.schemas import BusinessSettingUpdate
+from app.features.users import router as users
+from app.features.users.schemas import UserRoleUpdate
 
 
 class AdminSecurityTests(unittest.IsolatedAsyncioTestCase):

@@ -6,10 +6,10 @@ from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-from app.models.audit_log import AuditLog
-from app.models.loan import Loan
-from app.schemas.loan import LoanCreate
-from app.services.loan_service import build_due_dates, create_loan
+from app.features.admin_assistant.models import AuditLog
+from app.features.loans.models import Loan
+from app.features.loans.schemas import LoanCreate
+from app.features.loans.service import build_due_dates, create_loan
 
 
 class LoanDueDateTests(unittest.TestCase):

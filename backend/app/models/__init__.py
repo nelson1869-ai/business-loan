@@ -1,19 +1,21 @@
 """SQLAlchemy model exports used by application code and Alembic."""
 
-from app.models.audit_log import AuditLog
-from app.models.borrower import Borrower
-from app.models.business_setting import BusinessSetting
-from app.models.collection_task import CollectionTaskState
-from app.models.document import Document
-from app.models.loan import Installment, Loan
-from app.models.note import Note
-from app.models.notification import Notification
-from app.models.payment import Payment, PaymentAllocation
-from app.models.sync_receipt import SyncReceipt
-from app.models.user import User
+from app.features.admin_assistant.models import AuditLog
+from app.features.automation.models import AutomationEventOutbox
+from app.features.borrowers.models import Borrower
+from app.features.business_settings.models import BusinessSetting
+from app.features.collection.models import CollectionTaskState
+from app.features.documents.models import Document
+from app.features.loans.models import Installment, Loan
+from app.features.notes.models import Note
+from app.features.notifications.models import Notification
+from app.features.payments.models import Payment, PaymentAllocation
+from app.features.sync.models import SyncReceipt
+from app.features.users.models import User
 
 __all__ = [
     "AuditLog",
+    "AutomationEventOutbox",
     "Borrower",
     "BusinessSetting",
     "CollectionTaskState",

@@ -9,9 +9,9 @@ from sqlalchemy import func, select
 
 from app.core.config import get_settings
 from app.core.dependencies import DbSession
+from app.core.service_auth import verify_service_account_or_admin
 from app.features.automation.models import AutomationEventOutbox
-from app.services.service_auth import verify_service_account_or_admin
-from app.services.webhook_service import process_outbox_batch, replay_outbox_event
+from app.features.automation.outbox import process_outbox_batch, replay_outbox_event
 
 router = APIRouter(prefix="/api/v1/automation", tags=["automation"])
 

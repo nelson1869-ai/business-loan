@@ -1,0 +1,78 @@
+{
+  "name": "Lending Nelson - Sync Failure Alert",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lending-sync-alert",
+        "options": {}
+      },
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.body.eventType }}",
+              "value2": "sync.item_failed"
+            }
+          ]
+        }
+      },
+      "name": "Is Sync Failure?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Sanitize & format operational sync alert payload without borrower PII\nconst event = $input.first().json.body;\nconst data = event.data || {};\n\nreturn [{\n  json: {\n    alert_title: '⚠️ Offline Sync Item Failure',\n    correlation_id: event.correlationId,\n    transaction_uuid: data.transaction_uuid,\n    entity_type: data.entity_type,\n    entity_id: data.entity_id || 'N/A',\n    attempt_count: data.attempt_count || 1,\n    error_message: data.error_message || 'Unknown sync processing error',\n    occurred_at: event.occurredAt\n  }\n}];"
+      },
+      "name": "Format Operational Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        220
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Is Sync Failure?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Sync Failure?": {
+      "main": [
+        [
+          {
+            "node": "Format Operational Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

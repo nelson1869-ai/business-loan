@@ -6,12 +6,12 @@ from fastapi import APIRouter, Header, HTTPException, Query, Response, status
 from sqlalchemy.exc import IntegrityError
 
 from app.core.dependencies import CurrentUser, DbSession
+from app.features.borrowers import service as borrower_service
 from app.features.borrowers.schemas import (
     BorrowerCreate,
     BorrowerResponse,
     BorrowerUpdate,
 )
-from app.services import borrower_service
 
 router = APIRouter(prefix="/api/v1/borrowers", tags=["Borrowers"])
 

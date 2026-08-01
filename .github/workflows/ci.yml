@@ -106,6 +106,9 @@ jobs:
           alembic upgrade head
           alembic check
 
+      - name: Validate n8n Workflows
+        run: python ../scripts/validate_n8n_workflows.py
+
   security:
     name: Security Scans & Dependency Review
     runs-on: ubuntu-latest

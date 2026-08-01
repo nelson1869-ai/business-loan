@@ -6,11 +6,11 @@ from decimal import Decimal
 
 from pydantic import ValidationError
 
-from app.models.loan import Installment, Loan
-from app.models.payment import Payment, PaymentAllocation
-from app.schemas.payment import PaymentPreviewRequest, PaymentReversalCreate
-from app.services.loan_calculator import LoanCalculationError
-from app.services.payment_service import (
+from app.features.loans.calculator import LoanCalculationError
+from app.features.loans.models import Installment, Loan
+from app.features.payments.models import Payment, PaymentAllocation
+from app.features.payments.schemas import PaymentPreviewRequest, PaymentReversalCreate
+from app.features.payments.service import (
     apply_latest_reversal_state,
     build_payment_preview,
     reversal_matches_request,

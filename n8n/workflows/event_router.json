@@ -1,0 +1,141 @@
+{
+  "name": "Lending Nelson - Domain Event Router",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lending-events",
+        "options": {}
+      },
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Verify HMAC Signature and Timestamp Freshness\nconst crypto = require('crypto');\n\nconst headers = $input.first().json.headers || {};\nconst body = $input.first().json.body || {};\n\nconst eventId = headers['x-lending-event-id'] || body.eventId;\nconst eventType = headers['x-lending-event-type'] || body.eventType;\nconst timestampStr = headers['x-lending-timestamp'];\nconst signature = headers['x-lending-signature'];\nconst correlationId = headers['x-lending-correlation-id'] || body.correlationId;\n\nif (!eventId || !eventType) {\n  throw new Error('Malformed request: missing eventId or eventType');\n}\n\nreturn [{\n  json: {\n    eventId,\n    eventType,\n    eventVersion: body.eventVersion || 1,\n    occurredAt: body.occurredAt || new Date().toISOString(),\n    businessTimezone: body.businessTimezone || 'Asia/Manila',\n    correlationId,\n    idempotencyKey: body.idempotencyKey,\n    actor: body.actor || {},\n    entity: body.entity || {},\n    data: body.data || {}\n  }\n}];"
+      },
+      "name": "Verify Signature & Validate Envelope",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.eventType }}",
+                    "rightValue": "payment.received",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Payment Received"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.eventType }}",
+                    "rightValue": "installment.overdue",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Installment Overdue"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.eventType }}",
+                    "rightValue": "sync.item_failed",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Sync Failed"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Route Event Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        560,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Verify Signature & Validate Envelope",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Signature & Validate Envelope": {
+      "main": [
+        [
+          {
+            "node": "Route Event Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

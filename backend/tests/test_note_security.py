@@ -4,7 +4,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-from app.services import note_service
+from app.features.notes import service as note_service
 
 
 class NoteSecurityTests(unittest.IsolatedAsyncioTestCase):

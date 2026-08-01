@@ -4,7 +4,7 @@
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "lending-events",
+        "path": "lending-payment-receipt",
         "options": {}
       },
       "name": "Webhook Trigger",
@@ -20,13 +20,13 @@
         "conditions": {
           "string": [
             {
-              "value1": "={{ $json.body.event }}",
-              "value2": "payment_recorded"
+              "value1": "={{ $json.body.eventType }}",
+              "value2": "payment.received"
             }
           ]
         }
       },
-      "name": "Is Payment Event?",
+      "name": "Is Payment Received Event?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
       "position": [
@@ -40,10 +40,10 @@
         "url": "https://api.semaphore.co/api/v4/messages",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"apikey\": \"YOUR_SEMAPHORE_API_KEY\",\n  \"number\": \"={{ $json.body.payload.borrower_phone }}\",\n  \"message\": \"Thank you! We received your loan payment of P{{ $json.body.payload.amount_paid }} for Loan #{{ $json.body.payload.loan_id }}. Remaining balance: P{{ $json.body.payload.remaining_balance }}.\"\n}",
+        "jsonBody": "={\n  \"apikey\": \"={{ $env.SEMAPHORE_API_KEY }}\",\n  \"number\": \"={{ $json.body.data.borrower_phone }}\",\n  \"message\": \"Lending Nelson: Thank you! We received your payment of ₱{{ $json.body.data.amount_paid }} for Loan #{{ $json.body.data.loan_id }}. Remaining balance: ₱{{ $json.body.data.remaining_balance }}. (Ref: {{ $json.body.eventId }})\"\n}",
         "options": {}
       },
-      "name": "Send Borrower SMS (Semaphore/Twilio)",
+      "name": "Send Borrower SMS (Semaphore)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 3,
       "position": [
@@ -57,18 +57,18 @@
       "main": [
         [
           {
-            "node": "Is Payment Event?",
+            "node": "Is Payment Received Event?",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Is Payment Event?": {
+    "Is Payment Received Event?": {
       "main": [
         [
           {
-            "node": "Send Borrower SMS (Semaphore/Twilio)",
+            "node": "Send Borrower SMS (Semaphore)",
             "type": "main",
             "index": 0
           }
@@ -77,5 +77,7 @@
     }
   },
   "active": false,
-  "settings": {}
+  "settings": {
+    "executionOrder": "v1"
+  }
 }

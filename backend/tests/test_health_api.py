@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 from fastapi.responses import JSONResponse
 
-from app.health.router import liveness_check, readiness_check
+from app.core.health import liveness_check, readiness_check
 from app.main import app
 
 
@@ -24,7 +24,7 @@ class TestHealthAPI(unittest.IsolatedAsyncioTestCase):
         res = await liveness_check()
         self.assertEqual(res, {"status": "ok", "service": "lending-nelson-api"})
 
-    @patch("app.health.router.AsyncSessionFactory")
+    @patch("app.core.health.AsyncSessionFactory")
     async def test_readiness_endpoint_success(self, mock_session_factory) -> None:
         """Verify readiness handler returns 200 when database is reachable."""
         mock_session = AsyncMock()
@@ -41,7 +41,7 @@ class TestHealthAPI(unittest.IsolatedAsyncioTestCase):
             },
         )
 
-    @patch("app.health.router.AsyncSessionFactory")
+    @patch("app.core.health.AsyncSessionFactory")
     async def test_readiness_endpoint_503_failure(self, mock_session_factory) -> None:
         """Verify readiness handler returns 503 when database is unreachable."""
         mock_session_factory.return_value.__aenter__.side_effect = Exception(

@@ -8,7 +8,14 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.config import get_settings
 from app.core.dependencies import CurrentUser, DbSession
+from app.features.admin_assistant.explanation_service import (
+    AIExplanationUnavailable,
+    explain_loan,
+)
+from app.features.automation.outbox import process_outbox_batch, publish_outbox_event
 from app.features.automation.schemas import DomainEventEnvelope, EventActor, EventEntity
+from app.features.borrowers import service as borrower_service
+from app.features.loans import service as loan_service
 from app.features.loans.models import Loan
 from app.features.loans.schemas import (
     LoanCreate,
@@ -22,12 +29,6 @@ from app.features.loans.schemas import (
     LoanWorkflowAction,
     LoanWorkflowResponse,
 )
-from app.services import borrower_service, loan_service
-from app.services.ai_loan_explanation_service import (
-    AIExplanationUnavailable,
-    explain_loan,
-)
-from app.services.webhook_service import process_outbox_batch, publish_outbox_event
 
 router = APIRouter(prefix="/api/v1/loans", tags=["Loans"])
 

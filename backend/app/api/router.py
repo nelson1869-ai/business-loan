@@ -2,6 +2,7 @@
 
 from fastapi import FastAPI
 
+from app.core import health
 from app.features.admin_assistant import router as admin_assistant
 from app.features.auth import router as auth
 from app.features.automation import router as automation
@@ -16,7 +17,6 @@ from app.features.payments import router as payments
 from app.features.projections import router as projections
 from app.features.sync import router as sync
 from app.features.users import router as users
-from app.health import router as health
 
 
 def register_routers(application: FastAPI) -> None:

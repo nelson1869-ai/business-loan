@@ -4,10 +4,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.router import register_routers
-from app.config import get_settings
-from app.middleware.request_limits import install_request_limits
-from app.middleware.security import install_security_headers
-from app.services.rate_limiter import build_rate_limiter
+from app.core.config import get_settings
+from app.core.middleware.request_limits import install_request_limits
+from app.core.middleware.security import install_security_headers
+from app.core.rate_limiter import build_rate_limiter
 
 
 def create_app() -> FastAPI:

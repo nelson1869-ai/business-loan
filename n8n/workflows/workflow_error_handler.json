@@ -1,0 +1,44 @@
+{
+  "name": "Lending Nelson - Workflow Error Handler",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Capture execution metadata safely without logging secrets or full borrower PII\nconst errorData = $input.first().json;\n\nconst workflowName = errorData.workflow ? errorData.workflow.name : 'Unknown Workflow';\nconst executionId = errorData.execution ? errorData.execution.id : 'N/A';\nconst errorMessage = errorData.execution ? errorData.execution.error.message : 'Unknown Error';\n\nreturn [{\n  json: {\n    workflow_name: workflowName,\n    execution_id: executionId,\n    error_message: errorMessage,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "name": "Sanitize & Log Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Sanitize & Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

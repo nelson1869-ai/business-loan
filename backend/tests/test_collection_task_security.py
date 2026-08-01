@@ -8,8 +8,8 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 
-from app.routers import collection_tasks
-from app.schemas.collection_task import CollectionTaskCreate, PromiseStatusUpdate
+from app.features.collection import router as collection_tasks
+from app.features.collection.schemas import CollectionTaskCreate, PromiseStatusUpdate
 
 
 class CollectionTaskSecurityTests(unittest.IsolatedAsyncioTestCase):

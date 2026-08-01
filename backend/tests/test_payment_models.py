@@ -4,8 +4,10 @@ import unittest
 
 from sqlalchemy import Numeric
 
-from app.database import Base
-from app.models import Installment, Loan, Payment, PaymentAllocation, User
+from app.core.database import Base
+from app.features.loans.models import Installment, Loan
+from app.features.payments.models import Payment, PaymentAllocation
+from app.features.users.models import User
 
 
 class PaymentModelMetadataTests(unittest.TestCase):

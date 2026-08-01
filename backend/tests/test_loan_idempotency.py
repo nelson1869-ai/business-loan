@@ -8,10 +8,10 @@ from unittest.mock import AsyncMock, patch
 
 from fastapi import HTTPException
 
-from app.models.loan import Installment, Loan
-from app.routers.loans import create_one_loan
-from app.schemas.loan import LoanCreate
-from app.services.loan_service import loan_matches_request
+from app.features.loans.models import Installment, Loan
+from app.features.loans.router import create_one_loan
+from app.features.loans.schemas import LoanCreate
+from app.features.loans.service import loan_matches_request
 
 
 class LoanIdempotencyTests(unittest.IsolatedAsyncioTestCase):
@@ -23,7 +23,7 @@ class LoanIdempotencyTests(unittest.IsolatedAsyncioTestCase):
         loan = _loan()
 
         with patch(
-            "app.routers.loans.loan_service.get_loan_by_request_id",
+            "app.features.loans.router.loan_service.get_loan_by_request_id",
             new=AsyncMock(return_value=loan),
         ):
             response = await create_one_loan(payload, SimpleNamespace(), user)
@@ -37,7 +37,7 @@ class LoanIdempotencyTests(unittest.IsolatedAsyncioTestCase):
         user = SimpleNamespace(id="user-1")
 
         with patch(
-            "app.routers.loans.loan_service.get_loan_by_request_id",
+            "app.features.loans.router.loan_service.get_loan_by_request_id",
             new=AsyncMock(return_value=_loan()),
         ):
             with self.assertRaises(HTTPException) as raised:

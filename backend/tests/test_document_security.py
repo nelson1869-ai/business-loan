@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock
 
 from fastapi import HTTPException
 
-from app.routers import documents
-from app.schemas.document import DocumentCreate
+from app.features.documents import router as documents
+from app.features.documents.schemas import DocumentCreate
 
 
 class DocumentSecurityTests(unittest.IsolatedAsyncioTestCase):

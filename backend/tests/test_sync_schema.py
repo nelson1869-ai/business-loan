@@ -6,7 +6,7 @@ from uuid import uuid4
 
 from pydantic import ValidationError
 
-from app.schemas.sync import SyncQueueItem
+from app.features.sync.schemas import SyncQueueItem
 
 
 class SyncQueueItemSchemaTests(unittest.TestCase):

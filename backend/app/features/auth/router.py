@@ -5,6 +5,7 @@ from sqlalchemy import select
 
 from app.core.config import get_settings
 from app.core.dependencies import DbSession
+from app.core.rate_limiter import opaque_rate_limit_key
 from app.features.auth.schemas import LoginRequest, RefreshTokenRequest, TokenResponse
 from app.features.auth.service import (
     TokenValidationError,
@@ -13,7 +14,6 @@ from app.features.auth.service import (
     verify_token,
 )
 from app.features.users.models import User
-from app.services.rate_limiter import opaque_rate_limit_key
 
 router = APIRouter(prefix="/api/v1/auth", tags=["Authentication"])
 

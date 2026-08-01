@@ -3,9 +3,9 @@
 from fastapi import APIRouter, HTTPException, Response, status
 
 from app.core.dependencies import CurrentUser, DbSession
+from app.features.notes import service as note_service
 from app.features.notes.models import Note
 from app.features.notes.schemas import NoteCreate, NoteResponse
-from app.services import note_service
 
 router = APIRouter(prefix="/api/v1", tags=["Notes"])
 

@@ -8,8 +8,8 @@ from types import SimpleNamespace
 
 import httpx
 
-from app.config import Settings
-from app.services.ai_loan_explanation_service import (
+from app.core.config import Settings
+from app.features.admin_assistant.explanation_service import (
     build_safe_loan_context,
     explain_loan,
 )

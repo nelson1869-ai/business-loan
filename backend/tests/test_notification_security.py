@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 
 from fastapi import HTTPException
 
-from app.routers import notifications
+from app.features.notifications import router as notifications
 
 
 class NotificationSecurityTests(unittest.IsolatedAsyncioTestCase):

@@ -148,4 +148,3 @@ __all__ = [
     "PaymentReversedData",
     "SyncItemFailedData",
 ]
-

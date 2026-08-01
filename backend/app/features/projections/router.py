@@ -5,13 +5,13 @@ from datetime import date
 from fastapi import APIRouter, HTTPException, Query
 
 from app.core.dependencies import CurrentUser, DbSession
+from app.features.projections import service as projection_service
 from app.features.projections.schemas import (
     DashboardProjection,
     FinancialReportProjection,
     LoanStatementProjection,
     ReceiptProjection,
 )
-from app.services import projection_service
 
 router = APIRouter(prefix="/api/v1", tags=["Financial Projections"])
 

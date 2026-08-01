@@ -7,9 +7,9 @@ from uuid import uuid4
 
 from sqlalchemy import select
 
-from app.database import AsyncSessionFactory
-from app.models.user import User
-from app.services.auth_service import hash_password
+from app.core.database import AsyncSessionFactory
+from app.features.auth.service import hash_password
+from app.features.users.models import User
 
 
 async def create_user(username: str, password: str, role: str) -> None:

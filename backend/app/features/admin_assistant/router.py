@@ -8,21 +8,21 @@ from fastapi import APIRouter, HTTPException, status
 
 from app.core.config import get_settings
 from app.core.dependencies import CurrentUser, DbSession
+from app.core.rate_limiter import (
+    FallbackRateLimiter,
+    build_rate_limiter,
+    opaque_rate_limit_key,
+)
 from app.features.admin_assistant.models import AuditLog
 from app.features.admin_assistant.schemas import (
     AdminAssistantRequest,
     AdminAssistantResponse,
 )
-from app.services.admin_assistant_service import (
+from app.features.admin_assistant.service import (
     BorrowerNotFound,
     UnsupportedAssistantQuestion,
     answer_admin_question,
     route_question,
-)
-from app.services.rate_limiter import (
-    FallbackRateLimiter,
-    build_rate_limiter,
-    opaque_rate_limit_key,
 )
 
 logger = logging.getLogger(__name__)

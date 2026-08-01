@@ -1,52 +1,39 @@
-# n8n Integration for Lending Nelson (Windows Local Hosting)
+# n8n Integration for Lending Nelson
 
-This directory contains the documentation and pre-built workflow templates for connecting **Lending Nelson** with **n8n** on a local Windows PC.
+This directory contains version-controlled workflow exports, sample event fixtures, and quick-start instructions for connecting **Lending Nelson** with an **n8n** automation server.
 
 ---
 
-## 🚀 Quick Setup Guide on Windows
+## 🚀 Quick Start Guide
 
-### 1. Install & Start n8n
-
-Open **PowerShell** (as Administrator):
+### 1. Start n8n Local Server
 
 ```powershell
-# Run n8n directly in PowerShell:
+# Run n8n in PowerShell:
 npx n8n
 ```
 
-### 2. Access the n8n Dashboard
+Open browser at `http://localhost:5678`.
 
-Open your web browser and navigate to:
-👉 **`http://localhost:5678`**
+### 2. Import Workflows
 
-Create your owner account on first login.
+Import the JSON files from `n8n/workflows/`:
+1. `event_router.json` (Master Inbound Router)
+2. `payment_receipt.json` (Payment SMS Dispatcher)
+3. `telegram_manager_bot.json` (Manager Notification Bot)
+4. `sync_alert.json` (Operational Offline Sync Failure Alert)
+5. `workflow_error_handler.json` (Global Error Handler)
 
----
+### 3. Validate Workflows
 
-## ⚡ Connecting Lending Nelson to n8n
+Run the workflow JSON quality & security validator before committing changes:
 
-In `backend/.env`, set the following environment variables:
-
-```env
-N8N_WEBHOOK_URL=http://localhost:5678/webhook/lending-events
-N8N_WEBHOOK_SECRET=replace-with-a-secure-webhook-secret
+```powershell
+.\backend\.venv\Scripts\python.exe scripts\validate_n8n_workflows.py
 ```
 
 ---
 
-## 📥 Importing Pre-Built Workflows
-
-1. In n8n (`http://localhost:5678`), click **Workflows** -> **Import from File**.
-2. Select any JSON workflow file inside `n8n/workflows/`.
-3. Activate the workflow!
-
----
-
-## 💳 Online Payment Webhooks (GCash / PayMongo / Xendit)
-
-To receive webhooks from payment gateways on your local Windows PC:
-
-1. Download **Cloudflare Tunnel** (`cloudflared`).
-2. Run: `cloudflared tunnel --url http://localhost:5678`
-3. Paste the generated `https://...trycloudflare.com` URL into PayMongo / Xendit / Stripe as your webhook endpoint.
+## 📚 Documentation Links
+- **Architecture & Event Outbox:** [docs/architecture/N8N_AUTOMATION.md](file:///D:/Development/lending_nelson/docs/architecture/N8N_AUTOMATION.md)
+- **Operations & Troubleshooting:** [docs/runbooks/N8N_OPERATIONS.md](file:///D:/Development/lending_nelson/docs/runbooks/N8N_OPERATIONS.md)

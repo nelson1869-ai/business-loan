@@ -10,6 +10,7 @@ import app.features.collection.router as collection_router
 import app.features.documents.router as documents_router
 import app.features.notifications.router as notifications_router
 from app.core.dependencies import CurrentUser, DbSession
+from app.features.borrowers import service as borrower_service
 from app.features.borrowers.schemas import BorrowerCreate, BorrowerUpdate
 from app.features.business_settings.schemas import BusinessSettingUpdate
 from app.features.collection.schemas import (
@@ -19,9 +20,12 @@ from app.features.collection.schemas import (
 )
 from app.features.documents.models import Document
 from app.features.documents.schemas import DocumentCreate
+from app.features.loans import service as loan_service
 from app.features.loans.schemas import LoanCreate
+from app.features.notes import service as note_service
 from app.features.notes.models import Note
 from app.features.notes.schemas import NoteCreate
+from app.features.payments import service as payment_service
 from app.features.payments.schemas import PaymentCreate, PaymentReversalCreate
 from app.features.sync.models import SyncReceipt
 from app.features.sync.schemas import (
@@ -30,7 +34,6 @@ from app.features.sync.schemas import (
     SyncFailure,
     SyncQueueItem,
 )
-from app.services import borrower_service, loan_service, note_service, payment_service
 
 router = APIRouter(prefix="/api/v1/sync", tags=["Offline Sync"])
 

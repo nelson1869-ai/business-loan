@@ -3,7 +3,7 @@
 import unittest
 from decimal import Decimal
 
-from app.services.loan_calculator import (
+from app.features.loans.calculator import (
     LoanCalculationError,
     allocate_payment,
     build_installment_schedule,

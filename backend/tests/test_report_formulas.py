@@ -5,7 +5,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 
-from app.services.projection_service import _overdue_installment_amount
+from app.features.projections.service import _overdue_installment_amount
 
 
 class ReportFormulaTests(unittest.TestCase):

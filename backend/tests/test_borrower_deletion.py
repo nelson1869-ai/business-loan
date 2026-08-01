@@ -4,7 +4,8 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
-from app.services import borrower_service, payment_service
+from app.features.borrowers import service as borrower_service
+from app.features.payments import service as payment_service
 
 
 class BorrowerDeletionTests(unittest.IsolatedAsyncioTestCase):

@@ -11,14 +11,17 @@ import httpx
 from fastapi import HTTPException
 from sqlalchemy import select
 
-from app.config import Settings
-from app.models.borrower import Borrower
-from app.routers import admin_assistant
-from app.schemas.admin_assistant import (
+from app.core.assistant_rate_limiter import (
+    FallbackAssistantRateLimiter,
+    InMemoryAssistantRateLimiter,
+)
+from app.core.config import Settings
+from app.features.admin_assistant import router as admin_assistant
+from app.features.admin_assistant.schemas import (
     AdminAssistantRequest,
     AdminAssistantResponse,
 )
-from app.services.admin_assistant_service import (
+from app.features.admin_assistant.service import (
     AnonymousAIPayload,
     BorrowerNotFound,
     UnsupportedAssistantQuestion,
@@ -34,10 +37,7 @@ from app.services.admin_assistant_service import (
     route_question,
     should_use_ai,
 )
-from app.services.assistant_rate_limiter import (
-    FallbackAssistantRateLimiter,
-    InMemoryAssistantRateLimiter,
-)
+from app.features.borrowers.models import Borrower
 
 
 class AdminAssistantTests(unittest.IsolatedAsyncioTestCase):
@@ -170,7 +170,7 @@ class AdminAssistantTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await limiter.allow("admin-1", 5))
         primary.allow.assert_awaited_once()
 
-    @patch("app.services.admin_assistant_service._enhance_with_ai")
+    @patch("app.features.admin_assistant.service._enhance_with_ai")
     async def test_greeting_is_immediate_and_does_not_call_model(
         self,
         summarize: AsyncMock,
@@ -514,7 +514,7 @@ class AdminAssistantTests(unittest.IsolatedAsyncioTestCase):
             )
         self.assertEqual(raised.exception.status_code, 403)
 
-    @patch("app.routers.admin_assistant.answer_admin_question")
+    @patch("app.features.admin_assistant.router.answer_admin_question")
     async def test_admin_query_writes_redacted_audit_metadata(
         self,
         answer: AsyncMock,
@@ -547,7 +547,7 @@ class AdminAssistantTests(unittest.IsolatedAsyncioTestCase):
         )
         db.commit.assert_awaited_once()
 
-    @patch("app.routers.admin_assistant.answer_admin_question")
+    @patch("app.features.admin_assistant.router.answer_admin_question")
     async def test_unsupported_question_audit_excludes_raw_message_and_pii(
         self,
         answer: AsyncMock,
@@ -572,7 +572,7 @@ class AdminAssistantTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("unsupported_question", metadata)
         self.assertNotIn(raw_message, metadata)
 
-    @patch("app.routers.admin_assistant.answer_admin_question")
+    @patch("app.features.admin_assistant.router.answer_admin_question")
     async def test_borrower_not_found_audit_is_redacted(
         self,
         answer: AsyncMock,
@@ -598,7 +598,7 @@ class AdminAssistantTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(raw_message, metadata)
         self.assertNotIn("Private Person", metadata)
 
-    @patch("app.routers.admin_assistant._get_rate_limiter")
+    @patch("app.features.admin_assistant.router._get_rate_limiter")
     async def test_rate_limit_is_audited_without_raw_question(
         self,
         get_limiter: Mock,
@@ -623,7 +623,7 @@ class AdminAssistantTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("rate_limited", metadata)
         self.assertNotIn(raw_message, metadata)
 
-    @patch("app.routers.admin_assistant.answer_admin_question")
+    @patch("app.features.admin_assistant.router.answer_admin_question")
     async def test_ai_fallback_category_is_audited(
         self,
         answer: AsyncMock,
@@ -654,7 +654,7 @@ class AdminAssistantTests(unittest.IsolatedAsyncioTestCase):
         metadata = db.add.call_args.args[0].new_state_json
         self.assertIn("ai_provider_fallback", metadata)
 
-    @patch("app.routers.admin_assistant.answer_admin_question")
+    @patch("app.features.admin_assistant.router.answer_admin_question")
     async def test_audit_failure_does_not_break_successful_answer(
         self,
         answer: AsyncMock,
