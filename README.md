@@ -23,11 +23,12 @@ The application is engineered to operate seamlessly even when the backend server
 
 ## Repository Structure
 
-- `lib/`: Flutter mobile application (Clean Architecture: Presentation, Domain, Data)
-- `backend/app/`: Authenticated FastAPI backend API
+- `lib/`: Flutter mobile officer application (Clean Architecture: Presentation, Domain, Data)
+- `apps/borrower_mobile/`: Borrower self-service mobile application (Clean Architecture)
+- `backend/app/`: Authenticated FastAPI backend API (`/api/v1/*` officer and `/api/v1/client/*` portal)
 - `backend/alembic/`: PostgreSQL migrations
-- `docs/`: Architecture, deployment, domain, and API documentation
-- `test/` and `backend/tests/`: Automated unit, widget, and integration test suites
+- `docs/`: Architecture, deployment, security, and API documentation
+- `test/`, `apps/borrower_mobile/test/`, and `backend/tests/`: Automated unit, widget, and integration test suites
 
 ## Verification & Testing
 

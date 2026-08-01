@@ -2,6 +2,21 @@
 
 All notable changes to the Lending Nelson project will be documented in this file.
 
+## [1.2.0] - Phase 1 Borrower Portal Identity & Client Security Release
+
+### Borrower Mobile Application (`apps/borrower_mobile`)
+
+- **Dedicated Borrower Mobile App:** Initialized independent Flutter app with feature-first clean architecture (`apps/borrower_mobile/`).
+- **Authentication & Security Boundary:** Implemented GoRouter route guards, Riverpod `AuthNotifier`, `SecureTokenStorage`, and Dio `AuthInterceptor` with token rotation and auto-refresh.
+- **Phase 1 Screen Placeholders:** Created `/login`, `/verify`, `/home`, `/loans`, `/payments`, `/notifications`, and `/profile` screens.
+
+### Backend (`/api/v1/client`)
+
+- **Borrower Account Identity & Database Models:** Added `borrower_accounts`, `borrower_invitations`, `borrower_otps`, `borrower_refresh_tokens`, and `borrower_devices` tables via Alembic migration `018_add_borrower_portal_tables.py`.
+- **JWT Audience Boundary:** Implemented `aud: borrower-app` token claim verification (`CurrentBorrowerAccount`, `ActiveBorrowerAccount`). Enforced strict cross-authentication rejection between officer and borrower endpoints.
+- **Secure Account Linking:** Added officer client invitation endpoint (`POST /api/v1/borrowers/{borrowerId}/client-invitation`) for issuing 6-digit activation codes.
+- **Cryptographic OTP & Privacy Safeguards:** Hashed 6-digit OTP codes, rate-limiting resend cooldowns, maximum verification attempt tracking, and non-enumerating public responses.
+
 ## [1.1.0] - Complete Offline-First Architecture Release
 
 ### Mobile Client (Flutter & SQLite)

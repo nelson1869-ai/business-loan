@@ -2,6 +2,13 @@
 
 from app.features.admin_assistant.models import AuditLog
 from app.features.automation.models import AutomationEventOutbox
+from app.features.borrower_portal.models import (
+    BorrowerAccount,
+    BorrowerDevice,
+    BorrowerInvitation,
+    BorrowerOTP,
+    BorrowerRefreshToken,
+)
 from app.features.borrowers.models import Borrower
 from app.features.business_settings.models import BusinessSetting
 from app.features.collection.models import CollectionTaskState
@@ -17,6 +24,11 @@ __all__ = [
     "AuditLog",
     "AutomationEventOutbox",
     "Borrower",
+    "BorrowerAccount",
+    "BorrowerDevice",
+    "BorrowerInvitation",
+    "BorrowerOTP",
+    "BorrowerRefreshToken",
     "BusinessSetting",
     "CollectionTaskState",
     "Document",
