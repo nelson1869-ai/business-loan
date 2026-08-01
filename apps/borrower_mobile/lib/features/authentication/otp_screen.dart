@@ -46,65 +46,125 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     final isLoading = authState.status == AuthStatus.authenticating;
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF1F5F9),
       appBar: AppBar(
-        title: const Text('Verify OTP'),
+        title: const Text('OTP Verification'),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => context.go('/login'),
         ),
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Form(
-            key: _formKey,
+        child: Center(
+          child: SingleChildScrollView(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: const Color(0xFFBFDBFE)),
+                  ),
+                  child: const Icon(
+                    Icons.mark_email_read_rounded,
+                    size: 40,
+                    color: Color(0xFF2563EB),
+                  ),
+                ),
                 const SizedBox(height: 16),
+                const Text(
+                  'Verify Phone Number',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+                const SizedBox(height: 6),
                 Text(
-                  'Enter 6-Digit Code sent to ${authState.pendingPhoneNumber ?? ""}',
+                  'Enter the 6-digit code sent to ${authState.pendingPhoneNumber ?? ""}',
+                  textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontSize: 14,
                     color: Color(0xFF64748B),
                   ),
                 ),
-                const SizedBox(height: 24),
-                if (authState.errorMessage != null) ...[
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFEF2F2),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFFCA5A5)),
-                    ),
-                    child: Text(
-                      authState.errorMessage!,
-                      style: const TextStyle(
-                        color: Color(0xFF991B1B),
-                        fontSize: 13,
+                const SizedBox(height: 28),
+                Container(
+                  padding: const EdgeInsets.all(24.0),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0F172A).withValues(alpha: 0.06),
+                        blurRadius: 24,
+                        offset: const Offset(0, 10),
                       ),
+                    ],
+                  ),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (authState.errorMessage != null) ...[
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEF2F2),
+                              borderRadius: BorderRadius.circular(12),
+                              border:
+                                  Border.all(color: const Color(0xFFFCA5A5)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.error_outline_rounded,
+                                    color: Color(0xFFDC2626), size: 18),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    authState.errorMessage!,
+                                    style: const TextStyle(
+                                      color: Color(0xFF991B1B),
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                        AppTextField(
+                          controller: _otpController,
+                          label: '6-Digit Verification Code',
+                          hint: '123456',
+                          prefixIcon: Icons.lock_clock_rounded,
+                          keyboardType: TextInputType.number,
+                          maxLength: 6,
+                          validator: (val) {
+                            if (val == null || val.trim().length != 6) {
+                              return 'Please enter 6 digits';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 24),
+                        AppButton(
+                          text: 'Verify & Access Portal',
+                          icon: Icons.check_circle_outline_rounded,
+                          isLoading: isLoading,
+                          onPressed: _verify,
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 16),
-                ],
-                AppTextField(
-                  controller: _otpController,
-                  label: '6-Digit Verification Code',
-                  hint: '123456',
-                  keyboardType: TextInputType.number,
-                  validator: (val) {
-                    if (val == null || val.trim().length != 6) {
-                      return 'Please enter 6 digits';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 24),
-                AppButton(
-                  text: 'Verify & Access Portal',
-                  isLoading: isLoading,
-                  onPressed: _verify,
                 ),
               ],
             ),

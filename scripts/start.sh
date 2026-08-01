@@ -49,6 +49,26 @@ echo "Target: ${TARGET}"
 echo "App Type: ${APP_TYPE}"
 echo "API Base URL: ${API_URL}"
 
+# Stop any pre-existing development processes for this project to prevent duplicate instances
+stop_existing_processes() {
+  echo "[CLEAN] Checking and stopping existing project processes..."
+  
+  # 1. Kill backend processes on port
+  if command -v fuser >/dev/null 2>&1; then
+    fuser -k "${PORT}/tcp" >/dev/null 2>&1 || true
+  fi
+  
+  # 2. Kill python uvicorn processes for this backend
+  pkill -f "uvicorn.*app.main:app" >/dev/null 2>&1 || true
+  
+  # 3. Kill existing flutter processes for this project if not launching all
+  if [[ "${APP_TYPE}" != "all" ]]; then
+    pkill -f "flutter_tools.*API_BASE_URL=" >/dev/null 2>&1 || true
+  fi
+}
+
+stop_existing_processes
+
 # 1. Start Backend if targeting local host and backend is not already responding
 if [[ "${API_URL}" =~ ^http://(localhost|127\.0\.0\.1|10\.0\.2\.2)(:|$|/) ]]; then
   LOCAL_HEALTH_URL="http://127.0.0.1:${PORT}/health"

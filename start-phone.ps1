@@ -15,6 +15,10 @@ param (
     [string]$ServerIp,
 
     [Parameter()]
+    [ValidateSet("officer", "borrower", "all")]
+    [string]$App = "officer",
+
+    [Parameter()]
     [ValidateRange(1, 65535)]
     [int]$Port = 8000
 )
@@ -159,8 +163,24 @@ if (-not (Test-BackendHealth -HealthUrl $ApiUrl)) {
 }
 Write-Host "[OK] Backend restarted and is reachable from the LAN address." -ForegroundColor Green
 
-Set-Location -LiteralPath $ProjectRoot
-flutter run -d $PhoneAddress --dart-define="API_BASE_URL=$ApiUrl"
+$BorrowerDir = Join-Path $ProjectRoot "apps\borrower_mobile"
+
+if ($App -eq "borrower") {
+    Set-Location -LiteralPath $BorrowerDir
+    Write-Host "[START] Launching Borrower App on $PhoneAddress..." -ForegroundColor Cyan
+    flutter run -d $PhoneAddress --dart-define="API_BASE_URL=$ApiUrl"
+} elseif ($App -eq "all") {
+    Write-Host "[START] Launching Borrower App on $PhoneAddress in background..." -ForegroundColor Cyan
+    Start-Process powershell -ArgumentList @("-NoExit", "-Command", "Set-Location '$BorrowerDir'; flutter run -d $PhoneAddress --dart-define=API_BASE_URL=$ApiUrl")
+    Set-Location -LiteralPath $ProjectRoot
+    Write-Host "[START] Launching Officer App on $PhoneAddress..." -ForegroundColor Cyan
+    flutter run -d $PhoneAddress --dart-define="API_BASE_URL=$ApiUrl"
+} else {
+    Set-Location -LiteralPath $ProjectRoot
+    Write-Host "[START] Launching Officer App on $PhoneAddress..." -ForegroundColor Cyan
+    flutter run -d $PhoneAddress --dart-define="API_BASE_URL=$ApiUrl"
+}
+
 if ($LASTEXITCODE -ne 0) {
     throw "Flutter failed to build or launch on $PhoneAddress (exit code $LASTEXITCODE)."
 }

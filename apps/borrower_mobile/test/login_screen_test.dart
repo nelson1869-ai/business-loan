@@ -15,7 +15,7 @@ void main() {
     );
 
     expect(find.text('Lending Nelson'), findsOneWidget);
-    expect(find.text('Borrower Portal'), findsOneWidget);
+    expect(find.text('BORROWER PORTAL'), findsOneWidget);
     expect(find.text('Mobile Number'), findsOneWidget);
     expect(find.text('Request OTP Code'), findsOneWidget);
   });

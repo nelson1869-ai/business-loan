@@ -20,16 +20,23 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final authState = ref.read(authNotifierProvider);
       final isAuth = authState.status == AuthStatus.authenticated;
+      final isInitializing = authState.status == AuthStatus.unknown;
       final loc = state.matchedLocation;
 
-      final isUnauthRoute = loc == '/login' || loc == '/verify' || loc == '/';
-
-      if (!isAuth && !isUnauthRoute) {
-        return '/login';
+      if (isInitializing) {
+        return loc == '/' ? null : '/';
       }
-      if (isAuth && (loc == '/login' || loc == '/verify' || loc == '/')) {
+
+      final isLoggingInOrVerifying = loc == '/login' || loc == '/verify';
+
+      if (!isAuth) {
+        return isLoggingInOrVerifying ? null : '/login';
+      }
+
+      if (isAuth && (isLoggingInOrVerifying || loc == '/')) {
         return '/home';
       }
+
       return null;
     },
     routes: [
