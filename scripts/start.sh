@@ -51,7 +51,8 @@ echo "API Base URL: ${API_URL}"
 
 # 1. Start Backend if targeting local host and backend is not already responding
 if [[ "${API_URL}" =~ ^http://(localhost|127\.0\.0\.1|10\.0\.2\.2)(:|$|/) ]]; then
-  if ! curl --fail --silent --show-error "${API_URL}/health/live" >/dev/null 2>&1; then
+  LOCAL_HEALTH_URL="http://127.0.0.1:${PORT}/health"
+  if ! curl --fail --silent --show-error "${LOCAL_HEALTH_URL}" >/dev/null 2>&1; then
     echo "[START] Launching backend server on ${BIND_HOST}:${PORT}..."
     (
       cd "${BACKEND_DIR}"
@@ -60,7 +61,7 @@ if [[ "${API_URL}" =~ ^http://(localhost|127\.0\.0\.1|10\.0\.2\.2)(:|$|/) ]]; th
     
     # Wait for backend health check
     for i in {1..15}; do
-      if curl --fail --silent "${API_URL}/health/live" >/dev/null 2>&1; then
+      if curl --fail --silent "${LOCAL_HEALTH_URL}" >/dev/null 2>&1; then
         echo "[OK] Backend server is healthy."
         break
       fi
