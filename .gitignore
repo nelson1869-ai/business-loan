@@ -42,7 +42,7 @@ migrate_working_dir/
 /build/
 /coverage/
 /screenshots/
-/Scripts/
+!/scripts/
 /lib/site-packages/
 
 # Symbolication related

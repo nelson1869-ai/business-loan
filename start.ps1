@@ -17,6 +17,10 @@ param (
     [string]$Target = "android",
 
     [Parameter()]
+    [ValidateSet("officer", "borrower", "all")]
+    [string]$App = "officer",
+
+    [Parameter()]
     [ValidateRange(1, 65535)]
     [int]$Port = 8000
 )
@@ -124,13 +128,26 @@ $env:GIT_CONFIG_COUNT = "1"
 $env:GIT_CONFIG_KEY_0 = "safe.directory"
 $env:GIT_CONFIG_VALUE_0 = $flutterSdkRoot
 
+$BorrowerDir = Join-Path $ProjectRoot "apps\borrower_mobile"
+
 $flutterArguments = @("run", "--dart-define=API_BASE_URL=$ApiUrl")
-if ($Target -match "(?i)^android$") {
-    $flutterArguments += @("-d", "emulator-5554")
+
+if ($App -eq "borrower") {
+    Set-Location -LiteralPath $BorrowerDir
+    Write-Host "[START] Borrower Flutter client ($($flutterArguments -join ' '))" -ForegroundColor Cyan
+    & flutter @flutterArguments
+} elseif ($App -eq "all") {
+    Write-Host "[START] Launching Borrower App in background..." -ForegroundColor Cyan
+    Start-Process powershell -ArgumentList @("-NoExit", "-Command", "Set-Location '$BorrowerDir'; flutter run --dart-define=API_BASE_URL=$ApiUrl")
+    Set-Location -LiteralPath $ProjectRoot
+    Write-Host "[START] Officer Flutter client ($($flutterArguments -join ' '))" -ForegroundColor Cyan
+    & flutter @flutterArguments
+} else {
+    Set-Location -LiteralPath $ProjectRoot
+    Write-Host "[START] Officer Flutter client ($($flutterArguments -join ' '))" -ForegroundColor Cyan
+    & flutter @flutterArguments
 }
 
-Write-Host "[START] Flutter client ($($flutterArguments -join ' '))" -ForegroundColor Cyan
-& flutter @flutterArguments
 if ($LASTEXITCODE -ne 0) {
     throw "Flutter exited with code $LASTEXITCODE."
 }
