@@ -1,20 +1,43 @@
-# Borrower Authentication & Identity Security
+# Borrower Authentication & Security Specifications
 
 ## Overview
+The Lending Nelson Borrower Portal provides an isolated, multi-factor, invite-backed authentication mechanism under `/api/v1/client/auth`.
 
-Borrower portal security enforces a dedicated identity boundary, cryptographic OTP verification, secure account linking, token rotation, and generic privacy responses.
+## Authentication & Authorization Model
 
-## Identity Models
+```
++-----------------------------------------------------------------------------------+
+|                               OFFICER FLOW                                        |
+| 1. Officer issues 6-digit activation code via POST /api/v1/borrowers/{id}/inv-code|
++-----------------------------------------------------------------------------------+
+                                        |
+                                        v
++-----------------------------------------------------------------------------------+
+|                              BORROWER ACTIVATION                                  |
+| 2. Borrower enters phone number & invitation code via POST /client/auth/request-otp|
+| 3. Backend verifies code & dispatches SMS OTP                                    |
+| 4. Borrower submits OTP via POST /client/auth/verify-otp                          |
+| 5. Backend validates OTP, creates BorrowerAccount, issues JWT pair               |
++-----------------------------------------------------------------------------------+
+```
 
-1. **`borrower_accounts`**: Dedicated portal identity linked 1:1 to an officer-managed `Borrower` record.
-2. **`borrower_invitations`**: Officer-issued 6-digit activation code required for initial account setup (`POST /api/v1/borrowers/{borrowerId}/client-invitation`).
-3. **`borrower_otps`**: Cryptographically secure 6-digit OTP codes hashed with SHA-256 before storage.
-4. **`borrower_refresh_tokens`**: Hashed refresh tokens stored in database with automatic reuse detection and revocation.
-5. **`borrower_devices`**: Device tracking and push notification token registry (`/api/v1/client/devices`).
+## Core Security Controls
+1. **Audience Boundary Enforcement (`aud: borrower-app`)**:
+   - Access tokens issued to borrowers include `"aud": "borrower-app"` and `"account_type": "borrower"`.
+   - The borrower dependency verifier (`require_active_borrower_account`) rejects officer tokens lacking the `borrower-app` audience.
+   - The officer dependency verifier (`get_current_user`) rejects borrower tokens.
 
-## Security Controls
+2. **Secret Hashing**:
+   - Invitation codes, OTP codes, and refresh tokens are stored exclusively as HMAC-SHA256 hashes (`hash_secret()`).
+   - Raw secrets are never saved in database records or logged.
 
-- **Token Audience Boundary**: Borrower access tokens include `aud: borrower-app` and `account_type: borrower`. Officer access tokens are rejected on `/api/v1/client/*`, and borrower tokens are rejected on `/api/v1/loans`.
-- **Non-Enumerating Public Responses**: `/api/v1/client/auth/request-otp` returns a generic success response regardless of whether the phone number exists in the system.
-- **Refresh Token Rotation**: Each token refresh revokes the old refresh token and issues a new pair. Attempting to reuse a revoked refresh token immediately revokes all active sessions for that account.
-- **Rate Limiting & Cooldowns**: Resend cooldowns (60s) and single-use maximum verification attempts (5 attempts) are enforced.
+3. **Rate Limiting & Attempts Lockout**:
+   - OTP verification allows a maximum of 5 failed attempts per OTP before the record is invalidated.
+   - Resend OTP requests enforce a 60-second cooldown period per phone number.
+
+4. **Refresh Token Rotation & Automatic Reuse Detection**:
+   - Refreshing an access token revokes the old refresh token immediately and issues a new refresh token.
+   - If a revoked refresh token is presented, the backend invalidates all active sessions for the borrower account.
+
+5. **Client Concurrency Protection**:
+   - `AuthInterceptor` uses a `Completer<bool>` lock to queue parallel requests encountering 401 Unauthorized errors during token refresh, ensuring only a single HTTP `/client/auth/refresh` call is performed.

@@ -12,17 +12,21 @@ final apiClientProvider = Provider<ApiClient>((ref) {
   final storage = ref.watch(secureStorageProvider);
   return ApiClient(
     tokenStorage: storage,
-    onUnrecoverableAuthError: () {
-      storage.clearTokens();
-    },
   );
 });
 
 final authNotifierProvider =
     StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   final storage = ref.watch(secureStorageProvider);
-  final apiClient = ref.watch(apiClientProvider);
-  return AuthNotifier(storage: storage, apiClient: apiClient);
+  late final AuthNotifier notifier;
+  final apiClient = ApiClient(
+    tokenStorage: storage,
+    onUnrecoverableAuthError: () {
+      notifier.forceLogout();
+    },
+  );
+  notifier = AuthNotifier(storage: storage, apiClient: apiClient);
+  return notifier;
 });
 
 class AuthNotifier extends StateNotifier<AuthState> {
@@ -42,12 +46,21 @@ class AuthNotifier extends StateNotifier<AuthState> {
     final borId = await storage.getBorrowerId();
 
     if (token != null && acctId != null && borId != null) {
-      state = AuthState.authenticated(
-        borrowerAccountId: acctId,
-        borrowerId: borId,
-      );
+      try {
+        final profile = await apiClient.get('/api/v1/client/me');
+        final verifiedAcctId =
+            profile['borrowerAccountId'] as String? ?? acctId;
+        final verifiedBorId = profile['borrowerId'] as String? ?? borId;
+
+        state = AuthState.authenticated(
+          borrowerAccountId: verifiedAcctId,
+          borrowerId: verifiedBorId,
+        );
+      } catch (_) {
+        await forceLogout();
+      }
     } else {
-      state = AuthState.unauthenticated();
+      await forceLogout();
     }
   }
 

@@ -1,5 +1,6 @@
 """Borrower portal API endpoints (/api/v1/client) and officer invitation endpoint."""
 
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -162,6 +163,7 @@ async def register_borrower_device(
     current_account: ActiveBorrowerAccount,
 ) -> DeviceResponse:
     """Register or update device push tokens for active borrower account."""
+    now = datetime.now(UTC)
     device_hash = hash_secret(payload.device_identifier)
     stmt = select(BorrowerDevice).where(
         BorrowerDevice.borrower_account_id == current_account.id,
@@ -171,19 +173,25 @@ async def register_borrower_device(
     device = res.scalar_one_or_none()
     if device is None:
         device = BorrowerDevice(
-            id=hash_secret(f"{current_account.id}:{payload.device_identifier}")[:36],
+            id=secrets.token_hex(18),
             borrower_account_id=current_account.id,
             device_identifier_hash=device_hash,
             platform=payload.platform,
             push_token=payload.push_token,
+            last_seen_at=now,
             is_active=True,
+            created_at=now,
+            updated_at=now,
         )
         db.add(device)
     else:
         device.is_active = True
         device.platform = payload.platform
+        device.last_seen_at = now
+        device.updated_at = now
         if payload.push_token is not None:
             device.push_token = payload.push_token
+            device.push_token_updated_at = now
 
     await db.commit()
     await db.refresh(device)
@@ -210,6 +218,7 @@ async def remove_borrower_device(
     device = res.scalar_one_or_none()
     if device is not None:
         device.is_active = False
+        device.updated_at = datetime.now(UTC)
         await db.commit()
 
 
@@ -225,6 +234,12 @@ async def create_client_invitation(
     current_user: CurrentUser,
 ) -> ClientInvitationResponse:
     """Officer endpoint to issue a 6-digit client activation code for a borrower."""
+    if current_user.role not in ("officer", "manager", "admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions to issue client invitations",
+        )
+
     borrower = await borrower_service.get_borrower(db, borrower_id)
     if borrower is None:
         raise HTTPException(

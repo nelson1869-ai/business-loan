@@ -122,6 +122,7 @@ async def request_otp(
         otp_code_hash=otp_hash,
         expires_at=now + timedelta(minutes=5),
         resend_available_at=now + timedelta(seconds=60),
+        attempts=0,
         created_at=now,
     )
     db.add(new_otp)
@@ -164,12 +165,14 @@ async def verify_otp_and_login(
     if otp_record is None:
         raise ValueError("Invalid or expired OTP")
 
-    if otp_record.attempts >= 5:
+    current_attempts = otp_record.attempts or 0
+
+    if current_attempts >= 5:
         otp_record.used_at = now  # invalidate after max attempts
         await db.flush()
         raise ValueError("Maximum OTP verification attempts exceeded")
 
-    otp_record.attempts += 1
+    otp_record.attempts = current_attempts + 1
     input_hash = hash_secret(otp)
     if not hmac.compare_digest(otp_record.otp_code_hash, input_hash):
         await db.flush()

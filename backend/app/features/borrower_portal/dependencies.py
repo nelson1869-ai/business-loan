@@ -50,8 +50,9 @@ async def require_active_borrower_account(
     """Require borrower account status to be active."""
     if account.account_status != "active":
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Borrower account status is {account.account_status}",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Borrower account is {account.account_status}",
+            headers={"WWW-Authenticate": "Bearer"},
         )
     return account
 
