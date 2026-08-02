@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -151,6 +151,13 @@ class BorrowerDevice(Base):
     """Registered devices associated with a borrower account."""
 
     __tablename__ = "borrower_devices"
+    __table_args__ = (
+        Index(
+            "ix_borrower_devices_account_device_hash",
+            "borrower_account_id",
+            "device_identifier_hash",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     borrower_account_id: Mapped[str] = mapped_column(

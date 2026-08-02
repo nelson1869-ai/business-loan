@@ -11,14 +11,17 @@ class DashboardRepository {
     DashboardLocalCache? localCache,
   }) : localCache = localCache ?? DashboardLocalCache();
 
-  Future<BorrowerDashboard> getDashboard() async {
+  Future<BorrowerDashboard> getDashboard({String? borrowerAccountId}) async {
     try {
       final json = await apiClient.get('/api/v1/client/dashboard');
       final dashboard = BorrowerDashboard.fromJson(json, isFromCache: false);
-      await localCache.saveCachedDashboard(dashboard);
+      await localCache.saveCachedDashboard(
+        dashboard,
+        borrowerAccountId,
+      );
       return dashboard;
     } catch (e) {
-      final cached = await localCache.getCachedDashboard();
+      final cached = await localCache.getCachedDashboard(borrowerAccountId);
       if (cached != null) {
         return cached.copyWith(isFromCache: true);
       }

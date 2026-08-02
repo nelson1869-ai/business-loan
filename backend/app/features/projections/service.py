@@ -1,5 +1,6 @@
 """Ledger-backed receipt, statement, dashboard, and report projections."""
 
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 
@@ -117,6 +118,22 @@ def get_next_installment_priority(
     return next_inst, _money(next_amount), next_inst.due_date, is_overdue
 
 
+
+
+
+@dataclass(frozen=True)
+class LoanFinancialProjection:
+    """Authoritative, strongly-typed financial projection for a loan."""
+
+    principal_amount: Decimal
+    interest_amount: Decimal
+    fees_amount: Decimal
+    total_repayable: Decimal
+    amount_paid: Decimal
+    outstanding_balance: Decimal
+    overdue_amount: Decimal
+
+
 def _is_loaded(instance: object, attr_name: str) -> bool:
     """Return True if relationship or attribute is loaded in memory without triggering lazy-load."""
     try:
@@ -126,50 +143,61 @@ def _is_loaded(instance: object, attr_name: str) -> bool:
         return False
 
 
-def get_loan_last_activity_timestamp(loan: Loan) -> datetime:
-    """Return the latest financial activity timestamp for a loan."""
-    candidates: list[datetime] = []
-
-    if getattr(loan, "updated_at", None):
-        candidates.append(loan.updated_at)
-    elif getattr(loan, "created_at", None):
-        candidates.append(loan.created_at)
-
-    if _is_loaded(loan, "payments"):
-        for p in loan.payments:
-            if getattr(p, "created_at", None):
-                candidates.append(p.created_at)
-            elif getattr(p, "effective_date", None):
-                dt = datetime.combine(p.effective_date, datetime.min.time()).replace(
-                    tzinfo=UTC
-                )
-                candidates.append(dt)
-
-    if _is_loaded(loan, "installments"):
-        for inst in loan.installments:
-            if getattr(inst, "updated_at", None):
-                candidates.append(inst.updated_at)
-
-    if not candidates:
-        return datetime.now(UTC)
-
-    return max(candidates)
+async def fetch_loan_installments(db: AsyncSession, loan: Loan) -> list[Installment]:
+    """Retrieve installments for loan from session cache, loaded relationship, or DB query."""
+    if _is_loaded(loan, "installments") and loan.installments is not None:
+        return list(loan.installments)
+    result = await db.execute(
+        select(Installment)
+        .where(Installment.loan_id == loan.id)
+        .order_by(Installment.due_date, Installment.installment_number)
+    )
+    return list(result.scalars().all())
 
 
-def compute_loan_financial_summary_dict(loan: Loan, as_of: date) -> dict[str, Decimal]:
-    """Compute canonical financial summary values for a loan using ledger/installment data."""
-    insts = loan.installments if _is_loaded(loan, "installments") else []
+async def fetch_loan_payments(db: AsyncSession, loan: Loan) -> list[Payment]:
+    """Retrieve payment ledger entries for loan from session cache, loaded relationship, or DB query."""
+    if _is_loaded(loan, "payments") and loan.payments is not None:
+        return list(loan.payments)
+    result = await db.execute(
+        select(Payment)
+        .where(Payment.loan_id == loan.id)
+        .order_by(Payment.created_at)
+    )
+    return list(result.scalars().all())
+
+
+async def build_loan_financial_projection(
+    db: AsyncSession, loan: Loan, as_of: date
+) -> LoanFinancialProjection:
+    """Build authoritative financial projection for a loan querying DB when relationships are unloaded."""
+    insts = await fetch_loan_installments(db, loan)
+    pmts = await fetch_loan_payments(db, loan)
+
     total_interest = sum((inst.expected_interest for inst in insts), ZERO)
     total_repayable = _money(loan.original_principal + total_interest)
 
-    if _is_loaded(loan, "payments"):
-        payments = [p for p in loan.payments if p.entry_type == "Payment"]
-        reversals = [p for p in loan.payments if p.entry_type == "Reversal"]
-        amount_paid = sum((p.amount for p in payments), ZERO) - sum(
-            (p.amount for p in reversals), ZERO
+    if pmts:
+        effective_payments = [
+            p
+            for p in pmts
+            if p.entry_type == "Payment"
+            and getattr(p, "status", "Posted") not in {"Cancelled", "Failed", "Pending"}
+        ]
+        effective_reversals = [
+            p
+            for p in pmts
+            if p.entry_type == "Reversal"
+            and getattr(p, "status", "Posted") not in {"Cancelled", "Failed", "Pending"}
+        ]
+        net_paid = sum((p.amount for p in effective_payments), ZERO) - sum(
+            (p.amount for p in effective_reversals), ZERO
         )
     else:
-        amount_paid = sum((inst.paid_amount for inst in insts), ZERO)
+        net_paid = sum((inst.paid_amount for inst in insts), ZERO)
+
+    amount_paid = max(_money(net_paid), ZERO)
+    outstanding_balance = _money(loan.outstanding_principal)
 
     overdue_amount = sum(
         (
@@ -180,14 +208,144 @@ def compute_loan_financial_summary_dict(loan: Loan, as_of: date) -> dict[str, De
         ZERO,
     )
 
+    return LoanFinancialProjection(
+        principal_amount=_money(loan.original_principal),
+        interest_amount=_money(total_interest),
+        fees_amount=ZERO,
+        total_repayable=total_repayable,
+        amount_paid=amount_paid,
+        outstanding_balance=outstanding_balance,
+        overdue_amount=_money(overdue_amount),
+    )
+
+
+async def build_loan_last_activity_timestamp(
+    db: AsyncSession, loan: Loan
+) -> datetime:
+    """Return latest financial activity timestamp querying DB when relationships are unloaded."""
+    candidates: list[datetime] = []
+
+    if getattr(loan, "updated_at", None):
+        candidates.append(loan.updated_at)
+    if getattr(loan, "created_at", None):
+        candidates.append(loan.created_at)
+
+    pmts = await fetch_loan_payments(db, loan)
+    for p in pmts:
+        if getattr(p, "created_at", None):
+            candidates.append(p.created_at)
+        elif getattr(p, "effective_date", None):
+            dt = datetime.combine(p.effective_date, datetime.min.time()).replace(
+                tzinfo=UTC
+            )
+            candidates.append(dt)
+
+    insts = await fetch_loan_installments(db, loan)
+    for inst in insts:
+        if getattr(inst, "updated_at", None):
+            candidates.append(inst.updated_at)
+
+    if not candidates:
+        return datetime.now(UTC)
+
+    return max(candidates)
+
+
+def get_loan_last_activity_timestamp(loan: Loan) -> datetime:
+    """Return latest financial activity timestamp for eager-loaded loan objects."""
+    candidates: list[datetime] = []
+
+    if getattr(loan, "updated_at", None):
+        candidates.append(loan.updated_at)
+    if getattr(loan, "created_at", None):
+        candidates.append(loan.created_at)
+
+    if _is_loaded(loan, "payments") and loan.payments:
+        for p in loan.payments:
+            if getattr(p, "created_at", None):
+                candidates.append(p.created_at)
+            elif getattr(p, "effective_date", None):
+                dt = datetime.combine(p.effective_date, datetime.min.time()).replace(
+                    tzinfo=UTC
+                )
+                candidates.append(dt)
+
+    if _is_loaded(loan, "installments") and loan.installments:
+        for inst in loan.installments:
+            if getattr(inst, "updated_at", None):
+                candidates.append(inst.updated_at)
+
+    if not candidates:
+        return datetime.now(UTC)
+
+    return max(candidates)
+
+
+def compute_loan_financial_summary(
+    loan: Loan, as_of: date
+) -> LoanFinancialProjection:
+    """Synchronous calculation helper for eager-loaded loan objects."""
+    insts = loan.installments if _is_loaded(loan, "installments") and loan.installments else []
+    pmts = loan.payments if _is_loaded(loan, "payments") and loan.payments else []
+
+    total_interest = sum((inst.expected_interest for inst in insts), ZERO)
+    total_repayable = _money(loan.original_principal + total_interest)
+
+    if pmts:
+        effective_payments = [
+            p
+            for p in pmts
+            if p.entry_type == "Payment"
+            and getattr(p, "status", "Posted") not in {"Cancelled", "Failed", "Pending"}
+        ]
+        effective_reversals = [
+            p
+            for p in pmts
+            if p.entry_type == "Reversal"
+            and getattr(p, "status", "Posted") not in {"Cancelled", "Failed", "Pending"}
+        ]
+        net_paid = sum((p.amount for p in effective_payments), ZERO) - sum(
+            (p.amount for p in effective_reversals), ZERO
+        )
+    else:
+        net_paid = sum((inst.paid_amount for inst in insts), ZERO)
+
+    amount_paid = max(_money(net_paid), ZERO)
+    outstanding_balance = _money(loan.outstanding_principal)
+
+    overdue_amount = sum(
+        (
+            max(inst.expected_payment - inst.paid_amount, ZERO)
+            for inst in insts
+            if inst.due_date < as_of and inst.status not in {"Paid", "Cancelled"}
+        ),
+        ZERO,
+    )
+
+    return LoanFinancialProjection(
+        principal_amount=_money(loan.original_principal),
+        interest_amount=_money(total_interest),
+        fees_amount=ZERO,
+        total_repayable=total_repayable,
+        amount_paid=amount_paid,
+        outstanding_balance=outstanding_balance,
+        overdue_amount=_money(overdue_amount),
+    )
+
+
+def compute_loan_financial_summary_dict(
+    loan: Loan, as_of: date
+) -> dict[str, Decimal]:
+    """Deprecated dict wrapper preserved for backward compatibility."""
+    proj = compute_loan_financial_summary(loan, as_of)
     return {
-        "principal_amount": _money(loan.original_principal),
-        "interest_amount": _money(total_interest),
-        "fees_amount": ZERO,
-        "total_repayable": total_repayable,
-        "amount_paid": _money(amount_paid),
-        "outstanding_balance": _money(loan.outstanding_principal),
-        "overdue_amount": _money(overdue_amount),
+        "principal_amount": proj.principal_amount,
+        "interest_amount": proj.interest_amount,
+        "fees_amount": proj.fees_amount,
+        "total_repayable": proj.total_repayable,
+        "amount_paid": proj.amount_paid,
+        "outstanding_balance": proj.outstanding_balance,
+        "overdue_amount": proj.overdue_amount,
     }
 
 

@@ -6,7 +6,6 @@ from decimal import ROUND_HALF_UP, Decimal
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.features.borrower_portal.loans_schemas import (
     BorrowerLoanDetailResponse,
@@ -19,10 +18,10 @@ from app.features.borrower_portal.loans_schemas import (
 from app.features.borrower_portal.models import BorrowerAccount
 from app.features.loans.models import Loan
 from app.features.projections.service import (
-    compute_loan_financial_summary_dict,
+    build_loan_financial_projection,
+    build_loan_last_activity_timestamp,
+    fetch_loan_installments,
     format_payment_frequency,
-    get_loan_last_activity_timestamp,
-    get_next_installment_priority,
     get_public_loan_reference,
 )
 
@@ -42,41 +41,72 @@ def _money(value: Decimal) -> Decimal:
     return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
-def _map_loan_to_item(loan: Loan, today: date) -> BorrowerLoanListItem:
-    fin = compute_loan_financial_summary_dict(loan, today)
-    next_inst, next_payment_amount, next_due_date, is_overdue = (
-        get_next_installment_priority(loan, today)
+async def _map_loan_to_item_async(
+    db: AsyncSession, loan: Loan, today: date
+) -> BorrowerLoanListItem:
+    fin = await build_loan_financial_projection(db, loan, today)
+    insts = await fetch_loan_installments(db, loan)
+
+    # Use installments for next_installment calculation
+    all_unpaid = sorted(
+        [inst for inst in insts if inst.status not in {"Paid", "Cancelled"}],
+        key=lambda i: (i.due_date, i.installment_number),
     )
+    overdue_insts = [inst for inst in all_unpaid if inst.due_date < today]
+    upcoming_insts = [inst for inst in all_unpaid if inst.due_date >= today]
+    next_inst = (
+        overdue_insts[0]
+        if overdue_insts
+        else (upcoming_insts[0] if upcoming_insts else None)
+    )
+    next_payment_amount = (
+        max(next_inst.expected_payment - next_inst.paid_amount, ZERO)
+        if next_inst
+        else ZERO
+    )
+    next_due_date = next_inst.due_date if next_inst else None
+    is_overdue = fin.overdue_amount > ZERO or loan.status in {"Overdue", "Defaulted"}
+
     loan_ref = get_public_loan_reference(loan)
-    last_act = get_loan_last_activity_timestamp(loan)
+    last_act = await build_loan_last_activity_timestamp(db, loan)
 
     return BorrowerLoanListItem(
         id=loan.id,
         loan_reference=loan_ref,
         status=loan.status.lower(),
-        principal_amount=fin["principal_amount"],
-        total_repayable=fin["total_repayable"],
-        amount_paid=fin["amount_paid"],
-        outstanding_balance=fin["outstanding_balance"],
+        principal_amount=fin.principal_amount,
+        total_repayable=fin.total_repayable,
+        amount_paid=fin.amount_paid,
+        outstanding_balance=fin.outstanding_balance,
         installment_amount=_money(loan.regular_payment_amount),
         payment_frequency=format_payment_frequency(loan.payments_per_month),
         start_date=loan.start_date,
         maturity_date=loan.final_due_date,
         next_due_date=next_due_date,
-        next_payment_amount=next_payment_amount,
+        next_payment_amount=_money(next_payment_amount),
         is_overdue=is_overdue,
-        overdue_amount=fin["overdue_amount"],
+        overdue_amount=fin.overdue_amount,
         updated_at=last_act,
     )
 
 
-def _map_loan_to_detail(loan: Loan, today: date) -> BorrowerLoanDetailResponse:
-    fin = compute_loan_financial_summary_dict(loan, today)
-    next_inst, next_payment_amount, next_due_date, is_overdue = (
-        get_next_installment_priority(loan, today)
+async def _map_loan_to_detail_async(
+    db: AsyncSession, loan: Loan, today: date
+) -> BorrowerLoanDetailResponse:
+    fin = await build_loan_financial_projection(db, loan, today)
+    insts = await fetch_loan_installments(db, loan)
+
+    all_unpaid = sorted(
+        [inst for inst in insts if inst.status not in {"Paid", "Cancelled"}],
+        key=lambda i: (i.due_date, i.installment_number),
     )
-    loan_ref = get_public_loan_reference(loan)
-    last_act = get_loan_last_activity_timestamp(loan)
+    overdue_insts = [inst for inst in all_unpaid if inst.due_date < today]
+    upcoming_insts = [inst for inst in all_unpaid if inst.due_date >= today]
+    next_inst = (
+        overdue_insts[0]
+        if overdue_insts
+        else (upcoming_insts[0] if upcoming_insts else None)
+    )
 
     next_inst_dto: BorrowerNextInstallment | None = None
     if next_inst:
@@ -91,14 +121,17 @@ def _map_loan_to_detail(loan: Loan, today: date) -> BorrowerLoanDetailResponse:
             status=inst_status,
         )
 
+    loan_ref = get_public_loan_reference(loan)
+    last_act = await build_loan_last_activity_timestamp(db, loan)
+
     financial_summary = BorrowerLoanFinancialSummary(
-        principal_amount=fin["principal_amount"],
-        interest_amount=fin["interest_amount"],
-        fees_amount=fin["fees_amount"],
-        total_repayable=fin["total_repayable"],
-        amount_paid=fin["amount_paid"],
-        outstanding_balance=fin["outstanding_balance"],
-        overdue_amount=fin["overdue_amount"],
+        principal_amount=fin.principal_amount,
+        interest_amount=fin.interest_amount,
+        fees_amount=fin.fees_amount,
+        total_repayable=fin.total_repayable,
+        amount_paid=fin.amount_paid,
+        outstanding_balance=fin.outstanding_balance,
+        overdue_amount=fin.overdue_amount,
     )
 
     interest_rate_pct = _money(Decimal(str(loan.monthly_rate)) * Decimal("100.0"))
@@ -146,20 +179,18 @@ async def get_borrower_loans(
     count_stmt = select(func.count(Loan.id)).where(*query_conditions)
     total = (await db.execute(count_stmt)).scalar() or 0
 
-    # Fetch page of loans with eager loaded installments
+    # Fetch page of loans
     stmt = (
         select(Loan)
-        .options(selectinload(Loan.installments))
         .where(*query_conditions)
         .order_by(Loan.created_at.desc())
         .offset(offset)
         .limit(limit)
     )
-
     loans = list((await db.execute(stmt)).scalars().all())
-    today = date.today()
 
-    items = [_map_loan_to_item(loan, today) for loan in loans]
+    today = date.today()
+    items = [await _map_loan_to_item_async(db, loan, today) for loan in loans]
 
     return BorrowerLoanListResponse(
         items=items,
@@ -173,19 +204,19 @@ async def get_borrower_loan_detail(
     db: AsyncSession,
     current_account: BorrowerAccount,
     loan_id: str,
-) -> BorrowerLoanDetailResponse | None:
-    """Fetch one borrower-owned loan by ID, strictly enforcing ownership."""
-    stmt = (
-        select(Loan)
-        .options(selectinload(Loan.installments))
-        .where(
-            Loan.id == loan_id,
-            Loan.borrower_id == current_account.borrower_id,
-        )
+) -> BorrowerLoanDetailResponse:
+    """Fetch detail for a single borrower-owned loan."""
+    stmt = select(Loan).where(
+        Loan.id == loan_id,
+        Loan.borrower_id == current_account.borrower_id,
     )
-
     loan = (await db.execute(stmt)).scalar_one_or_none()
-    if loan is None:
-        return None
 
-    return _map_loan_to_detail(loan, date.today())
+    if not loan:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Loan account not found",
+        )
+
+    today = date.today()
+    return await _map_loan_to_detail_async(db, loan, today)

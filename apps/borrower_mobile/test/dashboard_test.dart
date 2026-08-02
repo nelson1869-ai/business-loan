@@ -30,15 +30,17 @@ class FakeDashboardLocalCache implements DashboardLocalCache {
   BorrowerDashboard? cached;
 
   @override
-  Future<BorrowerDashboard?> getCachedDashboard() async => cached;
+  Future<BorrowerDashboard?> getCachedDashboard([String? borrowerAccountId]) async =>
+      cached;
 
   @override
-  Future<void> saveCachedDashboard(BorrowerDashboard dashboard) async {
+  Future<void> saveCachedDashboard(
+      BorrowerDashboard dashboard, [String? borrowerAccountId]) async {
     cached = dashboard;
   }
 
   @override
-  Future<void> clearCachedDashboard() async {
+  Future<void> clearAllCachedDashboards() async {
     cached = null;
   }
 }
