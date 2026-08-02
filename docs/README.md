@@ -59,6 +59,7 @@ Operational references:
 | Architecture | [System overview](architecture/SYSTEM_OVERVIEW.md) | Components, ownership, and sources of truth |
 | Architecture | [Data flows](architecture/DATA_FLOWS.md) | Login, loan, payment, projection, and sync flows |
 | Domain | [Loan and payment rules](domain/LOAN_AND_PAYMENT_RULES.md) | Financial policy and calculation examples |
+| Runbooks | [Borrower registration](runbooks/BORROWER_REGISTRATION.md) | Officer invitation flow, first login, OTP lookup, and troubleshooting |
 
 ## Documentation rules
 
