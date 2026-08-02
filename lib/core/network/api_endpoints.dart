@@ -29,6 +29,37 @@ class ApiEndpoints {
   /// Database-backed financial report projection.
   static const String financialReport = '/api/v1/reports/financial';
 
+  /// Versioned loan-product policy administration.
+  static const String loanPolicies = '/api/v1/loan-policies';
+
+  static String activateLoanPolicy(String policyId) =>
+      '$loanPolicies/$policyId/activate';
+
+  static String retireLoanPolicy(String policyId) =>
+      '$loanPolicies/$policyId/retire';
+
+  /// Online-only maker-checker workflow.
+  static const String approvals = '/api/v1/approvals';
+
+  static String approvalDecision(String requestId) =>
+      '$approvals/$requestId/decision';
+
+  /// Online-only cash collection reconciliation.
+  static const String collectionSessions = '/api/v1/collection-sessions';
+
+  static String collectionSessionAction(String sessionId, String action) =>
+      '$collectionSessions/$sessionId/$action';
+
+  /// Immutable, read-only accounting ledger.
+  static const String accountingJournals = '/api/v1/accounting/journals';
+  static const String accountingTrialBalance =
+      '/api/v1/accounting/trial-balance';
+
+  /// Reproducible operational reports.
+  static const String portfolioRiskReport = '/api/v1/reports/portfolio-risk';
+  static const String collectorReconciliationReport =
+      '/api/v1/reports/collector-reconciliation';
+
   static String borrowerNotes(String borrowerId) =>
       '$borrowers/$borrowerId/notes';
 

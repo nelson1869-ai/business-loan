@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/offline_sync_service.dart';
+import '../../../core/security/officer_session.dart';
 import '../domain/dashboard_data.dart';
 import '../providers/dashboard_state.dart';
 import '../widgets/dashboard_header.dart';
@@ -32,6 +33,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(dashboardProvider);
+    final session = ref.watch(officerSessionProvider).valueOrNull;
     final theme = Theme.of(context);
 
     ref.listen(dashboardProvider, (prev, next) {
@@ -67,6 +69,12 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           ),
         ),
         actions: [
+          if (session != null && session.permissions.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.account_balance_outlined),
+              tooltip: 'Operations',
+              onPressed: () => context.push('/operations'),
+            ),
           IconButton(
             icon: const Icon(Icons.notifications_outlined),
             tooltip: 'Notifications',

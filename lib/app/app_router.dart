@@ -29,6 +29,12 @@ import 'package:lending_nelson/features/borrower_communication/presentation/send
 import 'package:lending_nelson/features/dashboard/pages/notifications_center_page.dart';
 import 'package:lending_nelson/features/dashboard/pages/reports_analytics_page.dart';
 import 'package:lending_nelson/features/dashboard/pages/admin_assistant_page.dart';
+import 'package:lending_nelson/features/accounting/presentation/journal_list_page.dart';
+import 'package:lending_nelson/features/approvals/presentation/approval_inbox_page.dart';
+import 'package:lending_nelson/features/collection_sessions/presentation/collection_sessions_page.dart';
+import 'package:lending_nelson/features/loan_policies/presentation/loan_policy_page.dart';
+import 'package:lending_nelson/features/operational_reports/presentation/operational_reports_page.dart';
+import 'package:lending_nelson/features/operations/presentation/operations_hub_page.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/',
@@ -71,6 +77,32 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/admin-assistant',
       builder: (context, state) => const AdminAssistantPage(),
+    ),
+    GoRoute(
+      path: '/operations',
+      builder: (context, state) => const OperationsHubPage(),
+      routes: [
+        GoRoute(
+          path: 'policies',
+          builder: (context, state) => const LoanPolicyPage(),
+        ),
+        GoRoute(
+          path: 'approvals',
+          builder: (context, state) => const ApprovalInboxPage(),
+        ),
+        GoRoute(
+          path: 'collections',
+          builder: (context, state) => const CollectionSessionsPage(),
+        ),
+        GoRoute(
+          path: 'accounting',
+          builder: (context, state) => const JournalListPage(),
+        ),
+        GoRoute(
+          path: 'reports',
+          builder: (context, state) => const OperationalReportsPage(),
+        ),
+      ],
     ),
     GoRoute(
       path: '/borrowers/register',
