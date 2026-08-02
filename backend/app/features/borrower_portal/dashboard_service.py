@@ -81,13 +81,17 @@ async def get_borrower_dashboard(
             )
 
         upcoming_insts = [i for i in all_installments if i.due_date >= today]
-        if upcoming_insts:
-            next_inst = upcoming_insts[0]
-            next_payment_amount = next_inst.expected_payment - next_inst.paid_amount
-            next_due_date = next_inst.due_date
-        elif overdue_insts:
-            next_inst = overdue_insts[0]
-            next_payment_amount = next_inst.expected_payment - next_inst.paid_amount
+
+        # Business Policy: Overdue unpaid installments take priority as next required payment
+        next_inst = (
+            overdue_insts[0]
+            if overdue_insts
+            else (upcoming_insts[0] if upcoming_insts else None)
+        )
+        if next_inst:
+            next_payment_amount = max(
+                next_inst.expected_payment - next_inst.paid_amount, ZERO
+            )
             next_due_date = next_inst.due_date
 
     # 5. Determine overall loanStatus and paymentStatus

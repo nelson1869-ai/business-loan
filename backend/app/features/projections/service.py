@@ -3,7 +3,7 @@
 from datetime import UTC, date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import func, inspect, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -40,6 +40,155 @@ def _overdue_installment_amount(loans: list[Loan], as_of: date) -> Decimal:
         ),
         ZERO,
     )
+
+
+def format_payment_frequency(payments_per_month: int) -> str:
+    """Return standard payment frequency string derived from payments_per_month."""
+    mapping = {
+        1: "monthly",
+        2: "semi_monthly",
+        4: "weekly",
+        30: "daily",
+    }
+    return mapping.get(payments_per_month, f"{payments_per_month}_per_month")
+
+
+def get_public_loan_reference(loan: Loan) -> str:
+    """Return the borrower-safe display reference for a loan.
+
+    Uses loan.loan_reference if present and non-empty. Otherwise, formats
+    an explicit loan reference string (e.g. 'LN-2026-000123').
+    Never exposes internal idempotency request_id or raw database UUIDs.
+    """
+    if hasattr(loan, "loan_reference") and getattr(loan, "loan_reference", None):
+        return getattr(loan, "loan_reference")
+    ref_year = (
+        loan.start_date.year
+        if loan.start_date
+        else (loan.created_at.year if loan.created_at else 2026)
+    )
+    clean_id = loan.id.replace("-", "").upper()
+    return f"LN-{ref_year}-{clean_id[:6]}"
+
+
+def get_next_installment_priority(
+    loan: Loan, as_of: date
+) -> tuple[Installment | None, Decimal, date | None, bool]:
+    """Select the next required payment installment for a loan according to business priority.
+
+    Priority Policy:
+    1. Earliest unpaid OVERDUE installment (due_date < as_of)
+    2. Earliest unpaid UPCOMING installment (due_date >= as_of)
+
+    Returns tuple of (next_installment, next_payment_amount, next_due_date, is_overdue).
+    """
+    if not loan.installments:
+        return None, ZERO, None, False
+
+    all_unpaid = sorted(
+        [
+            inst
+            for inst in loan.installments
+            if inst.status not in {"Paid", "Cancelled"}
+        ],
+        key=lambda i: (i.due_date, i.installment_number),
+    )
+
+    overdue_insts = [inst for inst in all_unpaid if inst.due_date < as_of]
+    upcoming_insts = [inst for inst in all_unpaid if inst.due_date >= as_of]
+
+    # Business policy: Overdue unpaid installments take priority as the next required payment
+    next_inst = (
+        overdue_insts[0]
+        if overdue_insts
+        else (upcoming_insts[0] if upcoming_insts else None)
+    )
+
+    overdue_total = sum(
+        (max(inst.expected_payment - inst.paid_amount, ZERO) for inst in overdue_insts),
+        ZERO,
+    )
+    is_overdue = overdue_total > ZERO or loan.status in {"Overdue", "Defaulted"}
+
+    if next_inst is None:
+        return None, ZERO, None, is_overdue
+
+    next_amount = max(next_inst.expected_payment - next_inst.paid_amount, ZERO)
+    return next_inst, _money(next_amount), next_inst.due_date, is_overdue
+
+
+def _is_loaded(instance: object, attr_name: str) -> bool:
+    """Return True if relationship or attribute is loaded in memory without triggering lazy-load."""
+    try:
+        ins = inspect(instance)
+        return attr_name in ins.dict
+    except Exception:
+        return False
+
+
+def get_loan_last_activity_timestamp(loan: Loan) -> datetime:
+    """Return the latest financial activity timestamp for a loan."""
+    candidates: list[datetime] = []
+
+    if getattr(loan, "updated_at", None):
+        candidates.append(loan.updated_at)
+    elif getattr(loan, "created_at", None):
+        candidates.append(loan.created_at)
+
+    if _is_loaded(loan, "payments"):
+        for p in loan.payments:
+            if getattr(p, "created_at", None):
+                candidates.append(p.created_at)
+            elif getattr(p, "effective_date", None):
+                dt = datetime.combine(p.effective_date, datetime.min.time()).replace(
+                    tzinfo=UTC
+                )
+                candidates.append(dt)
+
+    if _is_loaded(loan, "installments"):
+        for inst in loan.installments:
+            if getattr(inst, "updated_at", None):
+                candidates.append(inst.updated_at)
+
+    if not candidates:
+        return datetime.now(UTC)
+
+    return max(candidates)
+
+
+def compute_loan_financial_summary_dict(loan: Loan, as_of: date) -> dict[str, Decimal]:
+    """Compute canonical financial summary values for a loan using ledger/installment data."""
+    insts = loan.installments if _is_loaded(loan, "installments") else []
+    total_interest = sum((inst.expected_interest for inst in insts), ZERO)
+    total_repayable = _money(loan.original_principal + total_interest)
+
+    if _is_loaded(loan, "payments"):
+        payments = [p for p in loan.payments if p.entry_type == "Payment"]
+        reversals = [p for p in loan.payments if p.entry_type == "Reversal"]
+        amount_paid = sum((p.amount for p in payments), ZERO) - sum(
+            (p.amount for p in reversals), ZERO
+        )
+    else:
+        amount_paid = sum((inst.paid_amount for inst in insts), ZERO)
+
+    overdue_amount = sum(
+        (
+            max(inst.expected_payment - inst.paid_amount, ZERO)
+            for inst in insts
+            if inst.due_date < as_of and inst.status not in {"Paid", "Cancelled"}
+        ),
+        ZERO,
+    )
+
+    return {
+        "principal_amount": _money(loan.original_principal),
+        "interest_amount": _money(total_interest),
+        "fees_amount": ZERO,
+        "total_repayable": total_repayable,
+        "amount_paid": _money(amount_paid),
+        "outstanding_balance": _money(loan.outstanding_principal),
+        "overdue_amount": _money(overdue_amount),
+    }
 
 
 async def get_receipt(db: AsyncSession, payment_id: str) -> ReceiptProjection | None:

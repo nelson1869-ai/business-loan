@@ -18,6 +18,13 @@ from app.features.borrower_portal.loans_schemas import (
 )
 from app.features.borrower_portal.models import BorrowerAccount
 from app.features.loans.models import Loan
+from app.features.projections.service import (
+    compute_loan_financial_summary_dict,
+    format_payment_frequency,
+    get_loan_last_activity_timestamp,
+    get_next_installment_priority,
+    get_public_loan_reference,
+)
 
 ZERO = Decimal("0.00")
 
@@ -35,108 +42,43 @@ def _money(value: Decimal) -> Decimal:
     return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
-def _format_frequency(payments_per_month: int) -> str:
-    mapping = {
-        1: "monthly",
-        2: "semi_monthly",
-        4: "weekly",
-        30: "daily",
-    }
-    return mapping.get(payments_per_month, f"{payments_per_month}_per_month")
-
-
 def _map_loan_to_item(loan: Loan, today: date) -> BorrowerLoanListItem:
-    total_interest = sum((inst.expected_interest for inst in loan.installments), ZERO)
-    total_repayable = _money(loan.original_principal + total_interest)
-    amount_paid = sum((inst.paid_amount for inst in loan.installments), ZERO)
-
-    all_insts = sorted(
-        loan.installments, key=lambda i: (i.due_date, i.installment_number)
+    fin = compute_loan_financial_summary_dict(loan, today)
+    next_inst, next_payment_amount, next_due_date, is_overdue = (
+        get_next_installment_priority(loan, today)
     )
-
-    overdue_insts = [
-        inst
-        for inst in all_insts
-        if inst.due_date < today and inst.status not in {"Paid", "Cancelled"}
-    ]
-    overdue_amount = sum(
-        (max(inst.expected_payment - inst.paid_amount, ZERO) for inst in overdue_insts),
-        ZERO,
-    )
-
-    upcoming_insts = [
-        inst
-        for inst in all_insts
-        if inst.due_date >= today and inst.status not in {"Paid", "Cancelled"}
-    ]
-
-    next_inst = (
-        upcoming_insts[0]
-        if upcoming_insts
-        else (overdue_insts[0] if overdue_insts else None)
-    )
-    next_payment_amount = (
-        max(next_inst.expected_payment - next_inst.paid_amount, ZERO)
-        if next_inst
-        else ZERO
-    )
-    next_due_date = next_inst.due_date if next_inst else None
-
-    is_overdue = overdue_amount > ZERO or loan.status in {"Overdue", "Defaulted"}
-    loan_ref = loan.request_id if loan.request_id else f"LN-{loan.id[:8].upper()}"
+    loan_ref = get_public_loan_reference(loan)
+    last_act = get_loan_last_activity_timestamp(loan)
 
     return BorrowerLoanListItem(
         id=loan.id,
         loan_reference=loan_ref,
         status=loan.status.lower(),
-        principal_amount=_money(loan.original_principal),
-        total_repayable=total_repayable,
-        amount_paid=_money(amount_paid),
-        outstanding_balance=_money(loan.outstanding_principal),
+        principal_amount=fin["principal_amount"],
+        total_repayable=fin["total_repayable"],
+        amount_paid=fin["amount_paid"],
+        outstanding_balance=fin["outstanding_balance"],
         installment_amount=_money(loan.regular_payment_amount),
-        payment_frequency=_format_frequency(loan.payments_per_month),
+        payment_frequency=format_payment_frequency(loan.payments_per_month),
         start_date=loan.start_date,
         maturity_date=loan.final_due_date,
         next_due_date=next_due_date,
-        next_payment_amount=_money(next_payment_amount),
+        next_payment_amount=next_payment_amount,
         is_overdue=is_overdue,
-        overdue_amount=_money(overdue_amount),
-        updated_at=loan.created_at,
+        overdue_amount=fin["overdue_amount"],
+        updated_at=last_act,
     )
 
 
 def _map_loan_to_detail(loan: Loan, today: date) -> BorrowerLoanDetailResponse:
-    total_interest = sum((inst.expected_interest for inst in loan.installments), ZERO)
-    total_repayable = _money(loan.original_principal + total_interest)
-    amount_paid = sum((inst.paid_amount for inst in loan.installments), ZERO)
-
-    all_insts = sorted(
-        loan.installments, key=lambda i: (i.due_date, i.installment_number)
+    fin = compute_loan_financial_summary_dict(loan, today)
+    next_inst, next_payment_amount, next_due_date, is_overdue = (
+        get_next_installment_priority(loan, today)
     )
+    loan_ref = get_public_loan_reference(loan)
+    last_act = get_loan_last_activity_timestamp(loan)
 
-    overdue_insts = [
-        inst
-        for inst in all_insts
-        if inst.due_date < today and inst.status not in {"Paid", "Cancelled"}
-    ]
-    overdue_amount = sum(
-        (max(inst.expected_payment - inst.paid_amount, ZERO) for inst in overdue_insts),
-        ZERO,
-    )
-
-    upcoming_insts = [
-        inst
-        for inst in all_insts
-        if inst.due_date >= today and inst.status not in {"Paid", "Cancelled"}
-    ]
-
-    next_inst = (
-        upcoming_insts[0]
-        if upcoming_insts
-        else (overdue_insts[0] if overdue_insts else None)
-    )
     next_inst_dto: BorrowerNextInstallment | None = None
-
     if next_inst:
         rem = max(next_inst.expected_payment - next_inst.paid_amount, ZERO)
         inst_status = "overdue" if next_inst.due_date < today else "upcoming"
@@ -149,22 +91,20 @@ def _map_loan_to_detail(loan: Loan, today: date) -> BorrowerLoanDetailResponse:
             status=inst_status,
         )
 
-    loan_ref = loan.request_id if loan.request_id else f"LN-{loan.id[:8].upper()}"
-
     financial_summary = BorrowerLoanFinancialSummary(
-        principal_amount=_money(loan.original_principal),
-        interest_amount=_money(total_interest),
-        fees_amount=ZERO,
-        total_repayable=total_repayable,
-        amount_paid=_money(amount_paid),
-        outstanding_balance=_money(loan.outstanding_principal),
-        overdue_amount=_money(overdue_amount),
+        principal_amount=fin["principal_amount"],
+        interest_amount=fin["interest_amount"],
+        fees_amount=fin["fees_amount"],
+        total_repayable=fin["total_repayable"],
+        amount_paid=fin["amount_paid"],
+        outstanding_balance=fin["outstanding_balance"],
+        overdue_amount=fin["overdue_amount"],
     )
 
     interest_rate_pct = _money(Decimal(str(loan.monthly_rate)) * Decimal("100.0"))
 
     terms = BorrowerLoanTerms(
-        payment_frequency=_format_frequency(loan.payments_per_month),
+        payment_frequency=format_payment_frequency(loan.payments_per_month),
         installment_count=loan.number_of_payments,
         installment_amount=_money(loan.regular_payment_amount),
         interest_rate=interest_rate_pct,
@@ -179,7 +119,7 @@ def _map_loan_to_detail(loan: Loan, today: date) -> BorrowerLoanDetailResponse:
         financial_summary=financial_summary,
         terms=terms,
         next_installment=next_inst_dto,
-        last_updated=loan.created_at,
+        last_updated=last_act,
     )
 
 

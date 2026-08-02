@@ -588,3 +588,191 @@ class TestBorrowerLoansApi(unittest.IsolatedAsyncioTestCase):
         paths = response.json().get("paths", {})
         self.assertIn("/api/v1/client/loans", paths)
         self.assertIn("/api/v1/client/loans/{loan_id}", paths)
+
+    async def test_overdue_installment_prioritized_as_next_payment(self) -> None:
+        suffix = secrets.token_hex(4)
+        bor_id = f"bor-ovd-{suffix}"
+        acct_id = f"acct-ovd-{suffix}"
+        user_id = f"usr-ovd-{suffix}"
+        today = date.today()
+
+        async with self.session_factory() as db:
+            officer = User(
+                id=user_id,
+                username=f"officer_{suffix}",
+                hashed_password="hash",
+                role="officer",
+            )
+            db.add(officer)
+
+            borrower = Borrower(
+                id=bor_id,
+                first_name="Overdue",
+                last_name="Priority",
+                national_id=f"PH-OVD-{suffix}",
+                phone=f"0927{suffix[:7]}",
+                date_of_birth=date(1989, 5, 5),
+                status="Active",
+            )
+            db.add(borrower)
+
+            account = BorrowerAccount(
+                id=acct_id,
+                borrower_id=bor_id,
+                phone_number=f"0927{suffix[:7]}",
+                phone_number_normalized=f"+63927{suffix[:7]}",
+                account_status="active",
+            )
+            db.add(account)
+
+            loan = Loan(
+                id=f"loan-ovd-{suffix}",
+                request_id=f"req-ovd-{suffix}",
+                borrower_id=bor_id,
+                created_by_user_id=user_id,
+                original_principal=10000,
+                outstanding_principal=10000,
+                monthly_rate=0.03,
+                term_months=12,
+                payments_per_month=1,
+                number_of_payments=12,
+                regular_payment_amount=1000,
+                status="Overdue",
+                calculation_method="fixed_periodic_reducing_balance",
+                start_date=today - timedelta(days=40),
+                first_due_date=today - timedelta(days=10),
+                final_due_date=today + timedelta(days=320),
+            )
+            db.add(loan)
+
+            # Installment 1: OVERDUE (due 10 days ago)
+            inst1 = Installment(
+                id=f"inst-ovd-1-{suffix}",
+                loan_id=loan.id,
+                installment_number=1,
+                due_date=today - timedelta(days=10),
+                expected_payment=1000,
+                expected_interest=250,
+                expected_principal=750,
+                expected_remaining_principal=9250,
+                paid_amount=0,
+                status="Overdue",
+            )
+            # Installment 2: UPCOMING (due in 20 days)
+            inst2 = Installment(
+                id=f"inst-up-2-{suffix}",
+                loan_id=loan.id,
+                installment_number=2,
+                due_date=today + timedelta(days=20),
+                expected_payment=1000,
+                expected_interest=250,
+                expected_principal=750,
+                expected_remaining_principal=8500,
+                paid_amount=0,
+                status="Scheduled",
+            )
+            db.add_all([inst1, inst2])
+            await db.commit()
+
+        token = create_borrower_access_token(account)
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            res_detail = await client.get(
+                f"/api/v1/client/loans/{loan.id}",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            res_dashboard = await client.get(
+                "/api/v1/client/dashboard",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+
+        self.assertEqual(res_detail.status_code, 200)
+        dtl = res_detail.json()
+
+        next_inst = dtl["nextInstallment"]
+        self.assertIsNotNone(next_inst)
+        self.assertEqual(next_inst["installmentNumber"], 1)
+        self.assertEqual(next_inst["status"], "overdue")
+
+        dash = res_dashboard.json()
+        self.assertEqual(float(dash["summary"]["nextPaymentAmount"]), 1000.0)
+        self.assertEqual(
+            dash["summary"]["nextDueDate"], str(today - timedelta(days=10))
+        )
+
+    async def test_public_loan_reference_safety_excludes_request_id(self) -> None:
+        suffix = secrets.token_hex(4)
+        bor_id = f"bor-ref-{suffix}"
+        acct_id = f"acct-ref-{suffix}"
+        user_id = f"usr-ref-{suffix}"
+        raw_req_id = "550e8400-e29b-41d4-a716-446655440000"
+
+        async with self.session_factory() as db:
+            officer = User(
+                id=user_id,
+                username=f"officer_{suffix}",
+                hashed_password="hash",
+                role="officer",
+            )
+            db.add(officer)
+
+            borrower = Borrower(
+                id=bor_id,
+                first_name="Reference",
+                last_name="Test",
+                national_id=f"PH-REF-{suffix}",
+                phone=f"0928{suffix[:7]}",
+                date_of_birth=date(1994, 4, 4),
+                status="Active",
+            )
+            db.add(borrower)
+
+            account = BorrowerAccount(
+                id=acct_id,
+                borrower_id=bor_id,
+                phone_number=f"0928{suffix[:7]}",
+                phone_number_normalized=f"+63928{suffix[:7]}",
+                account_status="active",
+            )
+            db.add(account)
+
+            loan = Loan(
+                id=f"loan-ref-{suffix}",
+                request_id=raw_req_id,
+                borrower_id=bor_id,
+                created_by_user_id=user_id,
+                original_principal=5000,
+                outstanding_principal=5000,
+                monthly_rate=0.03,
+                term_months=6,
+                payments_per_month=1,
+                number_of_payments=6,
+                regular_payment_amount=900,
+                status="Active",
+                calculation_method="fixed_periodic_reducing_balance",
+                start_date=date.today(),
+                first_due_date=date.today() + timedelta(days=30),
+                final_due_date=date.today() + timedelta(days=180),
+            )
+            db.add(loan)
+            await db.commit()
+
+        token = create_borrower_access_token(account)
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            res_list = await client.get(
+                "/api/v1/client/loans",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+
+        self.assertEqual(res_list.status_code, 200)
+        data = res_list.json()
+        item = data["items"][0]
+
+        # Verify internal request_id is NEVER exposed as loanReference
+        self.assertNotEqual(item["loanReference"], raw_req_id)
+        self.assertTrue(item["loanReference"].startswith("LN-"))
