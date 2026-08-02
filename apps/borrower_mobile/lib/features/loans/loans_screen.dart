@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:borrower_mobile/features/loans/models/borrower_loan.dart';
 import 'package:borrower_mobile/features/loans/providers/loans_provider.dart';
+import 'package:borrower_mobile/core/widgets/route_back_navigation.dart';
 
 class LoansScreen extends ConsumerWidget {
   const LoansScreen({super.key});
@@ -11,15 +12,22 @@ class LoansScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(loansListNotifierProvider);
-    final currencyFormat = NumberFormat.currency(symbol: '₱ ', decimalDigits: 2);
+    final currencyFormat =
+        NumberFormat.currency(symbol: '₱ ', decimalDigits: 2);
     final dateFormat = DateFormat('MMM dd, yyyy');
     final timeFormat = DateFormat('MMM dd, h:mm a');
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Loans'),
-      ),
-      body: Column(
+    return RouteBackScope(
+      fallbackLocation: '/home',
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('My Loans'),
+          leading: const RouteBackButton(
+            fallbackLocation: '/home',
+            tooltip: 'Back to dashboard',
+          ),
+        ),
+        body: Column(
         children: [
           // Status Filter Bar
           _buildFilterBar(context, ref, state.selectedStatus),
@@ -43,6 +51,7 @@ class LoansScreen extends ConsumerWidget {
             ),
           ),
         ],
+        ),
       ),
     );
   }
@@ -194,7 +203,8 @@ class LoansScreen extends ConsumerWidget {
             ),
             child: Row(
               children: [
-                Icon(Icons.wifi_off_rounded, color: Colors.amber.shade800, size: 20),
+                Icon(Icons.wifi_off_rounded,
+                    color: Colors.amber.shade800, size: 20),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -209,7 +219,6 @@ class LoansScreen extends ConsumerWidget {
               ],
             ),
           ),
-
         ...state.items.map(
           (loan) => _buildLoanCard(context, loan, currencyFormat, dateFormat),
         ),
@@ -260,7 +269,8 @@ class LoansScreen extends ConsumerWidget {
                     children: [
                       const Text(
                         'Outstanding Balance',
-                        style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                        style:
+                            TextStyle(fontSize: 12, color: Color(0xFF64748B)),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -278,7 +288,8 @@ class LoansScreen extends ConsumerWidget {
                     children: [
                       const Text(
                         'Principal',
-                        style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                        style:
+                            TextStyle(fontSize: 12, color: Color(0xFF64748B)),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -329,14 +340,16 @@ class LoansScreen extends ConsumerWidget {
               if (loan.isOverdue && loan.overdueAmount > 0) ...[
                 const SizedBox(height: 10),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
                     color: Colors.red.shade50,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.warning_amber_rounded, color: Colors.red.shade700, size: 16),
+                      Icon(Icons.warning_amber_rounded,
+                          color: Colors.red.shade700, size: 16),
                       const SizedBox(width: 6),
                       Text(
                         'Overdue Amount: ${currencyFormat.format(loan.overdueAmount)}',
@@ -405,7 +418,8 @@ class LoansScreen extends ConsumerWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(color: text, fontSize: 11, fontWeight: FontWeight.bold),
+        style:
+            TextStyle(color: text, fontSize: 11, fontWeight: FontWeight.bold),
       ),
     );
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:borrower_mobile/core/api/api_client.dart';
 import 'package:borrower_mobile/features/loans/data/loan_local_cache.dart';
 import 'package:borrower_mobile/features/loans/data/loan_repository.dart';
@@ -27,6 +28,27 @@ class FakeLoansApiClient implements ApiClient {
         throw Exception('Network error');
       }
       final String path = invocation.positionalArguments.first as String;
+      if (path.contains('/schedule')) {
+        return Future.value({
+          'loanId': 'loan-123',
+          'loanReference': 'LN-2026-000123',
+          'items': [
+            {
+              'id': 'inst-1',
+              'installmentNumber': 1,
+              'dueDate': '2026-09-01T00:00:00.000',
+              'expectedPayment': 1020.00,
+              'expectedPrincipal': 1000.00,
+              'expectedInterest': 20.00,
+              'paidAmount': 0.00,
+              'remainingBalance': 1020.00,
+              'status': 'scheduled',
+            }
+          ],
+          'totalInstallments': 1,
+          'paidInstallmentsCount': 0,
+        });
+      }
       if (path.contains('/loans/loan-123')) {
         return Future.value(detailResponse);
       }
@@ -43,6 +65,8 @@ class FakeLoanLocalCache implements LoanLocalCache {
   Future<BorrowerLoanListResponse?> getCachedLoansList(
     String borrowerAccountId, {
     String? statusFilter,
+    int offset = 0,
+    int limit = 20,
   }) async {
     final status = statusFilter?.toLowerCase() ?? 'all';
     final key = 'list_${borrowerAccountId}_$status';
@@ -54,6 +78,8 @@ class FakeLoanLocalCache implements LoanLocalCache {
     String borrowerAccountId,
     BorrowerLoanListResponse response, {
     String? statusFilter,
+    int offset = 0,
+    int limit = 20,
   }) async {
     final status = statusFilter?.toLowerCase() ?? 'all';
     final key = 'list_${borrowerAccountId}_$status';
@@ -76,6 +102,24 @@ class FakeLoanLocalCache implements LoanLocalCache {
   ) async {
     final key = 'detail_${borrowerAccountId}_${detail.id}';
     _store[key] = detail;
+  }
+
+  @override
+  Future<BorrowerInstallmentSchedule?> getCachedLoanSchedule(
+    String borrowerAccountId,
+    String loanId,
+  ) async {
+    final key = 'schedule_${borrowerAccountId}_$loanId';
+    return _store[key] as BorrowerInstallmentSchedule?;
+  }
+
+  @override
+  Future<void> saveCachedLoanSchedule(
+    String borrowerAccountId,
+    BorrowerInstallmentSchedule schedule,
+  ) async {
+    final key = 'schedule_${borrowerAccountId}_${schedule.loanId}';
+    _store[key] = schedule;
   }
 
   @override
@@ -228,7 +272,12 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            loanRepositoryProvider.overrideWithValue(repo),
+            loansListNotifierProvider.overrideWith(
+              (ref) => LoansListNotifier(
+                repository: repo,
+                borrowerAccountId: 'account-123',
+              ),
+            ),
           ],
           child: const MaterialApp(
             home: LoansScreen(),
@@ -242,6 +291,49 @@ void main() {
       expect(find.text('LN-2026-000123'), findsOneWidget);
       expect(find.text('₱ 8,500.00'), findsOneWidget);
       expect(find.text('ACTIVE'), findsOneWidget);
+    });
+
+    testWidgets('direct My Loans back returns to dashboard', (tester) async {
+      final api = FakeLoansApiClient(
+        listResponse: sampleListJson,
+        detailResponse: sampleDetailJson,
+      );
+      final cache = FakeLoanLocalCache();
+      final repo = LoanRepository(apiClient: api, localCache: cache);
+      final router = GoRouter(
+        initialLocation: '/loans',
+        routes: [
+          GoRoute(
+            path: '/home',
+            builder: (_, __) => const Scaffold(body: Text('Dashboard Home')),
+          ),
+          GoRoute(
+            path: '/loans',
+            builder: (_, __) => const LoansScreen(),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            loansListNotifierProvider.overrideWith(
+              (ref) => LoansListNotifier(
+                repository: repo,
+                borrowerAccountId: 'account-123',
+              ),
+            ),
+          ],
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Back to dashboard'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Dashboard Home'), findsOneWidget);
     });
   });
 
@@ -257,7 +349,20 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            loanRepositoryProvider.overrideWithValue(repo),
+            loanDetailNotifierProvider('loan-123').overrideWith(
+              (ref) => LoanDetailNotifier(
+                repository: repo,
+                borrowerAccountId: 'account-123',
+                loanId: 'loan-123',
+              ),
+            ),
+            loanScheduleNotifierProvider('loan-123').overrideWith(
+              (ref) => LoanScheduleNotifier(
+                repository: repo,
+                borrowerAccountId: 'account-123',
+                loanId: 'loan-123',
+              ),
+            ),
           ],
           child: const MaterialApp(
             home: LoanDetailScreen(loanId: 'loan-123'),
@@ -269,14 +374,29 @@ void main() {
 
       expect(find.text('LN-2026-000123'), findsNWidgets(2));
       expect(find.text('Financial Summary'), findsOneWidget);
-
-      await tester.scrollUntilVisible(find.text('Loan Terms'), 100);
-      expect(find.text('Loan Terms'), findsOneWidget);
-
-      await tester.scrollUntilVisible(find.text('Next Payment Preview'), 100);
-      expect(find.text('Next Payment Preview'), findsOneWidget);
       expect(find.text('₱ 10,000.00'), findsOneWidget);
       expect(find.text('₱ 12,000.00'), findsOneWidget);
+
+      await tester.scrollUntilVisible(
+        find.text('Loan Terms'),
+        100,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Loan Terms'), findsOneWidget);
+
+      await tester.scrollUntilVisible(
+        find.text('Next Payment Preview'),
+        100,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Next Payment Preview'), findsOneWidget);
+
+      await tester.scrollUntilVisible(
+        find.text('Installment Schedule'),
+        100,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Installment Schedule'), findsOneWidget);
     });
   });
 }

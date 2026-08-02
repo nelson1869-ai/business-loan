@@ -47,6 +47,7 @@ class DashboardRepository {
         try {
           borrowers = await _remoteBorrowerRepository.getBorrowers();
           await _borrowerRepository.syncRemoteBorrowers(borrowers);
+          borrowers = await _borrowerRepository.getBorrowers();
         } catch (_) {
           borrowers = await _borrowerRepository.getBorrowers();
         }

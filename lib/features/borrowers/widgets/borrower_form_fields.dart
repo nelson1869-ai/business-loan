@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/validation/phone_number.dart';
+
 String? validateName(String? value) {
   final text = value?.trim() ?? '';
   if (text.isEmpty) return 'Required';
@@ -19,8 +21,10 @@ String? validateNationalId(String? value) {
 String? validatePhone(String? value) {
   final text = value?.trim() ?? '';
   if (text.isEmpty) return 'Required';
-  if (text.length < 7 || text.length > 32) {
-    return 'Must be 7\u201332 characters';
+  try {
+    normalizePhilippineMobileNumber(text);
+  } on FormatException {
+    return 'Enter a valid Philippine mobile number';
   }
   return null;
 }

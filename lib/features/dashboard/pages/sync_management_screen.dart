@@ -194,6 +194,34 @@ class SyncManagementScreen extends ConsumerWidget {
                         await syncService.retryItem(item.transactionUuid);
                       } else if (val == 'delete') {
                         await syncService.deleteItem(item.transactionUuid);
+                      } else if (val == 'discardBorrower') {
+                        final confirmed = await showDialog<bool>(
+                          context: context,
+                          builder: (dialogContext) => AlertDialog(
+                            title: const Text('Discard local registration?'),
+                            content: const Text(
+                              'This removes the unverified borrower saved on this device. '
+                              'It does not alter the existing server borrower.',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () =>
+                                    Navigator.pop(dialogContext, false),
+                                child: const Text('Cancel'),
+                              ),
+                              FilledButton(
+                                onPressed: () =>
+                                    Navigator.pop(dialogContext, true),
+                                child: const Text('Discard Local Registration'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirmed == true) {
+                          await syncService.discardLocalBorrowerRegistration(
+                            item,
+                          );
+                        }
                       }
                       ref
                           .read(offlineSyncQueueNotifierProvider.notifier)
@@ -204,6 +232,14 @@ class SyncManagementScreen extends ConsumerWidget {
                         value: 'retry',
                         child: Text('Retry Now'),
                       ),
+                      if (item.entityType == 'borrower' &&
+                          item.operationType == 'create' &&
+                          (item.status == QueueItemStatus.conflict ||
+                              item.status == QueueItemStatus.permanentlyFailed))
+                        const PopupMenuItem(
+                          value: 'discardBorrower',
+                          child: Text('Discard Local Registration'),
+                        ),
                       const PopupMenuItem(
                         value: 'delete',
                         child: Text('Remove Item'),

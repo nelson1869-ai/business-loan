@@ -18,5 +18,23 @@ void main() {
     expect(find.text('BORROWER PORTAL'), findsOneWidget);
     expect(find.text('Mobile Number'), findsOneWidget);
     expect(find.text('Request OTP Code'), findsOneWidget);
+    expect(find.byKey(const Key('local-development-otp-notice')), findsNothing);
+  });
+
+  testWidgets('LoginScreen visibly identifies the fixed local OTP',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(
+          home: LoginScreen(localOtpEnabled: true),
+        ),
+      ),
+    );
+
+    expect(
+      find.byKey(const Key('local-development-otp-notice')),
+      findsOneWidget,
+    );
+    expect(find.text('Local development only: use OTP 123456'), findsOneWidget);
   });
 }

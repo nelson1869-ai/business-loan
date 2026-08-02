@@ -80,6 +80,7 @@ class TestConfigSafety(unittest.TestCase):
             jwt_secret_key="a_very_strong_random_production_jwt_secret_key_32_bytes",
             cors_origins="https://lending.nelson.com, https://admin.nelson.com",
             n8n_webhook_secret="a_very_strong_n8n_webhook_secret_32_bytes",
+            local_borrower_otp_enabled=False,
         )
         self.assertEqual(
             settings.cors_origin_list,
@@ -97,6 +98,29 @@ class TestConfigSafety(unittest.TestCase):
                 n8n_webhook_url="https://n8n.example.com/webhook/lending",
                 n8n_webhook_secret="",
             )
+
+    def test_local_borrower_otp_accepted_in_development(self) -> None:
+        """Verify local fixed OTP can be explicitly enabled for development."""
+        settings = Settings(
+            app_env="development",
+            database_url="postgresql+asyncpg://user:pass@localhost:5432/db",
+            jwt_secret_key="strong-random-value-0123456789-ABCDEFGHIJ",
+            cors_origins="*",
+            local_borrower_otp_enabled=True,
+        )
+        self.assertTrue(settings.local_borrower_otp_enabled)
+
+    def test_local_borrower_otp_rejected_outside_development(self) -> None:
+        """Verify staging, production, test, and dev aliases fail closed."""
+        for app_env in ("staging", "production", "prod", "test", "dev"):
+            with self.subTest(app_env=app_env), self.assertRaises(ValidationError):
+                Settings(
+                    app_env=app_env,
+                    database_url="postgresql+asyncpg://user:pass@localhost:5432/db",
+                    jwt_secret_key="strong-random-value-0123456789-ABCDEFGHIJ",
+                    cors_origins="https://example.test",
+                    local_borrower_otp_enabled=True,
+                )
 
 
 if __name__ == "__main__":

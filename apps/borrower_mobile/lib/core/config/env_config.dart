@@ -9,4 +9,10 @@ class EnvConfig {
     }
     return defaultApiBaseUrl;
   }
+
+  /// Whether the local development backend accepts the fixed borrower OTP.
+  static const bool localBorrowerOtpEnabled = bool.fromEnvironment(
+    'LOCAL_BORROWER_OTP_ENABLED',
+    defaultValue: false,
+  );
 }

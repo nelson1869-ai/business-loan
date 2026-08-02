@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/database_provider.dart';
 import '../../../core/database/database_service.dart';
 import '../../../core/security/encryption_service.dart';
+import '../../../core/validation/phone_number.dart';
 
 import '../domain/borrower_model.dart';
 
@@ -15,6 +16,15 @@ class BorrowerHasOpenLoansException implements Exception {
 
   String get message =>
       'This borrower cannot be deleted while an active loan remains open.';
+}
+
+class DuplicateBorrowerPhoneException implements Exception {
+  const DuplicateBorrowerPhoneException();
+
+  String get message => 'A borrower with this phone number already exists.';
+
+  @override
+  String toString() => message;
 }
 
 class BorrowerRepository {
@@ -29,6 +39,7 @@ class BorrowerRepository {
     String syncStatus = 'pending',
   }) async {
     final db = await _dbService.database;
+    await _ensureUniquePhone(db, borrower.phone, excludingId: borrower.id);
     final encryptedBorrower = await _encryptBorrower(borrower);
 
     final map = encryptedBorrower.toMap();
@@ -57,6 +68,15 @@ class BorrowerRepository {
     final db = await _dbService.database;
     final remoteIds = remote.map((b) => b.id).toSet();
 
+    final protectedRows = await db.query(
+      'borrowers',
+      columns: ['id', 'sync_status', 'deleted_at'],
+      where: "sync_status != 'synced' OR deleted_at IS NOT NULL",
+    );
+    final protectedIds = protectedRows
+        .map((row) => row['id'] as String)
+        .toSet();
+
     // Only delete local borrowers that are already marked 'synced' and missing from remote
     final localMaps = await db.query(
       'borrowers',
@@ -70,6 +90,9 @@ class BorrowerRepository {
       }
     }
     for (final borrower in remote) {
+      if (protectedIds.contains(borrower.id)) {
+        continue;
+      }
       final encryptedBorrower = await _encryptBorrower(borrower);
       final map = encryptedBorrower.toMap();
       map['sync_status'] = 'synced';
@@ -88,6 +111,7 @@ class BorrowerRepository {
     String syncStatus = 'pending',
   }) async {
     final db = await _dbService.database;
+    await _ensureUniquePhone(db, borrower.phone, excludingId: borrower.id);
 
     final existingList = await db.query(
       'borrowers',
@@ -195,7 +219,22 @@ class BorrowerRepository {
       dateOfBirth: borrower.dateOfBirth,
       status: borrower.status,
       createdAt: borrower.createdAt,
+      syncStatus: (maps.first['sync_status'] ?? 'synced').toString(),
     );
+  }
+
+  Future<bool> isBorrowerServerVerified(String id) async {
+    final db = await _dbService.database;
+    final rows = await db.query(
+      'borrowers',
+      columns: ['sync_status', 'deleted_at'],
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    if (rows.isEmpty) return false;
+    final row = rows.first;
+    return row['sync_status'] == 'synced' && row['deleted_at'] == null;
   }
 
   Future<List<Borrower>> getBorrowers() async {
@@ -226,6 +265,7 @@ class BorrowerRepository {
           dateOfBirth: borrower.dateOfBirth,
           status: borrower.status,
           createdAt: borrower.createdAt,
+          syncStatus: (map['sync_status'] ?? 'synced').toString(),
         ),
       );
     }
@@ -242,7 +282,32 @@ class BorrowerRepository {
       dateOfBirth: borrower.dateOfBirth,
       status: borrower.status,
       createdAt: borrower.createdAt,
+      syncStatus: borrower.syncStatus,
     );
+  }
+
+  Future<void> _ensureUniquePhone(
+    Database db,
+    String phone, {
+    required String excludingId,
+  }) async {
+    final normalized = normalizePhilippineMobileNumber(phone);
+    final rows = await db.query(
+      'borrowers',
+      columns: ['id', 'phone'],
+      where: 'id != ? AND deleted_at IS NULL',
+      whereArgs: [excludingId],
+    );
+    for (final row in rows) {
+      final storedPhone = await _encryption.decrypt(row['phone']! as String);
+      try {
+        if (normalizePhilippineMobileNumber(storedPhone) == normalized) {
+          throw const DuplicateBorrowerPhoneException();
+        }
+      } on FormatException {
+        continue;
+      }
+    }
   }
 
   String? _existingRedactedState(List<Map<String, Object?>> rows) {
@@ -285,4 +350,13 @@ final borrowerRepositoryProvider = Provider<BorrowerRepository>((ref) {
   final dbService = ref.watch(databaseServiceProvider);
   final encryption = ref.watch(encryptionServiceProvider);
   return BorrowerRepository(dbService, encryption);
+});
+
+final borrowerServerVerifiedProvider = FutureProvider.family<bool, String>((
+  ref,
+  borrowerId,
+) {
+  return ref
+      .watch(borrowerRepositoryProvider)
+      .isBorrowerServerVerified(borrowerId);
 });

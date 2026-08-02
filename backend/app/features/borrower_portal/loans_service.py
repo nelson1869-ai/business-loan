@@ -8,6 +8,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.features.borrower_portal.loans_schemas import (
+    BorrowerInstallmentItemResponse,
+    BorrowerInstallmentScheduleResponse,
     BorrowerLoanDetailResponse,
     BorrowerLoanFinancialSummary,
     BorrowerLoanListItem,
@@ -220,3 +222,65 @@ async def get_borrower_loan_detail(
 
     today = date.today()
     return await _map_loan_to_detail_async(db, loan, today)
+
+
+async def get_borrower_loan_schedule(
+    db: AsyncSession,
+    current_account: BorrowerAccount,
+    loan_id: str,
+) -> BorrowerInstallmentScheduleResponse:
+    """Fetch complete ledger-backed installment schedule for a borrower-owned loan."""
+    stmt = select(Loan).where(
+        Loan.id == loan_id,
+        Loan.borrower_id == current_account.borrower_id,
+    )
+    loan = (await db.execute(stmt)).scalar_one_or_none()
+
+    if not loan:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Loan account not found",
+        )
+
+    installments = await fetch_loan_installments(db, loan)
+    today = date.today()
+
+    items: list[BorrowerInstallmentItemResponse] = []
+    paid_count = 0
+
+    for inst in installments:
+        rem_balance = max(inst.expected_payment - inst.paid_amount, ZERO)
+
+        if inst.paid_amount >= inst.expected_payment:
+            inst_status = "paid"
+            paid_count += 1
+        elif inst.due_date < today and inst.paid_amount < inst.expected_payment:
+            inst_status = "overdue"
+        elif inst.paid_amount > ZERO:
+            inst_status = "partially_paid"
+        else:
+            inst_status = "scheduled"
+
+        items.append(
+            BorrowerInstallmentItemResponse(
+                id=inst.id,
+                installment_number=inst.installment_number,
+                due_date=inst.due_date,
+                expected_payment=_money(inst.expected_payment),
+                expected_principal=_money(inst.expected_principal),
+                expected_interest=_money(inst.expected_interest),
+                paid_amount=_money(inst.paid_amount),
+                remaining_balance=_money(rem_balance),
+                status=inst_status,
+            )
+        )
+
+    loan_ref = get_public_loan_reference(loan)
+
+    return BorrowerInstallmentScheduleResponse(
+        loan_id=loan.id,
+        loan_reference=loan_ref,
+        items=items,
+        total_installments=len(items),
+        paid_installments_count=paid_count,
+    )

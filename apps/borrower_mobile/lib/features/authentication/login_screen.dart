@@ -3,11 +3,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:borrower_mobile/core/auth/auth_notifier.dart';
 import 'package:borrower_mobile/core/auth/auth_state.dart';
+import 'package:borrower_mobile/core/config/env_config.dart';
 import 'package:borrower_mobile/core/widgets/app_button.dart';
 import 'package:borrower_mobile/core/widgets/app_text_field.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
-  const LoginScreen({super.key});
+  final bool localOtpEnabled;
+
+  const LoginScreen({
+    super.key,
+    this.localOtpEnabled = EnvConfig.localBorrowerOtpEnabled,
+  });
 
   @override
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
@@ -112,6 +118,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 32),
+
+                if (widget.localOtpEnabled) ...[
+                  const _LocalOtpNotice(),
+                  const SizedBox(height: 16),
+                ],
 
                 // Form Card Container
                 Container(
@@ -251,6 +262,38 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _LocalOtpNotice extends StatelessWidget {
+  const _LocalOtpNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('local-development-otp-notice'),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBEB),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFF59E0B)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.developer_mode_rounded, color: Color(0xFFB45309)),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Local development only: use OTP 123456',
+              style: TextStyle(
+                color: Color(0xFF92400E),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

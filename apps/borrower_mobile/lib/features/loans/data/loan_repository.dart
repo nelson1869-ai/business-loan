@@ -17,12 +17,21 @@ class LoanRepository {
     int offset = 0,
     int limit = 20,
   }) async {
+    if (borrowerAccountId.trim().isEmpty) {
+      throw ArgumentError.value(
+        borrowerAccountId,
+        'borrowerAccountId',
+        'must not be empty',
+      );
+    }
     try {
       final queryParams = <String, String>{
         'offset': offset.toString(),
         'limit': limit.toString(),
       };
-      if (status != null && status.isNotEmpty && status.toLowerCase() != 'all') {
+      if (status != null &&
+          status.isNotEmpty &&
+          status.toLowerCase() != 'all') {
         queryParams['status'] = status.toLowerCase();
       }
 
@@ -37,12 +46,16 @@ class LoanRepository {
         borrowerAccountId,
         response,
         statusFilter: status,
+        offset: offset,
+        limit: limit,
       );
       return response;
     } catch (e) {
       final cached = await localCache.getCachedLoansList(
         borrowerAccountId,
         statusFilter: status,
+        offset: offset,
+        limit: limit,
       );
       if (cached != null) {
         return cached;
@@ -55,13 +68,49 @@ class LoanRepository {
     required String borrowerAccountId,
     required String loanId,
   }) async {
+    if (borrowerAccountId.trim().isEmpty) {
+      throw ArgumentError.value(
+        borrowerAccountId,
+        'borrowerAccountId',
+        'must not be empty',
+      );
+    }
     try {
       final json = await apiClient.get('/api/v1/client/loans/$loanId');
       final detail = BorrowerLoanDetail.fromJson(json, isFromCache: false);
       await localCache.saveCachedLoanDetail(borrowerAccountId, detail);
       return detail;
     } catch (e) {
-      final cached = await localCache.getCachedLoanDetail(borrowerAccountId, loanId);
+      final cached =
+          await localCache.getCachedLoanDetail(borrowerAccountId, loanId);
+      if (cached != null) {
+        return cached;
+      }
+      rethrow;
+    }
+  }
+
+  Future<BorrowerInstallmentSchedule> getLoanSchedule({
+    required String borrowerAccountId,
+    required String loanId,
+  }) async {
+    if (borrowerAccountId.trim().isEmpty) {
+      throw ArgumentError.value(
+        borrowerAccountId,
+        'borrowerAccountId',
+        'must not be empty',
+      );
+    }
+    try {
+      final json =
+          await apiClient.get('/api/v1/client/loans/$loanId/schedule');
+      final schedule =
+          BorrowerInstallmentSchedule.fromJson(json, isFromCache: false);
+      await localCache.saveCachedLoanSchedule(borrowerAccountId, schedule);
+      return schedule;
+    } catch (e) {
+      final cached =
+          await localCache.getCachedLoanSchedule(borrowerAccountId, loanId);
       if (cached != null) {
         return cached;
       }

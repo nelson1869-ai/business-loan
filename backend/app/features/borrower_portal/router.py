@@ -14,14 +14,24 @@ from app.features.borrower_portal.dashboard_schemas import BorrowerDashboardResp
 from app.features.borrower_portal.dashboard_service import get_borrower_dashboard
 from app.features.borrower_portal.dependencies import ActiveBorrowerAccount
 from app.features.borrower_portal.loans_schemas import (
+    BorrowerInstallmentScheduleResponse,
     BorrowerLoanDetailResponse,
     BorrowerLoanListResponse,
 )
 from app.features.borrower_portal.loans_service import (
     get_borrower_loan_detail,
+    get_borrower_loan_schedule,
     get_borrower_loans,
 )
 from app.features.borrower_portal.models import BorrowerDevice
+from app.features.borrower_portal.payments_schemas import (
+    BorrowerPaymentHistoryResponse,
+    BorrowerReceiptDetailResponse,
+)
+from app.features.borrower_portal.payments_service import (
+    get_borrower_loan_payments,
+    get_borrower_payment_receipt,
+)
 from app.features.borrower_portal.schemas import (
     BorrowerProfileResponse,
     BorrowerTokenResponse,
@@ -35,6 +45,7 @@ from app.features.borrower_portal.schemas import (
     RefreshTokenRequest,
 )
 from app.features.borrower_portal.service import (
+    get_borrower_profile,
     hash_secret,
     issue_client_invitation,
     request_otp,
@@ -145,27 +156,13 @@ async def logout_borrower(
 
 
 @client_router.get("/me", response_model=BorrowerProfileResponse)
-async def get_borrower_profile(
+@client_router.get("/profile", response_model=BorrowerProfileResponse)
+async def get_borrower_profile_endpoint(
     db: DbSession,
     current_account: ActiveBorrowerAccount,
 ) -> BorrowerProfileResponse:
     """Return profile details for the authenticated borrower identity."""
-    borrower = await borrower_service.get_borrower(db, current_account.borrower_id)
-    if borrower is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Borrower profile record not found",
-        )
-
-    return BorrowerProfileResponse(
-        borrower_account_id=current_account.id,
-        borrower_id=current_account.borrower_id,
-        first_name=borrower.first_name,
-        last_name=borrower.last_name,
-        phone_number=current_account.phone_number_normalized,
-        account_status=current_account.account_status,
-        created_at=current_account.created_at,
-    )
+    return await get_borrower_profile(db, current_account)
 
 
 @client_router.get("/dashboard", response_model=BorrowerDashboardResponse)
@@ -212,6 +209,45 @@ async def get_borrower_loan(
             detail="Loan not found",
         )
     return detail
+
+
+@client_router.get(
+    "/loans/{loan_id}/schedule",
+    response_model=BorrowerInstallmentScheduleResponse,
+)
+async def get_borrower_loan_schedule_endpoint(
+    loan_id: str,
+    db: DbSession,
+    current_account: ActiveBorrowerAccount,
+) -> BorrowerInstallmentScheduleResponse:
+    """Return complete ledger-backed installment schedule for the authenticated borrower."""
+    return await get_borrower_loan_schedule(db, current_account, loan_id)
+
+
+@client_router.get(
+    "/loans/{loan_id}/payments",
+    response_model=BorrowerPaymentHistoryResponse,
+)
+async def get_borrower_loan_payments_endpoint(
+    loan_id: str,
+    db: DbSession,
+    current_account: ActiveBorrowerAccount,
+) -> BorrowerPaymentHistoryResponse:
+    """Return borrower-scoped payment history for a specific loan."""
+    return await get_borrower_loan_payments(db, current_account, loan_id)
+
+
+@client_router.get(
+    "/payments/{payment_id}/receipt",
+    response_model=BorrowerReceiptDetailResponse,
+)
+async def get_borrower_payment_receipt_endpoint(
+    payment_id: str,
+    db: DbSession,
+    current_account: ActiveBorrowerAccount,
+) -> BorrowerReceiptDetailResponse:
+    """Return digital receipt overview with allocation breakdown for a borrower payment."""
+    return await get_borrower_payment_receipt(db, current_account, payment_id)
 
 
 @client_router.post("/devices", response_model=DeviceResponse)

@@ -75,7 +75,14 @@ class BorrowerHeaderCard extends ConsumerWidget {
                         spacing: 6,
                         runSpacing: 4,
                         children: [
-                          _Badge(label: borrower.status, color: statusColor),
+                          _Badge(
+                            label: borrower.isServerVerified
+                                ? borrower.status
+                                : 'Pending verification',
+                            color: borrower.isServerVerified
+                                ? statusColor
+                                : Colors.orange,
+                          ),
                           if (recommendation != null)
                             _Badge(
                               label: recommendation!.riskTier.label,

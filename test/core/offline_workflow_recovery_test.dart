@@ -166,4 +166,145 @@ void main() {
       expect(await reopened.query('offline_sync_queue'), isEmpty);
     },
   );
+
+  test('server-confirmed borrower delete purges local tombstone', () async {
+    final databaseService = DatabaseService(dbPath: inMemoryDatabasePath);
+    addTearDown(databaseService.close);
+    final encryption = _TestEncryptionService();
+    final backend = _RecordingBackend();
+    final sync = OfflineSyncService(
+      databaseService: databaseService,
+      encryptionService: encryption,
+      dio: Dio(),
+      connectivity: Connectivity(),
+      isForcedOffline: () => false,
+      batchClient: backend,
+    );
+    final database = await databaseService.database;
+    const borrowerId = '00000000-0000-4000-8000-000000000020';
+    await database.insert('borrowers', {
+      'id': borrowerId,
+      'first_name': 'encrypted:Pending',
+      'last_name': 'encrypted:Delete',
+      'national_id': 'encrypted:pending-delete',
+      'phone': 'encrypted:09916084404',
+      'date_of_birth': '1990-01-01',
+      'status': 'Active',
+      'created_at': '2026-08-02T00:00:00Z',
+      'deleted_at': '2026-08-02T01:00:00Z',
+      'sync_status': 'pending',
+    });
+    await sync.enqueue(
+      endpoint: '/api/v1/borrowers/$borrowerId',
+      method: 'DELETE',
+      payload: const {},
+      entityType: 'borrower',
+      entityLocalId: borrowerId,
+      operationType: 'delete',
+    );
+
+    await sync.drainQueue(force: true);
+
+    expect(await database.query('borrowers'), isEmpty);
+    expect(await database.query('offline_sync_queue'), isEmpty);
+  });
+
+  test('successful conflict retry resolves its diagnostic record', () async {
+    final databaseService = DatabaseService(dbPath: inMemoryDatabasePath);
+    addTearDown(databaseService.close);
+    final sync = OfflineSyncService(
+      databaseService: databaseService,
+      encryptionService: _TestEncryptionService(),
+      dio: Dio(),
+      connectivity: Connectivity(),
+      isForcedOffline: () => false,
+      batchClient: _RecordingBackend(),
+    );
+    final database = await databaseService.database;
+    const borrowerId = '00000000-0000-4000-8000-000000000030';
+    await database.insert('borrowers', {
+      'id': borrowerId,
+      'first_name': 'encrypted:Restored',
+      'last_name': 'encrypted:Borrower',
+      'national_id': 'encrypted:restore-id',
+      'phone': 'encrypted:09916084400',
+      'date_of_birth': '1990-01-01',
+      'status': 'Active',
+      'created_at': '2026-08-02T00:00:00Z',
+      'sync_status': 'conflict',
+    });
+    await sync.enqueue(
+      endpoint: '/api/v1/borrowers',
+      method: 'POST',
+      payload: const {'id': borrowerId},
+      entityType: 'borrower',
+      entityLocalId: borrowerId,
+      operationType: 'create',
+    );
+    await database.insert('sync_conflicts', {
+      'id': 'conflict-1',
+      'entity_type': 'borrower',
+      'local_id': borrowerId,
+      'local_data_json': '{}',
+      'server_data_json': '{}',
+      'detected_at': '2026-08-02T01:00:00Z',
+      'status': 'unresolved',
+    });
+
+    await sync.drainQueue(force: true);
+
+    final conflicts = await database.query('sync_conflicts');
+    expect(conflicts.single['status'], 'resolved:retry');
+    expect((await sync.getQueueState()).conflicts, isEmpty);
+  });
+
+  test('discard conflict removes only unverified local borrower', () async {
+    final databaseService = DatabaseService(dbPath: inMemoryDatabasePath);
+    addTearDown(databaseService.close);
+    final sync = OfflineSyncService(
+      databaseService: databaseService,
+      encryptionService: _TestEncryptionService(),
+      dio: Dio(),
+      connectivity: Connectivity(),
+      isForcedOffline: () => true,
+    );
+    final database = await databaseService.database;
+    const borrowerId = '00000000-0000-4000-8000-000000000031';
+    await database.insert('borrowers', {
+      'id': borrowerId,
+      'first_name': 'encrypted:Conflict',
+      'last_name': 'encrypted:Borrower',
+      'national_id': 'encrypted:conflict-id',
+      'phone': 'encrypted:09916084401',
+      'date_of_birth': '1990-01-01',
+      'status': 'Active',
+      'created_at': '2026-08-02T00:00:00Z',
+      'sync_status': 'conflict',
+    });
+    await sync.enqueue(
+      endpoint: '/api/v1/borrowers',
+      method: 'POST',
+      payload: const {'id': borrowerId},
+      entityType: 'borrower',
+      entityLocalId: borrowerId,
+      operationType: 'create',
+    );
+    await database.update('offline_sync_queue', {'status': 'conflict'});
+    await database.insert('sync_conflicts', {
+      'id': 'conflict-discard',
+      'entity_type': 'borrower',
+      'local_id': borrowerId,
+      'local_data_json': '{}',
+      'server_data_json': '{}',
+      'detected_at': '2026-08-02T01:00:00Z',
+      'status': 'unresolved',
+    });
+
+    final item = (await sync.getQueueState()).items.single;
+    await sync.discardLocalBorrowerRegistration(item);
+
+    expect(await database.query('borrowers'), isEmpty);
+    expect(await database.query('offline_sync_queue'), isEmpty);
+    expect((await sync.getQueueState()).conflicts, isEmpty);
+  });
 }

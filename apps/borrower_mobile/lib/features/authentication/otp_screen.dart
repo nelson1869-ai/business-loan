@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:borrower_mobile/core/auth/auth_notifier.dart';
 import 'package:borrower_mobile/core/auth/auth_state.dart';
+import 'package:borrower_mobile/core/config/env_config.dart';
 import 'package:borrower_mobile/core/widgets/app_button.dart';
 import 'package:borrower_mobile/core/widgets/app_text_field.dart';
+import 'package:borrower_mobile/core/widgets/route_back_navigation.dart';
 
 class OtpScreen extends ConsumerStatefulWidget {
   final String? invitationCode;
@@ -45,17 +47,19 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     final authState = ref.watch(authNotifierProvider);
     final isLoading = authState.status == AuthStatus.authenticating;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
-      appBar: AppBar(
-        title: const Text('OTP Verification'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-          onPressed: () => context.go('/login'),
+    return RouteBackScope(
+      fallbackLocation: '/login',
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF1F5F9),
+        appBar: AppBar(
+          title: const Text('OTP Verification'),
+          leading: const RouteBackButton(
+            fallbackLocation: '/login',
+            tooltip: 'Back to login',
+          ),
         ),
-      ),
-      body: SafeArea(
-        child: Center(
+        body: SafeArea(
+          child: Center(
           child: SingleChildScrollView(
             padding:
                 const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
@@ -94,6 +98,26 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                   ),
                 ),
                 const SizedBox(height: 28),
+                if (EnvConfig.localBorrowerOtpEnabled) ...[
+                  Container(
+                    key: const Key('local-development-otp-notice'),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFFBEB),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFF59E0B)),
+                    ),
+                    child: const Text(
+                      'Local development only: enter 123456',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Color(0xFF92400E),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 Container(
                   padding: const EdgeInsets.all(24.0),
                   decoration: BoxDecoration(
@@ -168,6 +192,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                 ),
               ],
             ),
+          ),
           ),
         ),
       ),

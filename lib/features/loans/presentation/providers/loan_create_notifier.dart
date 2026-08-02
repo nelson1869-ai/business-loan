@@ -10,7 +10,6 @@ import '../../data/models/loan_quote.dart';
 import '../../data/repositories/local_loan_repository.dart';
 import '../../domain/models/loan.dart';
 import '../../../borrowers/data/borrower_repository.dart';
-import '../../../borrowers/domain/borrower_model.dart';
 import '../../../../core/network/offline_sync_service.dart';
 import '../../../../core/network/api_endpoints.dart';
 import 'loans_provider.dart';
@@ -95,7 +94,6 @@ class LoanCreateNotifier extends StateNotifier<LoanCreateState> {
 
   Future<Loan?> submit({
     required String borrowerId,
-    required Borrower? borrower,
     required String principal,
     required String rate,
     required int termMonths,
@@ -111,6 +109,16 @@ class LoanCreateNotifier extends StateNotifier<LoanCreateState> {
     }
 
     state = const LoanCreateState(isSubmitting: true);
+    final borrowerVerified = await ref.read(
+      borrowerServerVerifiedProvider(borrowerId).future,
+    );
+    if (!borrowerVerified) {
+      state = const LoanCreateState(
+        error:
+            'Borrower identity verification is pending. Sync the borrower before creating a loan.',
+      );
+      return null;
+    }
     final fingerprint = <Object>[
       borrowerId,
       principal,
@@ -135,12 +143,6 @@ class LoanCreateNotifier extends StateNotifier<LoanCreateState> {
       startDate: formatDateOnly(startDate),
       firstDueDate: formatDateOnly(firstDueDate),
     );
-
-    if (borrower != null) {
-      try {
-        await ref.read(borrowerRepositoryProvider).saveBorrower(borrower);
-      } catch (_) {}
-    }
 
     try {
       final loan = await _localLoanRepository.createLoanOffline(createRequest);

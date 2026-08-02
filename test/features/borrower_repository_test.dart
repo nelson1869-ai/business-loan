@@ -38,7 +38,7 @@ void main() {
       firstName: 'Jane',
       lastName: 'Doe',
       nationalId: '12345678',
-      phone: '+254712345678',
+      phone: '09171234567',
       dateOfBirth: '1990-01-01',
       status: 'Pending',
       createdAt: '2026-01-01T00:00:00.000Z',
@@ -87,7 +87,7 @@ void main() {
       firstName: 'John',
       lastName: 'Doe',
       nationalId: '87654321',
-      phone: '+254700000000',
+      phone: '09170000000',
       dateOfBirth: '1990-01-01',
       status: 'Active',
       createdAt: '2026-01-01T00:00:00.000Z',
@@ -106,5 +106,126 @@ void main() {
       throwsA(isA<BorrowerHasOpenLoansException>()),
     );
     expect(await repository.getBorrower(borrower.id), isNotNull);
+  });
+
+  test('rejects an equivalent phone for a different borrower', () async {
+    const first = Borrower(
+      id: '00000000-0000-4000-8000-000000000004',
+      firstName: 'First',
+      lastName: 'Borrower',
+      nationalId: 'PHONE-ONE',
+      phone: '09916084400',
+      dateOfBirth: '1990-01-01',
+      status: 'Active',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    );
+    const duplicate = Borrower(
+      id: '00000000-0000-4000-8000-000000000005',
+      firstName: 'Second',
+      lastName: 'Borrower',
+      nationalId: 'PHONE-TWO',
+      phone: '+639916084400',
+      dateOfBirth: '1991-01-01',
+      status: 'Active',
+      createdAt: '2026-01-02T00:00:00.000Z',
+    );
+
+    await repository.saveBorrower(first);
+
+    await expectLater(
+      repository.saveBorrower(duplicate),
+      throwsA(isA<DuplicateBorrowerPhoneException>()),
+    );
+    expect((await repository.getBorrowers()).single.id, first.id);
+  });
+
+  test('remote refresh preserves pending local create', () async {
+    const pending = Borrower(
+      id: '00000000-0000-4000-8000-000000000006',
+      firstName: 'Pending',
+      lastName: 'Create',
+      nationalId: 'PENDING-CREATE',
+      phone: '09916084401',
+      dateOfBirth: '1992-01-01',
+      status: 'Active',
+      createdAt: '2026-01-03T00:00:00.000Z',
+    );
+    await repository.saveBorrower(pending);
+
+    await repository.syncRemoteBorrowers(const []);
+
+    expect((await repository.getBorrowers()).single.id, pending.id);
+    expect(await repository.isBorrowerServerVerified(pending.id), isFalse);
+  });
+
+  test('only a synced non-deleted borrower is server verified', () async {
+    const borrower = Borrower(
+      id: '00000000-0000-4000-8000-000000000009',
+      firstName: 'Verified',
+      lastName: 'Borrower',
+      nationalId: 'VERIFIED-ID',
+      phone: '09916084409',
+      dateOfBirth: '1990-01-01',
+      status: 'Active',
+      createdAt: '2026-01-06T00:00:00.000Z',
+    );
+
+    await repository.saveBorrower(borrower, syncStatus: 'synced');
+    expect(await repository.isBorrowerServerVerified(borrower.id), isTrue);
+
+    await repository.deleteBorrower(borrower.id, softDeleteOnly: true);
+    expect(await repository.isBorrowerServerVerified(borrower.id), isFalse);
+  });
+
+  test('remote refresh preserves pending local update', () async {
+    const original = Borrower(
+      id: '00000000-0000-4000-8000-000000000007',
+      firstName: 'Original',
+      lastName: 'Name',
+      nationalId: 'PENDING-UPDATE',
+      phone: '09916084402',
+      dateOfBirth: '1993-01-01',
+      status: 'Active',
+      createdAt: '2026-01-04T00:00:00.000Z',
+    );
+    final updated = Borrower(
+      id: original.id,
+      firstName: 'Updated',
+      lastName: 'Name',
+      nationalId: original.nationalId,
+      phone: original.phone,
+      dateOfBirth: original.dateOfBirth,
+      status: original.status,
+      createdAt: original.createdAt,
+    );
+    await repository.saveBorrower(original, syncStatus: 'synced');
+    await repository.updateBorrower(updated);
+
+    await repository.syncRemoteBorrowers(const [original]);
+
+    expect((await repository.getBorrowers()).single.firstName, 'Updated');
+  });
+
+  test('remote refresh does not resurrect pending local deletion', () async {
+    const borrower = Borrower(
+      id: '00000000-0000-4000-8000-000000000008',
+      firstName: 'Pending',
+      lastName: 'Delete',
+      nationalId: 'PENDING-DELETE',
+      phone: '09916084403',
+      dateOfBirth: '1994-01-01',
+      status: 'Active',
+      createdAt: '2026-01-05T00:00:00.000Z',
+    );
+    await repository.saveBorrower(borrower, syncStatus: 'synced');
+    await repository.deleteBorrower(borrower.id, softDeleteOnly: true);
+
+    await repository.syncRemoteBorrowers(const [borrower]);
+
+    expect(await repository.getBorrowers(), isEmpty);
+    final database = await databaseService.database;
+    final tombstone = (await database.query('borrowers')).single;
+    expect(tombstone['deleted_at'], isNotNull);
+    expect(tombstone['sync_status'], 'pending');
   });
 }

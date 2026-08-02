@@ -236,7 +236,14 @@ async def _replay_item(
             payload = BorrowerCreate.model_validate(item.payload)
             existing = await borrower_service.get_borrower(db, payload.id)
             if existing is None:
-                await borrower_service.create_borrower(db, payload, current_user)
+                try:
+                    await borrower_service.create_borrower(db, payload, current_user)
+                except borrower_service.BorrowerIdentityConflictError as error:
+                    raise SyncReplayError(
+                        "IDENTITY_CONFLICT",
+                        str(error),
+                        retryable=False,
+                    ) from error
             return
 
         borrower = await borrower_service.get_borrower(db, borrower_id)

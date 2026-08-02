@@ -60,7 +60,9 @@ class LoansListNotifier extends StateNotifier<LoansListState> {
     required this.repository,
     required this.borrowerAccountId,
   }) : super(const LoansListState()) {
-    loadLoans();
+    if (borrowerAccountId.isNotEmpty) {
+      loadLoans();
+    }
   }
 
   Future<void> loadLoans({
@@ -99,7 +101,9 @@ class LoansListNotifier extends StateNotifier<LoansListState> {
         offset: response.offset,
         limit: response.limit,
         isFromCache: isCached,
-        lastUpdated: response.items.isNotEmpty ? response.items.first.updatedAt : DateTime.now(),
+        lastUpdated: response.items.isNotEmpty
+            ? response.items.first.updatedAt
+            : DateTime.now(),
         clearError: true,
       );
     } catch (e) {
@@ -151,7 +155,9 @@ class LoanDetailNotifier extends StateNotifier<LoanDetailState> {
     required this.borrowerAccountId,
     required this.loanId,
   }) : super(const LoanDetailState()) {
-    loadDetail();
+    if (borrowerAccountId.isNotEmpty && loanId.isNotEmpty) {
+      loadDetail();
+    }
   }
 
   Future<void> loadDetail() async {
@@ -185,24 +191,104 @@ final loanRepositoryProvider = Provider<LoanRepository>((ref) {
 final loansListNotifierProvider =
     StateNotifierProvider<LoansListNotifier, LoansListState>((ref) {
   final repository = ref.watch(loanRepositoryProvider);
-  final authState = ref.watch(authNotifierProvider);
-  final accountId = authState.borrowerAccountId ?? '';
+  final accountId = ref.watch(
+    authNotifierProvider.select((auth) => auth.borrowerAccountId),
+  );
 
   return LoansListNotifier(
     repository: repository,
-    borrowerAccountId: accountId,
+    borrowerAccountId: accountId ?? '',
   );
 });
 
 final loanDetailNotifierProvider = StateNotifierProvider.family
     .autoDispose<LoanDetailNotifier, LoanDetailState, String>((ref, loanId) {
   final repository = ref.watch(loanRepositoryProvider);
-  final authState = ref.watch(authNotifierProvider);
-  final accountId = authState.borrowerAccountId ?? '';
+  final accountId = ref.watch(
+    authNotifierProvider.select((auth) => auth.borrowerAccountId),
+  );
 
   return LoanDetailNotifier(
     repository: repository,
-    borrowerAccountId: accountId,
+    borrowerAccountId: accountId ?? '',
+    loanId: loanId,
+  );
+});
+
+class LoanScheduleState {
+  final bool isLoading;
+  final BorrowerInstallmentSchedule? schedule;
+  final String? errorMessage;
+
+  const LoanScheduleState({
+    this.isLoading = false,
+    this.schedule,
+    this.errorMessage,
+  });
+
+  LoanScheduleState copyWith({
+    bool? isLoading,
+    BorrowerInstallmentSchedule? schedule,
+    String? errorMessage,
+    bool clearError = false,
+  }) {
+    return LoanScheduleState(
+      isLoading: isLoading ?? this.isLoading,
+      schedule: schedule ?? this.schedule,
+      errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+    );
+  }
+}
+
+class LoanScheduleNotifier extends StateNotifier<LoanScheduleState> {
+  final LoanRepository repository;
+  final String borrowerAccountId;
+  final String loanId;
+
+  LoanScheduleNotifier({
+    required this.repository,
+    required this.borrowerAccountId,
+    required this.loanId,
+  }) : super(const LoanScheduleState()) {
+    if (borrowerAccountId.isNotEmpty && loanId.isNotEmpty) {
+      loadSchedule();
+    }
+  }
+
+  Future<void> loadSchedule() async {
+    if (state.schedule == null) {
+      state = state.copyWith(isLoading: true, clearError: true);
+    }
+    try {
+      final schedule = await repository.getLoanSchedule(
+        borrowerAccountId: borrowerAccountId,
+        loanId: loanId,
+      );
+      state = state.copyWith(
+        isLoading: false,
+        schedule: schedule,
+        clearError: true,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.toString().replaceAll('Exception: ', ''),
+      );
+    }
+  }
+}
+
+final loanScheduleNotifierProvider = StateNotifierProvider.family
+    .autoDispose<LoanScheduleNotifier, LoanScheduleState, String>(
+        (ref, loanId) {
+  final repository = ref.watch(loanRepositoryProvider);
+  final accountId = ref.watch(
+    authNotifierProvider.select((auth) => auth.borrowerAccountId),
+  );
+
+  return LoanScheduleNotifier(
+    repository: repository,
+    borrowerAccountId: accountId ?? '',
     loanId: loanId,
   );
 });

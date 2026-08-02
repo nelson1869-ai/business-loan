@@ -527,6 +527,14 @@ class OfflineSyncService {
                 entityLocalId,
                 'synced',
                 null,
+                operationType: row['operation_type'] as String?,
+              );
+              await txn.update(
+                'sync_conflicts',
+                {'status': 'resolved:retry'},
+                where:
+                    "entity_type = ? AND local_id = ? AND status = 'unresolved'",
+                whereArgs: [entityType, entityLocalId],
               );
             }
           }
@@ -752,8 +760,9 @@ class OfflineSyncService {
     String entityType,
     String entityLocalId,
     String syncStatus,
-    String? syncError,
-  ) async {
+    String? syncError, {
+    String? operationType,
+  }) async {
     String? tableName;
     switch (entityType) {
       case 'borrower':
@@ -778,6 +787,14 @@ class OfflineSyncService {
 
     if (tableName != null) {
       try {
+        if (entityType == 'borrower' && operationType == 'delete') {
+          await txn.delete(
+            tableName,
+            where: 'id = ?',
+            whereArgs: [entityLocalId],
+          );
+          return;
+        }
         final values = <String, dynamic>{'sync_status': syncStatus};
         if (syncError != null) {
           values['sync_error'] = syncError;
@@ -885,6 +902,7 @@ class OfflineSyncService {
 
     final conflictRows = await database.query(
       'sync_conflicts',
+      where: "status = 'unresolved'",
       orderBy: 'detected_at DESC',
     );
     final conflicts = conflictRows.map((r) {
@@ -1011,6 +1029,36 @@ class OfflineSyncService {
       where: 'transaction_uuid = ?',
       whereArgs: [transactionUuid],
     );
+    onQueueChanged?.call();
+  }
+
+  /// Discard an unverified local borrower create after an identity conflict.
+  Future<void> discardLocalBorrowerRegistration(
+    OfflineQueueItemModel item,
+  ) async {
+    final localId = item.entityLocalId;
+    if (item.entityType != 'borrower' ||
+        item.operationType != 'create' ||
+        localId == null ||
+        localId.isEmpty) {
+      throw StateError('Only borrower create operations can be discarded here');
+    }
+    await deleteItem(item.transactionUuid);
+    final database = await _databaseService.database;
+    await database.transaction((txn) async {
+      await txn.delete(
+        'borrowers',
+        where: "id = ? AND sync_status != 'synced'",
+        whereArgs: [localId],
+      );
+      await txn.update(
+        'sync_conflicts',
+        {'status': 'resolved:discarded'},
+        where:
+            "entity_type = 'borrower' AND local_id = ? AND status = 'unresolved'",
+        whereArgs: [localId],
+      );
+    });
     onQueueChanged?.call();
   }
 

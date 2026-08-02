@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:borrower_mobile/core/widgets/route_back_navigation.dart';
 
 class PlaceholderScreen extends StatelessWidget {
   final String title;
@@ -12,11 +13,17 @@ class PlaceholderScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-      ),
-      body: Center(
+    return RouteBackScope(
+      fallbackLocation: '/home',
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(title),
+          leading: const RouteBackButton(
+            fallbackLocation: '/home',
+            tooltip: 'Back to dashboard',
+          ),
+        ),
+        body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
           child: Column(
@@ -43,6 +50,7 @@ class PlaceholderScreen extends StatelessWidget {
               ),
             ],
           ),
+        ),
         ),
       ),
     );

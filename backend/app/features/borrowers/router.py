@@ -9,11 +9,36 @@ from app.core.dependencies import CurrentUser, DbSession
 from app.features.borrowers import service as borrower_service
 from app.features.borrowers.schemas import (
     BorrowerCreate,
+    BorrowerIdentityCheck,
+    BorrowerIdentityCheckResponse,
     BorrowerResponse,
     BorrowerUpdate,
 )
 
 router = APIRouter(prefix="/api/v1/borrowers", tags=["Borrowers"])
+
+
+@router.post("/identity-check", response_model=BorrowerIdentityCheckResponse)
+async def check_identity(
+    payload: BorrowerIdentityCheck,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> BorrowerIdentityCheckResponse:
+    """Preflight a borrower identity for an authenticated officer."""
+    del current_user
+    outcome, message, borrower_id = await borrower_service.check_borrower_identity(
+        db,
+        payload.first_name,
+        payload.last_name,
+        payload.national_id,
+        payload.phone,
+        payload.date_of_birth,
+    )
+    return BorrowerIdentityCheckResponse(
+        outcome=outcome,
+        message=message,
+        borrower_id=borrower_id,
+    )
 
 
 @router.get("", response_model=list[BorrowerResponse])
@@ -46,11 +71,17 @@ async def register_borrower(
     try:
         borrower = await borrower_service.create_borrower(db, payload, current_user)
         await db.commit()
+    except borrower_service.BorrowerIdentityConflictError as error:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(error),
+        ) from error
     except IntegrityError as error:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Borrower ID or national ID already exists",
+            detail="Borrower ID, national ID, or phone number already exists",
         ) from error
     await db.refresh(borrower)
     return BorrowerResponse.model_validate(borrower)
@@ -94,7 +125,7 @@ async def replace_borrower(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="National ID already exists",
+            detail="National ID or phone number already exists",
         ) from error
     await db.refresh(borrower)
     return BorrowerResponse.model_validate(borrower)

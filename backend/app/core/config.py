@@ -2,7 +2,7 @@
 
 from functools import lru_cache
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ALLOWED_ENVIRONMENTS = {"development", "dev", "test", "staging", "production", "prod"}
@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     login_rate_limit_per_minute: int = Field(default=5, ge=1, le=100)
     business_timezone: str = "Asia/Manila"
     currency_code: str = Field(default="PHP", min_length=3, max_length=3)
+    local_borrower_otp_enabled: bool = False
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -137,6 +138,15 @@ class Settings(BaseSettings):
     def normalize_currency_code(cls, value: str) -> str:
         """Store an ISO-style uppercase currency code."""
         return value.upper()
+
+    @model_validator(mode="after")
+    def validate_local_borrower_otp(self) -> "Settings":
+        """Allow the fixed borrower OTP only in the development environment."""
+        if self.local_borrower_otp_enabled and self.app_env != "development":
+            raise ValueError(
+                "LOCAL_BORROWER_OTP_ENABLED may only be enabled when APP_ENV=development."
+            )
+        return self
 
 
 @lru_cache

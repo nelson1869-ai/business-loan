@@ -1,5 +1,23 @@
 import 'package:equatable/equatable.dart';
 
+double _doubleFromJson(Object? value, String fieldName) {
+  if (value is num) return value.toDouble();
+  if (value is String) {
+    final parsed = double.tryParse(value);
+    if (parsed != null) return parsed;
+  }
+  throw FormatException('Invalid numeric value for $fieldName');
+}
+
+int _intFromJson(Object? value, String fieldName) {
+  if (value is num) return value.toInt();
+  if (value is String) {
+    final parsed = num.tryParse(value);
+    if (parsed != null) return parsed.toInt();
+  }
+  throw FormatException('Invalid integer value for $fieldName');
+}
+
 class BorrowerInfo extends Equatable {
   final String id;
   final String firstName;
@@ -50,14 +68,18 @@ class DashboardSummary extends Equatable {
 
   factory DashboardSummary.fromJson(Map<String, dynamic> json) {
     return DashboardSummary(
-      activeLoanCount: (json['activeLoanCount'] as num).toInt(),
-      totalOutstandingBalance:
-          (json['totalOutstandingBalance'] as num).toDouble(),
-      nextPaymentAmount: (json['nextPaymentAmount'] as num).toDouble(),
+      activeLoanCount:
+          _intFromJson(json['activeLoanCount'], 'activeLoanCount'),
+      totalOutstandingBalance: _doubleFromJson(
+        json['totalOutstandingBalance'],
+        'totalOutstandingBalance',
+      ),
+      nextPaymentAmount:
+          _doubleFromJson(json['nextPaymentAmount'], 'nextPaymentAmount'),
       nextDueDate: json['nextDueDate'] != null
           ? DateTime.parse(json['nextDueDate'] as String)
           : null,
-      overdueAmount: (json['overdueAmount'] as num).toDouble(),
+      overdueAmount: _doubleFromJson(json['overdueAmount'], 'overdueAmount'),
       loanStatus: json['loanStatus'] as String,
       paymentStatus: json['paymentStatus'] as String,
     );
@@ -103,7 +125,7 @@ class DashboardRecentPayment extends Equatable {
   factory DashboardRecentPayment.fromJson(Map<String, dynamic> json) {
     return DashboardRecentPayment(
       id: json['id'] as String,
-      amount: (json['amount'] as num).toDouble(),
+      amount: _doubleFromJson(json['amount'], 'amount'),
       effectiveDate: DateTime.parse(json['effectiveDate'] as String),
       entryType: json['entryType'] as String,
       receiptNumber: json['receiptNumber'] as String,
@@ -143,8 +165,7 @@ class BorrowerDashboard extends Equatable {
     bool isFromCache = false,
   }) {
     return BorrowerDashboard(
-      borrower:
-          BorrowerInfo.fromJson(json['borrower'] as Map<String, dynamic>),
+      borrower: BorrowerInfo.fromJson(json['borrower'] as Map<String, dynamic>),
       summary:
           DashboardSummary.fromJson(json['summary'] as Map<String, dynamic>),
       recentPayment: json['recentPayment'] != null

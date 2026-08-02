@@ -7,11 +7,16 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from httpx import ASGITransport, AsyncClient
 
+from app.core.config import Settings
 from app.core.database import get_db
 from app.features.auth.service import create_token
 from app.features.borrower_portal.service import (
+    LOCAL_DEVELOPMENT_OTP,
     create_borrower_access_token,
+    dev_otp_provider,
+    hash_secret,
     normalize_ph_phone_number,
+    request_otp,
     verify_borrower_access_token,
 )
 from app.features.borrowers.models import Borrower
@@ -62,6 +67,41 @@ class TestBorrowerTokenSecurity(unittest.TestCase):
 
         with self.assertRaises(TokenValidationError):
             verify_borrower_access_token(officer_token)
+
+
+class TestLocalDevelopmentOTP(unittest.IsolatedAsyncioTestCase):
+    """Verify the fixed local OTP remains opt-in and hashed at rest."""
+
+    async def test_fixed_local_otp_is_hashed_before_storage(self) -> None:
+        db = AsyncMock()
+        db.add = MagicMock()
+        result = MagicMock()
+        result.scalar_one_or_none.return_value = None
+        db.execute.return_value = result
+        settings = Settings(
+            app_env="development",
+            database_url="postgresql+asyncpg://user:pass@localhost:5432/db",
+            jwt_secret_key="strong-random-value-0123456789-ABCDEFGHIJ",
+            cors_origins="*",
+            local_borrower_otp_enabled=True,
+        )
+
+        phone = "+639171234567"
+        dev_otp_provider.last_delivered_otp.pop(phone, None)
+        try:
+            accepted, cooldown = await request_otp(db, phone, settings=settings)
+
+            self.assertTrue(accepted)
+            self.assertEqual(cooldown, 60)
+            stored_otp = db.add.call_args.args[0]
+            self.assertEqual(stored_otp.otp_code_hash, hash_secret(LOCAL_DEVELOPMENT_OTP))
+            self.assertNotEqual(stored_otp.otp_code_hash, LOCAL_DEVELOPMENT_OTP)
+            self.assertEqual(
+                dev_otp_provider.last_delivered_otp[phone], LOCAL_DEVELOPMENT_OTP
+            )
+            db.flush.assert_awaited_once()
+        finally:
+            dev_otp_provider.last_delivered_otp.pop(phone, None)
 
 
 class TestBorrowerPortalRouter(unittest.IsolatedAsyncioTestCase):

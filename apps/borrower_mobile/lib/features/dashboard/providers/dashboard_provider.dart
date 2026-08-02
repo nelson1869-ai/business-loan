@@ -30,9 +30,15 @@ class DashboardState {
 
 class DashboardNotifier extends StateNotifier<DashboardState> {
   final DashboardRepository repository;
+  final String borrowerAccountId;
 
-  DashboardNotifier(this.repository) : super(const DashboardState()) {
-    loadDashboard();
+  DashboardNotifier({
+    required this.repository,
+    required this.borrowerAccountId,
+  }) : super(const DashboardState()) {
+    if (borrowerAccountId.isNotEmpty) {
+      loadDashboard();
+    }
   }
 
   Future<void> loadDashboard({bool isRefresh = false}) async {
@@ -40,7 +46,9 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
       state = state.copyWith(isLoading: true, clearError: true);
     }
     try {
-      final dashboard = await repository.getDashboard();
+      final dashboard = await repository.getDashboard(
+        borrowerAccountId: borrowerAccountId,
+      );
       state = state.copyWith(
         isLoading: false,
         dashboard: dashboard,
@@ -63,5 +71,11 @@ final dashboardRepositoryProvider = Provider<DashboardRepository>((ref) {
 final dashboardNotifierProvider =
     StateNotifierProvider<DashboardNotifier, DashboardState>((ref) {
   final repository = ref.watch(dashboardRepositoryProvider);
-  return DashboardNotifier(repository);
+  final accountId = ref.watch(
+    authNotifierProvider.select((auth) => auth.borrowerAccountId),
+  );
+  return DashboardNotifier(
+    repository: repository,
+    borrowerAccountId: accountId ?? '',
+  );
 });

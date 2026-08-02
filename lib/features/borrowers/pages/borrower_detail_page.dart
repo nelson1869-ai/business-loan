@@ -89,19 +89,28 @@ class _BorrowerDetailContent extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final borrowersAsync = ref.watch(borrowersNotifierProvider);
+    final borrowers = borrowersAsync.valueOrNull ?? const <Borrower>[];
     final borrower =
-        borrowersAsync.valueOrNull
-            ?.where((b) => b.id == borrowerId)
-            .firstOrNull ??
+        borrowers.where((b) => b.id == borrowerId).firstOrNull ??
+        (initialBorrower == null
+            ? null
+            : borrowers
+                  .where(
+                    (b) =>
+                        b.phone == initialBorrower!.phone &&
+                        b.nationalId == initialBorrower!.nationalId,
+                  )
+                  .firstOrNull) ??
         initialBorrower;
 
     if (borrower == null) {
       return const BorrowerSkeletonLoader();
     }
 
-    final loansAsync = ref.watch(borrowerLoansProvider(borrowerId));
+    final effectiveBorrowerId = borrower.id;
+    final loansAsync = ref.watch(borrowerLoansProvider(effectiveBorrowerId));
     final recommendationAsync = ref.watch(
-      borrowerRecommendationProvider(borrowerId),
+      borrowerRecommendationProvider(effectiveBorrowerId),
     );
     final loans = loansAsync.valueOrNull ?? const <Loan>[];
     final activeLoan = loans
@@ -175,7 +184,10 @@ class _BorrowerDetailContent extends ConsumerWidget {
         BorrowerRecommendationCard(
           recommendation: recommendation,
           onApplyRecommended: () {
-            context.push('/borrowers/$borrowerId/loans/new', extra: borrower);
+            context.push(
+              '/borrowers/$effectiveBorrowerId/loans/new',
+              extra: borrower,
+            );
           },
         ),
       ],
@@ -186,8 +198,8 @@ class _BorrowerDetailContent extends ConsumerWidget {
         OverviewTabView(borrower: borrower, leading: overviewSections),
         LoansTabView(borrower: borrower, loans: loans),
         PaymentsTabView(loans: loans),
-        DocumentsTabView(borrowerId: borrowerId),
-        NotesTabView(borrowerId: borrowerId),
+        DocumentsTabView(borrowerId: effectiveBorrowerId),
+        NotesTabView(borrowerId: effectiveBorrowerId),
         ActivityTabView(borrower: borrower),
       ],
     );

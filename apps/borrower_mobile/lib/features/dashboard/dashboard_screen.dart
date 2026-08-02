@@ -11,7 +11,8 @@ class DashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(dashboardNotifierProvider);
-    final currencyFormat = NumberFormat.currency(symbol: '₱ ', decimalDigits: 2);
+    final currencyFormat =
+        NumberFormat.currency(symbol: '₱ ', decimalDigits: 2);
     final dateFormat = DateFormat('MMM dd, yyyy');
     final timeFormat = DateFormat('MMM dd, h:mm a');
 
@@ -129,7 +130,8 @@ class DashboardScreen extends ConsumerWidget {
             ),
             child: Row(
               children: [
-                Icon(Icons.wifi_off_rounded, color: Colors.amber.shade800, size: 20),
+                Icon(Icons.wifi_off_rounded,
+                    color: Colors.amber.shade800, size: 20),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -187,7 +189,8 @@ class DashboardScreen extends ConsumerWidget {
         // Summary Card
         Card(
           elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: Padding(
             padding: const EdgeInsets.all(20.0),
             child: Column(
@@ -209,7 +212,8 @@ class DashboardScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  currencyFormat.format(dashboard.summary.totalOutstandingBalance),
+                  currencyFormat
+                      .format(dashboard.summary.totalOutstandingBalance),
                   style: const TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
@@ -254,7 +258,8 @@ class DashboardScreen extends ConsumerWidget {
             ),
             child: Row(
               children: [
-                Icon(Icons.warning_amber_rounded, color: Colors.red.shade700, size: 28),
+                Icon(Icons.warning_amber_rounded,
+                    color: Colors.red.shade700, size: 28),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -287,7 +292,8 @@ class DashboardScreen extends ConsumerWidget {
         if (dashboard.summary.activeLoanCount > 0)
           Card(
             elevation: 1,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
@@ -314,7 +320,8 @@ class DashboardScreen extends ConsumerWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            currencyFormat.format(dashboard.summary.nextPaymentAmount),
+                            currencyFormat
+                                .format(dashboard.summary.nextPaymentAmount),
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -333,7 +340,8 @@ class DashboardScreen extends ConsumerWidget {
                           const SizedBox(height: 4),
                           Text(
                             dashboard.summary.nextDueDate != null
-                                ? dateFormat.format(dashboard.summary.nextDueDate!)
+                                ? dateFormat
+                                    .format(dashboard.summary.nextDueDate!)
                                 : 'No date set',
                             style: const TextStyle(
                               fontSize: 14,
@@ -356,7 +364,8 @@ class DashboardScreen extends ConsumerWidget {
         if (dashboard.recentPayment != null)
           Card(
             elevation: 1,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
@@ -378,7 +387,8 @@ class DashboardScreen extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            currencyFormat.format(dashboard.recentPayment!.amount),
+                            currencyFormat
+                                .format(dashboard.recentPayment!.amount),
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -388,12 +398,14 @@ class DashboardScreen extends ConsumerWidget {
                           const SizedBox(height: 2),
                           Text(
                             'Receipt: ${dashboard.recentPayment!.receiptNumber}',
-                            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                            style: TextStyle(
+                                fontSize: 11, color: Colors.grey[600]),
                           ),
                         ],
                       ),
                       Text(
-                        dateFormat.format(dashboard.recentPayment!.effectiveDate),
+                        dateFormat
+                            .format(dashboard.recentPayment!.effectiveDate),
                         style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
@@ -419,31 +431,35 @@ class DashboardScreen extends ConsumerWidget {
         ),
         const SizedBox(height: 12),
         Card(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: Column(
             children: [
               ListTile(
-                leading: const Icon(Icons.account_balance_wallet_outlined, color: Colors.indigo),
+                leading: const Icon(Icons.account_balance_wallet_outlined,
+                    color: Colors.indigo),
                 title: const Text('My Loans'),
                 subtitle: const Text('View active schedules and balances'),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.go('/loans'),
+                onTap: () => context.push('/loans'),
               ),
               const Divider(height: 1),
               ListTile(
-                leading: const Icon(Icons.payment_outlined, color: Colors.green),
+                leading:
+                    const Icon(Icons.payment_outlined, color: Colors.green),
                 title: const Text('Payments'),
                 subtitle: const Text('Payment history and receipts'),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.go('/payments'),
+                onTap: () => context.push('/payments'),
               ),
               const Divider(height: 1),
               ListTile(
-                leading: const Icon(Icons.notifications_none_outlined, color: Colors.amber),
+                leading: const Icon(Icons.notifications_none_outlined,
+                    color: Colors.amber),
                 title: const Text('Notifications'),
                 subtitle: const Text('Reminders and account alerts'),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.go('/notifications'),
+                onTap: () => context.push('/notifications'),
               ),
               const Divider(height: 1),
               ListTile(
@@ -451,7 +467,7 @@ class DashboardScreen extends ConsumerWidget {
                 title: const Text('Profile'),
                 subtitle: const Text('Account settings and security'),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.go('/profile'),
+                onTap: () => context.push('/profile'),
               ),
             ],
           ),
@@ -518,7 +534,8 @@ class DashboardScreen extends ConsumerWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(color: text, fontSize: 12, fontWeight: FontWeight.bold),
+        style:
+            TextStyle(color: text, fontSize: 12, fontWeight: FontWeight.bold),
       ),
     );
   }

@@ -1,5 +1,23 @@
 import 'package:equatable/equatable.dart';
 
+double _doubleFromJson(Object? value) {
+  if (value is num) return value.toDouble();
+  if (value is String) {
+    final parsed = double.tryParse(value);
+    if (parsed != null) return parsed;
+  }
+  return 0.0;
+}
+
+int _intFromJson(Object? value) {
+  if (value is num) return value.toInt();
+  if (value is String) {
+    final parsed = num.tryParse(value);
+    if (parsed != null) return parsed.toInt();
+  }
+  return 0;
+}
+
 class BorrowerLoanListItem extends Equatable {
   final String id;
   final String loanReference;
@@ -42,20 +60,20 @@ class BorrowerLoanListItem extends Equatable {
       id: json['id'] as String,
       loanReference: json['loanReference'] as String,
       status: json['status'] as String,
-      principalAmount: (json['principalAmount'] as num).toDouble(),
-      totalRepayable: (json['totalRepayable'] as num).toDouble(),
-      amountPaid: (json['amountPaid'] as num).toDouble(),
-      outstandingBalance: (json['outstandingBalance'] as num).toDouble(),
-      installmentAmount: (json['installmentAmount'] as num).toDouble(),
+      principalAmount: _doubleFromJson(json['principalAmount']),
+      totalRepayable: _doubleFromJson(json['totalRepayable']),
+      amountPaid: _doubleFromJson(json['amountPaid']),
+      outstandingBalance: _doubleFromJson(json['outstandingBalance']),
+      installmentAmount: _doubleFromJson(json['installmentAmount']),
       paymentFrequency: json['paymentFrequency'] as String,
       startDate: DateTime.parse(json['startDate'] as String),
       maturityDate: DateTime.parse(json['maturityDate'] as String),
       nextDueDate: json['nextDueDate'] != null
           ? DateTime.parse(json['nextDueDate'] as String)
           : null,
-      nextPaymentAmount: (json['nextPaymentAmount'] as num).toDouble(),
+      nextPaymentAmount: _doubleFromJson(json['nextPaymentAmount']),
       isOverdue: json['isOverdue'] as bool,
-      overdueAmount: (json['overdueAmount'] as num).toDouble(),
+      overdueAmount: _doubleFromJson(json['overdueAmount']),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
   }
@@ -119,9 +137,9 @@ class BorrowerLoanListResponse extends Equatable {
       items: list
           .map((e) => BorrowerLoanListItem.fromJson(e as Map<String, dynamic>))
           .toList(),
-      total: (json['total'] as num).toInt(),
-      offset: (json['offset'] as num).toInt(),
-      limit: (json['limit'] as num).toInt(),
+      total: _intFromJson(json['total']),
+      offset: _intFromJson(json['offset']),
+      limit: _intFromJson(json['limit']),
     );
   }
 
@@ -157,13 +175,13 @@ class BorrowerLoanFinancialSummary extends Equatable {
 
   factory BorrowerLoanFinancialSummary.fromJson(Map<String, dynamic> json) {
     return BorrowerLoanFinancialSummary(
-      principalAmount: (json['principalAmount'] as num).toDouble(),
-      interestAmount: (json['interestAmount'] as num).toDouble(),
-      feesAmount: (json['feesAmount'] as num).toDouble(),
-      totalRepayable: (json['totalRepayable'] as num).toDouble(),
-      amountPaid: (json['amountPaid'] as num).toDouble(),
-      outstandingBalance: (json['outstandingBalance'] as num).toDouble(),
-      overdueAmount: (json['overdueAmount'] as num).toDouble(),
+      principalAmount: _doubleFromJson(json['principalAmount']),
+      interestAmount: _doubleFromJson(json['interestAmount']),
+      feesAmount: _doubleFromJson(json['feesAmount']),
+      totalRepayable: _doubleFromJson(json['totalRepayable']),
+      amountPaid: _doubleFromJson(json['amountPaid']),
+      outstandingBalance: _doubleFromJson(json['outstandingBalance']),
+      overdueAmount: _doubleFromJson(json['overdueAmount']),
     );
   }
 
@@ -209,9 +227,9 @@ class BorrowerLoanTerms extends Equatable {
   factory BorrowerLoanTerms.fromJson(Map<String, dynamic> json) {
     return BorrowerLoanTerms(
       paymentFrequency: json['paymentFrequency'] as String,
-      installmentCount: (json['installmentCount'] as num).toInt(),
-      installmentAmount: (json['installmentAmount'] as num).toDouble(),
-      interestRate: (json['interestRate'] as num).toDouble(),
+      installmentCount: _intFromJson(json['installmentCount']),
+      installmentAmount: _doubleFromJson(json['installmentAmount']),
+      interestRate: _doubleFromJson(json['interestRate']),
       startDate: DateTime.parse(json['startDate'] as String),
       maturityDate: DateTime.parse(json['maturityDate'] as String),
     );
@@ -256,11 +274,11 @@ class BorrowerNextInstallment extends Equatable {
 
   factory BorrowerNextInstallment.fromJson(Map<String, dynamic> json) {
     return BorrowerNextInstallment(
-      installmentNumber: (json['installmentNumber'] as num).toInt(),
+      installmentNumber: _intFromJson(json['installmentNumber']),
       dueDate: DateTime.parse(json['dueDate'] as String),
-      amountDue: (json['amountDue'] as num).toDouble(),
-      amountPaid: (json['amountPaid'] as num).toDouble(),
-      remainingAmount: (json['remainingAmount'] as num).toDouble(),
+      amountDue: _doubleFromJson(json['amountDue']),
+      amountPaid: _doubleFromJson(json['amountPaid']),
+      remainingAmount: _doubleFromJson(json['remainingAmount']),
       status: json['status'] as String,
     );
   }
@@ -315,15 +333,12 @@ class BorrowerLoanDetail extends Equatable {
       loanReference: json['loanReference'] as String,
       status: json['status'] as String,
       financialSummary: BorrowerLoanFinancialSummary.fromJson(
-        json['financialSummary'] as Map<String, dynamic>,
-      ),
+          json['financialSummary'] as Map<String, dynamic>),
       terms: BorrowerLoanTerms.fromJson(
-        json['terms'] as Map<String, dynamic>,
-      ),
+          json['terms'] as Map<String, dynamic>),
       nextInstallment: json['nextInstallment'] != null
           ? BorrowerNextInstallment.fromJson(
-              json['nextInstallment'] as Map<String, dynamic>,
-            )
+              json['nextInstallment'] as Map<String, dynamic>)
           : null,
       lastUpdated: DateTime.parse(json['lastUpdated'] as String),
       isFromCache: isFromCache,
@@ -340,28 +355,6 @@ class BorrowerLoanDetail extends Equatable {
         'lastUpdated': lastUpdated.toIso8601String(),
       };
 
-  BorrowerLoanDetail copyWith({
-    String? id,
-    String? loanReference,
-    String? status,
-    BorrowerLoanFinancialSummary? financialSummary,
-    BorrowerLoanTerms? terms,
-    BorrowerNextInstallment? nextInstallment,
-    DateTime? lastUpdated,
-    bool? isFromCache,
-  }) {
-    return BorrowerLoanDetail(
-      id: id ?? this.id,
-      loanReference: loanReference ?? this.loanReference,
-      status: status ?? this.status,
-      financialSummary: financialSummary ?? this.financialSummary,
-      terms: terms ?? this.terms,
-      nextInstallment: nextInstallment ?? this.nextInstallment,
-      lastUpdated: lastUpdated ?? this.lastUpdated,
-      isFromCache: isFromCache ?? this.isFromCache,
-    );
-  }
-
   @override
   List<Object?> get props => [
         id,
@@ -371,6 +364,118 @@ class BorrowerLoanDetail extends Equatable {
         terms,
         nextInstallment,
         lastUpdated,
+        isFromCache,
+      ];
+}
+
+class BorrowerInstallmentItem extends Equatable {
+  final int installmentNumber;
+  final DateTime dueDate;
+  final double expectedPayment;
+  final double expectedPrincipal;
+  final double expectedInterest;
+  final double paidAmount;
+  final double remainingBalance;
+  final String status;
+
+  const BorrowerInstallmentItem({
+    required this.installmentNumber,
+    required this.dueDate,
+    required this.expectedPayment,
+    required this.expectedPrincipal,
+    required this.expectedInterest,
+    required this.paidAmount,
+    required this.remainingBalance,
+    required this.status,
+  });
+
+  factory BorrowerInstallmentItem.fromJson(Map<String, dynamic> json) {
+    return BorrowerInstallmentItem(
+      installmentNumber: _intFromJson(json['installmentNumber']),
+      dueDate: DateTime.parse(json['dueDate'] as String),
+      expectedPayment: _doubleFromJson(json['expectedPayment']),
+      expectedPrincipal: _doubleFromJson(json['expectedPrincipal']),
+      expectedInterest: _doubleFromJson(json['expectedInterest']),
+      paidAmount: _doubleFromJson(json['paidAmount']),
+      remainingBalance: _doubleFromJson(json['remainingBalance']),
+      status: json['status'] as String,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'installmentNumber': installmentNumber,
+        'dueDate': dueDate.toIso8601String(),
+        'expectedPayment': expectedPayment,
+        'expectedPrincipal': expectedPrincipal,
+        'expectedInterest': expectedInterest,
+        'paidAmount': paidAmount,
+        'remainingBalance': remainingBalance,
+        'status': status,
+      };
+
+  @override
+  List<Object?> get props => [
+        installmentNumber,
+        dueDate,
+        expectedPayment,
+        expectedPrincipal,
+        expectedInterest,
+        paidAmount,
+        remainingBalance,
+        status,
+      ];
+}
+
+class BorrowerInstallmentSchedule extends Equatable {
+  final String loanId;
+  final String loanReference;
+  final List<BorrowerInstallmentItem> items;
+  final int totalInstallments;
+  final int paidInstallmentsCount;
+  final bool isFromCache;
+
+  const BorrowerInstallmentSchedule({
+    required this.loanId,
+    required this.loanReference,
+    required this.items,
+    required this.totalInstallments,
+    required this.paidInstallmentsCount,
+    this.isFromCache = false,
+  });
+
+  factory BorrowerInstallmentSchedule.fromJson(
+    Map<String, dynamic> json, {
+    bool isFromCache = false,
+  }) {
+    final rawItems = json['items'] as List<dynamic>? ?? [];
+    return BorrowerInstallmentSchedule(
+      loanId: json['loanId'] as String,
+      loanReference: json['loanReference'] as String,
+      items: rawItems
+          .map((e) =>
+              BorrowerInstallmentItem.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      totalInstallments: _intFromJson(json['totalInstallments']),
+      paidInstallmentsCount: _intFromJson(json['paidInstallmentsCount']),
+      isFromCache: isFromCache,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'loanId': loanId,
+        'loanReference': loanReference,
+        'items': items.map((e) => e.toJson()).toList(),
+        'totalInstallments': totalInstallments,
+        'paidInstallmentsCount': paidInstallmentsCount,
+      };
+
+  @override
+  List<Object?> get props => [
+        loanId,
+        loanReference,
+        items,
+        totalInstallments,
+        paidInstallmentsCount,
         isFromCache,
       ];
 }

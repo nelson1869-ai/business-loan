@@ -95,7 +95,6 @@ class _LoanCreateScreenState extends ConsumerState<LoanCreateScreen> {
         .read(loanCreateNotifierProvider.notifier)
         .submit(
           borrowerId: widget.borrowerId,
-          borrower: widget.borrower,
           principal: _principalController.text.trim(),
           rate: _rateController.text.trim(),
           termMonths: int.parse(_termController.text.trim()),

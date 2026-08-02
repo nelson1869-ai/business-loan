@@ -106,7 +106,7 @@ class TestBorrowerPortalDatabaseConstraints(unittest.IsolatedAsyncioTestCase):
                 first_name="B2",
                 last_name="Test",
                 national_id="PH-P-2",
-                phone="09172222222",
+                phone="09172222223",
                 date_of_birth=datetime(1990, 1, 1).date(),
                 status="Active",
             )

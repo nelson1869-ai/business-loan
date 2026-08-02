@@ -36,8 +36,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
   AuthNotifier({
     required this.storage,
     required this.apiClient,
+    bool checkAuthOnInit = true,
   }) : super(AuthState.unknown()) {
-    checkAuthStatus();
+    if (checkAuthOnInit) {
+      checkAuthStatus();
+    }
   }
 
   Future<void> checkAuthStatus() async {
@@ -160,8 +163,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> logout() async {
+    state = AuthState.unauthenticated();
+    final refreshToken = await storage.getRefreshToken();
+    await storage.clearTokens();
     try {
-      final refreshToken = await storage.getRefreshToken();
       if (refreshToken != null) {
         await apiClient.post(
           '/api/v1/client/auth/logout',
@@ -169,11 +174,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
         );
       }
     } catch (_) {}
-    await forceLogout();
   }
 
   Future<void> forceLogout() async {
-    await storage.clearTokens();
     state = AuthState.unauthenticated();
+    await storage.clearTokens();
   }
 }

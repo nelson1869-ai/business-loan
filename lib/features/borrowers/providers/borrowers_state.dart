@@ -16,6 +16,12 @@ class BorrowersNotifier extends AsyncNotifier<List<Borrower>> {
     final localRepository = ref.watch(borrowerRepositoryProvider);
     final remoteRepository = ref.watch(remoteBorrowerRepositoryProvider);
     ref.watch(offlineSyncServiceProvider);
+    ref.watch(
+      offlineSyncQueueNotifierProvider.select(
+        (queue) =>
+            (queue.pendingCount, queue.conflictCount, queue.lastSyncedAt),
+      ),
+    );
 
     // 1. Fetch local borrowers first for instant rendering
     final localBorrowers = await localRepository.getBorrowers()
@@ -34,8 +40,9 @@ class BorrowersNotifier extends AsyncNotifier<List<Borrower>> {
     try {
       final remote = await remoteRepository.getBorrowers();
       await localRepository.syncRemoteBorrowers(remote);
-      remote.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      state = AsyncData(remote);
+      final reconciled = await localRepository.getBorrowers()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      state = AsyncData(reconciled);
     } catch (_) {}
   }
 
@@ -95,7 +102,8 @@ class BorrowersNotifier extends AsyncNotifier<List<Borrower>> {
 
     try {
       await _runMutation(
-        localAction: (repository) => repository.deleteBorrower(id),
+        localAction: (repository) =>
+            repository.deleteBorrower(id, softDeleteOnly: true),
         endpoint: '${ApiEndpoints.borrowers}/$id',
         method: 'DELETE',
         payload: const <String, dynamic>{},

@@ -12,6 +12,7 @@ import 'package:lending_nelson/core/utils/formatters.dart';
 import 'package:lending_nelson/features/loans/presentation/loan_create_screen.dart';
 import 'package:lending_nelson/features/loans/presentation/loan_detail_screen.dart';
 import 'package:lending_nelson/features/loans/presentation/providers/loans_provider.dart';
+import 'package:lending_nelson/features/borrowers/data/borrower_repository.dart';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:lending_nelson/core/network/server_health_service.dart';
@@ -79,6 +80,9 @@ void main() {
               FakeServerHealthService(true),
             ),
             remoteLoanRepositoryProvider.overrideWithValue(repository),
+            borrowerServerVerifiedProvider(
+              'borrower-1',
+            ).overrideWith((ref) async => true),
           ],
           child: const MaterialApp(
             home: LoanCreateScreen(borrowerId: 'borrower-1'),
@@ -108,6 +112,9 @@ void main() {
             FakeServerHealthService(true),
           ),
           remoteLoanRepositoryProvider.overrideWithValue(repository),
+          borrowerServerVerifiedProvider(
+            'borrower-1',
+          ).overrideWith((ref) async => true),
         ],
         child: const MaterialApp(
           home: LoanCreateScreen(borrowerId: 'borrower-1'),

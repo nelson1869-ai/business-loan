@@ -7,6 +7,9 @@ class Borrower {
   final String dateOfBirth;
   final String status;
   final String createdAt;
+  final String syncStatus;
+
+  bool get isServerVerified => syncStatus == 'synced';
 
   String get fullName => '$firstName $lastName'.trim();
 
@@ -19,6 +22,7 @@ class Borrower {
     required this.dateOfBirth,
     required this.status,
     required this.createdAt,
+    this.syncStatus = 'synced',
   });
 
   factory Borrower.fromJson(Map<String, dynamic> json) =>
@@ -35,6 +39,8 @@ class Borrower {
           .toString(),
       status: (map['status'] ?? 'Active').toString(),
       createdAt: (map['created_at'] ?? map['createdAt'] ?? '').toString(),
+      syncStatus: (map['sync_status'] ?? map['syncStatus'] ?? 'synced')
+          .toString(),
     );
   }
 
@@ -48,6 +54,7 @@ class Borrower {
       'date_of_birth': dateOfBirth,
       'status': status,
       'created_at': createdAt,
+      'sync_status': syncStatus,
     };
   }
 

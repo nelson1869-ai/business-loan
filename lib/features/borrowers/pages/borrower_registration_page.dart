@@ -58,7 +58,7 @@ class _BorrowerRegistrationPageState
     return age >= 18;
   }
 
-  Future<void> _submitForm() async {
+  Future<void> _submitForm({bool confirmRestore = false}) async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     if (_selectedDateOfBirth == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -75,7 +75,7 @@ class _BorrowerRegistrationPageState
       return;
     }
 
-    final error = await ref
+    final result = await ref
         .read(borrowerRegistrationNotifierProvider.notifier)
         .submit(
           existing: widget.borrower,
@@ -84,16 +84,43 @@ class _BorrowerRegistrationPageState
           nationalId: _nationalIdController.text,
           phone: _phoneController.text,
           dateOfBirth: formatDateOnly(_selectedDateOfBirth!),
+          confirmRestore: confirmRestore,
         );
 
     if (!mounted) return;
-    if (error != null) {
+    if (result.requiresRestoreConfirmation) {
+      final restore = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Restore deleted borrower?'),
+          content: const Text(
+            'A deleted borrower has the same phone number and national ID. '
+            'Restore the existing borrower and preserve their audit history?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Restore Borrower'),
+            ),
+          ],
+        ),
+      );
+      if (restore == true && mounted) {
+        await _submitForm(confirmRestore: true);
+      }
+      return;
+    }
+    if (result.error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             widget.borrower != null
-                ? 'Could not update borrower: $error'
-                : 'Could not register borrower: $error',
+                ? 'Could not update borrower: ${result.error}'
+                : 'Registration rejected: ${result.error}',
           ),
         ),
       );
@@ -103,6 +130,9 @@ class _BorrowerRegistrationPageState
           content: Text(
             widget.borrower != null
                 ? 'Borrower updated successfully'
+                : result.savedOffline
+                ? 'Saved locally — identity verification is pending. '
+                      'Loans and invitations remain blocked until sync succeeds.'
                 : 'Borrower registered successfully',
           ),
         ),

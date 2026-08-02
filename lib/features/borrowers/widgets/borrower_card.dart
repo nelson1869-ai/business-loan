@@ -70,7 +70,9 @@ class BorrowerCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                borrower.status,
+                borrower.isServerVerified
+                    ? borrower.status
+                    : 'Pending verification',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,

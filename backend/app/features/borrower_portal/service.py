@@ -2,17 +2,18 @@
 
 import hashlib
 import hmac
-import re
 import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import jwt
+from fastapi import HTTPException, status
 from jwt.exceptions import PyJWTError
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
+from app.core.phone_numbers import normalize_ph_phone_number
 from app.features.auth.service import TokenValidationError
 from app.features.borrower_portal.models import (
     BorrowerAccount,
@@ -22,27 +23,13 @@ from app.features.borrower_portal.models import (
     BorrowerRefreshToken,
 )
 from app.features.borrower_portal.otp_provider import DevelopmentOTPProvider
+from app.features.borrower_portal.schemas import BorrowerProfileResponse
+from app.features.borrowers import service as borrower_service
 from app.features.borrowers.models import Borrower
 from app.features.users.models import User
 
 dev_otp_provider = DevelopmentOTPProvider(is_development=True)
-
-
-def normalize_ph_phone_number(raw_phone: str) -> str:
-    """Normalize Philippine mobile numbers into canonical format (+639XXXXXXXXX).
-
-    Accepts: 09171234567, +639171234567, 639171234567, 9171234567
-    """
-    cleaned = re.sub(r"[\s\-\(\)\+]", "", raw_phone)
-    if cleaned.startswith("09") and len(cleaned) == 11:
-        return "+63" + cleaned[1:]
-    if cleaned.startswith("639") and len(cleaned) == 12:
-        return "+" + cleaned
-    if cleaned.startswith("9") and len(cleaned) == 10:
-        return "+63" + cleaned
-    if cleaned.startswith("6309") and len(cleaned) == 13:
-        return "+63" + cleaned[3:]
-    raise ValueError(f"Invalid Philippine mobile number format: {raw_phone}")
+LOCAL_DEVELOPMENT_OTP = "123456"
 
 
 def hash_secret(secret_text: str) -> str:
@@ -90,7 +77,7 @@ async def request_otp(
     settings: Settings | None = None,
 ) -> tuple[bool, int]:
     """Request an OTP for an eligible phone number without leaking account existence."""
-    del settings
+    current_settings = settings or get_settings()
     try:
         normalized_phone = normalize_ph_phone_number(raw_phone)
     except ValueError:
@@ -114,7 +101,11 @@ async def request_otp(
         return True, max(cooldown, 1)
 
     # Generate and store OTP
-    otp_code = generate_otp_code()
+    otp_code = (
+        LOCAL_DEVELOPMENT_OTP
+        if current_settings.local_borrower_otp_enabled
+        else generate_otp_code()
+    )
     otp_hash = hash_secret(otp_code)
     new_otp = BorrowerOTP(
         id=secrets.token_hex(18),
@@ -407,3 +398,26 @@ async def revoke_borrower_refresh_token(
     if record is not None and record.revoked_at is None:
         record.revoked_at = now
         await db.flush()
+
+
+async def get_borrower_profile(
+    db: AsyncSession,
+    current_account: BorrowerAccount,
+) -> BorrowerProfileResponse:
+    """Fetch borrower profile details for an active borrower account."""
+    borrower = await borrower_service.get_borrower(db, current_account.borrower_id)
+    if borrower is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Borrower profile record not found",
+        )
+
+    return BorrowerProfileResponse(
+        borrower_account_id=current_account.id,
+        borrower_id=current_account.borrower_id,
+        first_name=borrower.first_name,
+        last_name=borrower.last_name,
+        phone_number=current_account.phone_number_normalized or current_account.phone_number,
+        account_status=current_account.account_status,
+        created_at=current_account.created_at,
+    )

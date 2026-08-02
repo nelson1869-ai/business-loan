@@ -26,6 +26,36 @@ class RemoteBorrowerRepository {
 
   final Dio _dio;
 
+  Future<BorrowerIdentityDecision> checkIdentity({
+    required String firstName,
+    required String lastName,
+    required String nationalId,
+    required String phone,
+    required String dateOfBirth,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '${ApiEndpoints.borrowers}/identity-check',
+        data: {
+          'firstName': firstName,
+          'lastName': lastName,
+          'nationalId': nationalId,
+          'phone': phone,
+          'dateOfBirth': dateOfBirth,
+        },
+      );
+      final data = response.data ?? const <String, dynamic>{};
+      return BorrowerIdentityDecision(
+        outcome: (data['outcome'] ?? '').toString(),
+        message: (data['message'] ?? 'Unable to verify borrower identity')
+            .toString(),
+        borrowerId: data['borrowerId']?.toString(),
+      );
+    } on DioException catch (error) {
+      throw _mapError(error, 'Unable to verify borrower identity');
+    }
+  }
+
   Future<void> ensureBorrowerExists(Borrower borrower) async {
     try {
       await _dio.get<Map<String, dynamic>>(
@@ -126,6 +156,18 @@ class RemoteBorrowerRepository {
     }).toList();
     return messages.isEmpty ? null : messages.join('\n');
   }
+}
+
+class BorrowerIdentityDecision {
+  const BorrowerIdentityDecision({
+    required this.outcome,
+    required this.message,
+    this.borrowerId,
+  });
+
+  final String outcome;
+  final String message;
+  final String? borrowerId;
 }
 
 final remoteBorrowerRepositoryProvider = Provider<RemoteBorrowerRepository>((

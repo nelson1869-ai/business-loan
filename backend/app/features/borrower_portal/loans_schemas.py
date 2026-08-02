@@ -94,3 +94,31 @@ class BorrowerLoanDetailResponse(BaseModel):
     last_updated: datetime
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
+class BorrowerInstallmentItemResponse(BaseModel):
+    """Borrower-safe single installment item in a schedule."""
+
+    id: str
+    installment_number: int
+    due_date: date
+    expected_payment: Decimal
+    expected_principal: Decimal
+    expected_interest: Decimal
+    paid_amount: Decimal
+    remaining_balance: Decimal
+    status: str
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
+class BorrowerInstallmentScheduleResponse(BaseModel):
+    """Ledger-backed complete installment schedule for a borrower loan."""
+
+    loan_id: str
+    loan_reference: str
+    items: list[BorrowerInstallmentItemResponse]
+    total_installments: int
+    paid_installments_count: int
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)

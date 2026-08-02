@@ -30,13 +30,24 @@ class FakeDashboardLocalCache implements DashboardLocalCache {
   BorrowerDashboard? cached;
 
   @override
-  Future<BorrowerDashboard?> getCachedDashboard([String? borrowerAccountId]) async =>
+  Future<BorrowerDashboard?> getCachedDashboard({
+    required String borrowerAccountId,
+  }) async =>
       cached;
 
   @override
-  Future<void> saveCachedDashboard(
-      BorrowerDashboard dashboard, [String? borrowerAccountId]) async {
+  Future<void> saveCachedDashboard({
+    required String borrowerAccountId,
+    required BorrowerDashboard dashboard,
+  }) async {
     cached = dashboard;
+  }
+
+  @override
+  Future<void> clearCachedDashboard({
+    required String borrowerAccountId,
+  }) async {
+    cached = null;
   }
 
   @override
@@ -87,6 +98,31 @@ void main() {
       expect(json['borrower']['firstName'], 'Maria');
       expect(json['summary']['totalOutstandingBalance'], 12500.50);
     });
+
+    test('deserializes decimal and count values returned as strings', () {
+      final stringNumericJson = {
+        ...sampleJson,
+        'summary': {
+          ...sampleJson['summary'] as Map<String, dynamic>,
+          'activeLoanCount': '1',
+          'totalOutstandingBalance': '12500.50',
+          'nextPaymentAmount': '1500.00',
+          'overdueAmount': '0.00',
+        },
+        'recentPayment': {
+          ...sampleJson['recentPayment'] as Map<String, dynamic>,
+          'amount': '1500.00',
+        },
+      };
+
+      final dashboard = BorrowerDashboard.fromJson(stringNumericJson);
+
+      expect(dashboard.summary.activeLoanCount, 1);
+      expect(dashboard.summary.totalOutstandingBalance, 12500.50);
+      expect(dashboard.summary.nextPaymentAmount, 1500.00);
+      expect(dashboard.summary.overdueAmount, 0.0);
+      expect(dashboard.recentPayment?.amount, 1500.00);
+    });
   });
 
   group('DashboardRepository Tests', () {
@@ -98,15 +134,19 @@ void main() {
         localCache: fakeCache,
       );
 
-      final dashboard = await repository.getDashboard();
+      final dashboard = await repository.getDashboard(
+        borrowerAccountId: 'account-123',
+      );
       expect(dashboard.borrower.firstName, 'Maria');
       expect(dashboard.isFromCache, false);
       expect(fakeCache.cached, isNotNull);
       expect(fakeCache.cached?.borrower.firstName, 'Maria');
     });
 
-    test('network failure returns cached dashboard with isFromCache true', () async {
-      final fakeApi = FakeApiClient(responseData: sampleJson, shouldThrow: true);
+    test('network failure returns cached dashboard with isFromCache true',
+        () async {
+      final fakeApi =
+          FakeApiClient(responseData: sampleJson, shouldThrow: true);
       final fakeCache = FakeDashboardLocalCache();
       fakeCache.cached = BorrowerDashboard.fromJson(sampleJson);
 
@@ -115,13 +155,16 @@ void main() {
         localCache: fakeCache,
       );
 
-      final dashboard = await repository.getDashboard();
+      final dashboard = await repository.getDashboard(
+        borrowerAccountId: 'account-123',
+      );
       expect(dashboard.borrower.firstName, 'Maria');
       expect(dashboard.isFromCache, true);
     });
 
     test('network failure with no cache rethrows exception', () async {
-      final fakeApi = FakeApiClient(responseData: sampleJson, shouldThrow: true);
+      final fakeApi =
+          FakeApiClient(responseData: sampleJson, shouldThrow: true);
       final fakeCache = FakeDashboardLocalCache();
 
       final repository = DashboardRepository(
@@ -129,7 +172,10 @@ void main() {
         localCache: fakeCache,
       );
 
-      expect(() => repository.getDashboard(), throwsException);
+      expect(
+        () => repository.getDashboard(borrowerAccountId: 'account-123'),
+        throwsException,
+      );
     });
   });
 
@@ -145,7 +191,12 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            dashboardRepositoryProvider.overrideWithValue(repository),
+            dashboardNotifierProvider.overrideWith(
+              (ref) => DashboardNotifier(
+                repository: repository,
+                borrowerAccountId: 'account-123',
+              ),
+            ),
           ],
           child: const MaterialApp(
             home: DashboardScreen(),
@@ -165,7 +216,8 @@ void main() {
     });
 
     testWidgets('renders offline banner when data is cached', (tester) async {
-      final fakeApi = FakeApiClient(responseData: sampleJson, shouldThrow: true);
+      final fakeApi =
+          FakeApiClient(responseData: sampleJson, shouldThrow: true);
       final fakeCache = FakeDashboardLocalCache();
       fakeCache.cached = BorrowerDashboard.fromJson(sampleJson);
       final repository = DashboardRepository(
@@ -176,7 +228,12 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            dashboardRepositoryProvider.overrideWithValue(repository),
+            dashboardNotifierProvider.overrideWith(
+              (ref) => DashboardNotifier(
+                repository: repository,
+                borrowerAccountId: 'account-123',
+              ),
+            ),
           ],
           child: const MaterialApp(
             home: DashboardScreen(),
