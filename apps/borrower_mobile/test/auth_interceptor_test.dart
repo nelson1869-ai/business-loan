@@ -66,20 +66,20 @@ void main() {
   late Dio dio;
   late Dio refreshDio;
   late AuthInterceptor interceptor;
-  bool unrecoverableCalled = false;
+  int unrecoverableCallCount = 0;
 
   setUp(() {
     tokenStorage = FakeSecureTokenStorage();
     dio = Dio(BaseOptions(baseUrl: 'http://test'));
     refreshDio = Dio(BaseOptions(baseUrl: 'http://test'));
-    unrecoverableCalled = false;
+    unrecoverableCallCount = 0;
 
     interceptor = AuthInterceptor(
       tokenStorage: tokenStorage,
       dio: dio,
       refreshDio: refreshDio,
       onUnrecoverableAuthError: () {
-        unrecoverableCalled = true;
+        unrecoverableCallCount++;
       },
     );
   });
@@ -112,12 +112,18 @@ void main() {
       borrowerId: 'bor_1',
     );
 
-    final options = RequestOptions(path: '/api/v1/client/auth/request-otp');
-    final handler = TestRequestInterceptorHandler();
-
-    await interceptor.onRequest(options, handler);
-
-    expect(options.headers['Authorization'], isNull);
+    for (final path in [
+      '/api/v1/client/auth/request-otp',
+      '/api/v1/client/auth/verify-otp',
+      '/api/v1/client/auth/refresh',
+      '/api/v1/client/auth/logout',
+    ]) {
+      final options = RequestOptions(path: path);
+      final handler = TestRequestInterceptorHandler();
+      await interceptor.onRequest(options, handler);
+      expect(options.headers['Authorization'], isNull,
+          reason: 'Failed for path: $path');
+    }
   });
 
   test(
@@ -134,7 +140,89 @@ void main() {
 
     await interceptor.onError(dioErr, handler);
 
-    expect(unrecoverableCalled, isTrue);
+    expect(unrecoverableCallCount, equals(1));
     expect(await tokenStorage.getAccessToken(), isNull);
+  });
+
+  test('Does not retry requests that already attempted auth retry', () async {
+    await tokenStorage.saveTokens(
+      accessToken: 'valid_access_token_123',
+      refreshToken: 'valid_refresh_token_123',
+      borrowerAccountId: 'acct_1',
+      borrowerId: 'bor_1',
+    );
+
+    final dioErr = DioException(
+      requestOptions: RequestOptions(
+        path: '/api/v1/client/me',
+        extra: {'authRetryAttempted': true},
+      ),
+      response: Response(
+        requestOptions: RequestOptions(path: '/api/v1/client/me'),
+        statusCode: 401,
+      ),
+    );
+    final handler = TestErrorInterceptorHandler();
+
+    await interceptor.onError(dioErr, handler);
+
+    expect(handler.error, equals(dioErr));
+    expect(unrecoverableCallCount, equals(0));
+  });
+
+  test('Does not retry 401 errors on non-retryable auth endpoints', () async {
+    await tokenStorage.saveTokens(
+      accessToken: 'valid_access_token_123',
+      refreshToken: 'valid_refresh_token_123',
+      borrowerAccountId: 'acct_1',
+      borrowerId: 'bor_1',
+    );
+
+    for (final path in [
+      '/api/v1/client/auth/request-otp',
+      '/api/v1/client/auth/verify-otp',
+      '/api/v1/client/auth/refresh',
+      '/api/v1/client/auth/logout',
+    ]) {
+      final dioErr = DioException(
+        requestOptions: RequestOptions(path: path),
+        response: Response(
+          requestOptions: RequestOptions(path: path),
+          statusCode: 401,
+        ),
+      );
+      final handler = TestErrorInterceptorHandler();
+
+      await interceptor.onError(dioErr, handler);
+
+      expect(handler.error, equals(dioErr));
+      expect(unrecoverableCallCount, equals(0));
+    }
+  });
+
+  test(
+      'Safe logout triggered when refresh response contains malformed data or network fails',
+      () async {
+    await tokenStorage.saveTokens(
+      accessToken: 'expired_access_token',
+      refreshToken: 'revoked_refresh_token',
+      borrowerAccountId: 'acct_1',
+      borrowerId: 'bor_1',
+    );
+
+    final dioErr = DioException(
+      requestOptions: RequestOptions(path: '/api/v1/client/me'),
+      response: Response(
+        requestOptions: RequestOptions(path: '/api/v1/client/me'),
+        statusCode: 401,
+      ),
+    );
+    final handler = TestErrorInterceptorHandler();
+
+    await interceptor.onError(dioErr, handler);
+
+    expect(unrecoverableCallCount, equals(1));
+    expect(await tokenStorage.getAccessToken(), isNull);
+    expect(await tokenStorage.getRefreshToken(), isNull);
   });
 }

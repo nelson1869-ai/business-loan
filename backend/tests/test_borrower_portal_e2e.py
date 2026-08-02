@@ -1,8 +1,14 @@
-"""End-to-end integration test suite for borrower portal authentication and lifecycle."""
+"""Mocked API lifecycle and router logic unit test suite for borrower portal authentication.
+
+Note: This module tests endpoint handler routing and payload serializations using
+an in-memory mocked database session (AsyncMock/MagicMock). For real database
+integration tests executing actual SQL queries against real tables, see
+test_borrower_portal_db_integration.py.
+"""
 
 import unittest
-from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock
 
 from httpx import ASGITransport, AsyncClient
 
@@ -16,24 +22,20 @@ from app.features.borrower_portal.models import (
     BorrowerRefreshToken,
 )
 from app.features.borrower_portal.service import (
-    create_borrower_access_token,
     dev_otp_provider,
-    hash_secret,
 )
 from app.features.borrowers.models import Borrower
 from app.features.users.models import User
 from app.main import app
 
 
-class TestBorrowerPortalEndToEndIntegration(unittest.IsolatedAsyncioTestCase):
-    """Full end-to-end integration tests for officer invitation, OTP activation,
+class TestBorrowerPortalMockedApiLifecycle(unittest.IsolatedAsyncioTestCase):
+    """Mocked API contract and router lifecycle tests for officer invitation, OTP activation,
 
     token rotation, reuse detection, device management, and boundary isolation.
     """
 
     async def test_full_borrower_portal_lifecycle(self) -> None:
-        now = datetime.now(UTC)
-
         # 1. Create officer user
         officer = User(
             id="usr-officer-e2e",

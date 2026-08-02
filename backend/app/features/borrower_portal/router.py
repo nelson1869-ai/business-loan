@@ -1,5 +1,6 @@
 """Borrower portal API endpoints (/api/v1/client) and officer invitation endpoint."""
 
+import secrets
 from datetime import UTC, datetime
 from typing import Annotated
 

@@ -41,6 +41,35 @@ jobs:
           path: coverage/lcov.info
           if-no-files-found: ignore
 
+  borrower_flutter:
+    name: Borrower Mobile Quality, Tests & APK Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/borrower_mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Check code formatting
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - name: Analyze Borrower Flutter codebase
+        run: flutter analyze
+
+      - name: Run unit & widget tests
+        run: flutter test
+
+      - name: Build Debug APK
+        run: flutter build apk --debug --dart-define=API_BASE_URL=http://10.0.2.2:8000
+
   backend:
     name: Backend Quality & Tests
     runs-on: ubuntu-latest
