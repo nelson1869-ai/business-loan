@@ -33,6 +33,26 @@ jobs:
       - name: Run unit & widget tests with coverage
         run: flutter test --coverage
 
+      - name: Create ephemeral CI release signing key
+        run: |
+          keytool -genkeypair -v -keystore /tmp/officer-ci.jks -storepass ci-test-password -keypass ci-test-password -alias upload -keyalg RSA -keysize 2048 -validity 1 -dname "CN=CI,OU=Test,O=Lending,C=PH"
+          printf 'storePassword=ci-test-password\nkeyPassword=ci-test-password\nkeyAlias=upload\nstoreFile=/tmp/officer-ci.jks\n' > android/key.properties
+
+      - name: Validate development APK flavor
+        run: >-
+          flutter build apk --debug --flavor development
+          --dart-define=APP_ENV=development
+          --dart-define=API_BASE_URL=http://10.0.2.2:8000
+          --dart-define=LOCAL_BORROWER_OTP_ENABLED=true
+
+      - name: Validate hardened production release APK
+        run: >-
+          flutter build apk --release --flavor production
+          --dart-define=APP_ENV=production
+          --dart-define=API_BASE_URL=https://api.example.invalid
+          --dart-define=LOCAL_BORROWER_OTP_ENABLED=false
+          --dart-define=DEBUG_LOGGING_ENABLED=false
+
       - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@v4
@@ -67,8 +87,25 @@ jobs:
       - name: Run unit & widget tests
         run: flutter test
 
-      - name: Build Debug APK
-        run: flutter build apk --debug --dart-define=API_BASE_URL=http://10.0.2.2:8000
+      - name: Create ephemeral CI release signing key
+        run: |
+          keytool -genkeypair -v -keystore /tmp/borrower-ci.jks -storepass ci-test-password -keypass ci-test-password -alias upload -keyalg RSA -keysize 2048 -validity 1 -dname "CN=CI,OU=Test,O=Lending,C=PH"
+          printf 'storePassword=ci-test-password\nkeyPassword=ci-test-password\nkeyAlias=upload\nstoreFile=/tmp/borrower-ci.jks\n' > android/key.properties
+
+      - name: Build Development APK
+        run: >-
+          flutter build apk --debug --flavor development
+          --dart-define=API_BASE_URL=http://10.0.2.2:8000
+          --dart-define=APP_ENV=development
+          --dart-define=LOCAL_BORROWER_OTP_ENABLED=true
+
+      - name: Validate hardened production release APK
+        run: >-
+          flutter build apk --release --flavor production
+          --dart-define=APP_ENV=production
+          --dart-define=API_BASE_URL=https://api.example.invalid
+          --dart-define=LOCAL_BORROWER_OTP_ENABLED=false
+          --dart-define=DEBUG_LOGGING_ENABLED=false
 
   backend:
     name: Backend Quality & Tests
@@ -123,6 +160,18 @@ jobs:
       - name: Check formatting with Ruff
         run: python -m ruff format --check .
 
+      - name: Type-check financial and security-critical services
+        run: >-
+          python -m mypy
+          --cache-dir=.mypy-ci-cache
+          app/features/loans/calculator.py
+          app/features/accounting/service.py
+          app/features/payments/service.py
+          app/features/auth/service.py
+          app/features/sync
+          app/features/loan_policies/service.py
+          app/features/approvals/service.py
+
       - name: Verify PostgreSQL service readiness
         run: |
           python -c "
@@ -147,8 +196,10 @@ jobs:
       - name: Verify Alembic schema drift
         run: alembic check
 
-      - name: Run pytest suite with coverage
-        run: python -m pytest --cov=app --cov-report=term-missing
+      - name: Run pytest suite with baseline coverage gate
+        # Measured repository baseline is 68%. Ratchet this upward as the
+        # integration-gated borrower/report/sync paths receive executable tests.
+        run: python -m pytest --cov=app --cov-report=term-missing --cov-fail-under=68
 
       - name: Verify FastAPI application factory
         run: python -c "from app.main import app; assert app.title"

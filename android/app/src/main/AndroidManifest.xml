@@ -8,7 +8,7 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
 
     <application
-        android:label="lending_nelson"
+        android:label="${appName}"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="false">

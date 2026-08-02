@@ -5,6 +5,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 from sqlalchemy import (
+    JSON,
     CheckConstraint,
     Date,
     DateTime,
@@ -70,6 +71,12 @@ class Loan(Base):
         nullable=False,
         index=True,
     )
+    policy_version_id: Mapped[str | None] = mapped_column(
+        ForeignKey("loan_policy_versions.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+    )
+    policy_snapshot: Mapped[dict] = mapped_column(JSON, nullable=False)
     original_principal: Mapped[Decimal] = mapped_column(
         Numeric(18, 2),
         nullable=False,
@@ -109,7 +116,13 @@ class Loan(Base):
         server_default=func.now(),
     )
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    approved_by_user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT")
+    )
     disbursed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    disbursed_by_user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT")
+    )
     activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     defaulted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -117,7 +130,16 @@ class Loan(Base):
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     borrower: Mapped["Borrower"] = relationship(back_populates="loans")
-    created_by: Mapped["User"] = relationship(back_populates="loans_created")
+    created_by: Mapped["User"] = relationship(
+        back_populates="loans_created", foreign_keys=[created_by_user_id]
+    )
+    approved_by: Mapped["User | None"] = relationship(
+        foreign_keys=[approved_by_user_id]
+    )
+    disbursed_by: Mapped["User | None"] = relationship(
+        foreign_keys=[disbursed_by_user_id]
+    )
+    policy_version: Mapped["LoanPolicyVersion | None"] = relationship()
     installments: Mapped[list["Installment"]] = relationship(
         back_populates="loan",
         order_by="Installment.installment_number",
@@ -125,6 +147,9 @@ class Loan(Base):
     payments: Mapped[list["Payment"]] = relationship(
         back_populates="loan",
         order_by="Payment.created_at",
+    )
+    write_off: Mapped["LoanWriteOff | None"] = relationship(
+        back_populates="loan", uselist=False
     )
 
 
@@ -192,5 +217,7 @@ class Installment(Base):
 
 
 from app.features.borrowers.models import Borrower  # noqa: E402
+from app.features.loan_policies.models import LoanPolicyVersion  # noqa: E402
 from app.features.payments.models import Payment  # noqa: E402
 from app.features.users.models import User  # noqa: E402
+from app.features.write_offs.models import LoanWriteOff  # noqa: E402

@@ -23,7 +23,9 @@ class User(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-    loans_created: Mapped[list["Loan"]] = relationship(back_populates="created_by")
+    loans_created: Mapped[list["Loan"]] = relationship(
+        back_populates="created_by", foreign_keys="Loan.created_by_user_id"
+    )
     payments_recorded: Mapped[list["Payment"]] = relationship(
         back_populates="recorded_by"
     )

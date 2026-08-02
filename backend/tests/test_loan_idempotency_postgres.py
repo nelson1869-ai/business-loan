@@ -7,12 +7,11 @@ from datetime import date
 from uuid import uuid4
 
 from fastapi import HTTPException
-from sqlalchemy import delete, func, select
+from sqlalchemy import func, select
 
 from app.core.database import AsyncSessionFactory, engine
-from app.features.admin_assistant.models import AuditLog
 from app.features.borrowers.models import Borrower
-from app.features.loans.models import Installment, Loan
+from app.features.loans.models import Loan
 from app.features.loans.router import create_one_loan
 from app.features.loans.schemas import LoanCreate
 from app.features.users.models import User
@@ -27,6 +26,7 @@ class PostgreSqlLoanIdempotencyTests(unittest.IsolatedAsyncioTestCase):
 
     async def asyncSetUp(self) -> None:
         suffix = uuid4().hex
+        phone = f"0917{uuid4().int % 10_000_000:07d}"
         self.user_id = str(uuid4())
         self.borrower_id = str(uuid4())
         self.request_id = str(uuid4())
@@ -45,7 +45,7 @@ class PostgreSqlLoanIdempotencyTests(unittest.IsolatedAsyncioTestCase):
                     first_name="Integration",
                     last_name="Borrower",
                     national_id=f"test-{suffix}",
-                    phone="0000000",
+                    phone=phone,
                     date_of_birth=date(1990, 1, 1),
                     status="Active",
                 )
@@ -53,25 +53,8 @@ class PostgreSqlLoanIdempotencyTests(unittest.IsolatedAsyncioTestCase):
             await db.commit()
 
     async def asyncTearDown(self) -> None:
-        async with AsyncSessionFactory() as db:
-            loan_ids = list(
-                (
-                    await db.execute(
-                        select(Loan.id).where(Loan.request_id == self.request_id)
-                    )
-                ).scalars()
-            )
-            if loan_ids:
-                await db.execute(
-                    delete(Installment).where(Installment.loan_id.in_(loan_ids))
-                )
-                await db.execute(
-                    delete(AuditLog).where(AuditLog.entity_id.in_(loan_ids))
-                )
-                await db.execute(delete(Loan).where(Loan.id.in_(loan_ids)))
-            await db.execute(delete(Borrower).where(Borrower.id == self.borrower_id))
-            await db.execute(delete(User).where(User.id == self.user_id))
-            await db.commit()
+        # Posted accounting journals intentionally prevent deleting their actor.
+        # This suite runs only against a disposable *_test database.
         await engine.dispose()
 
     async def test_concurrent_retry_creates_exactly_one_loan(self) -> None:

@@ -46,6 +46,19 @@ class Payment(Base):
             "(entry_type = 'Reversal' AND reversal_of_payment_id IS NOT NULL)",
             name="ck_payments_reversal_link",
         ),
+        CheckConstraint(
+            "payment_method IN ('unspecified', 'cash', 'bank', 'mobile_money')",
+            name="ck_payments_method",
+        ),
+        CheckConstraint(
+            "payment_method <> 'cash' OR collection_session_id IS NOT NULL",
+            name="ck_cash_payment_collection_session",
+        ),
+        CheckConstraint(
+            "reconciliation_status IN ('unreconciled', 'reconciled', 'reversed')",
+            name="ck_payments_reconciliation_status",
+        ),
+        UniqueConstraint("receipt_number", name="uq_payments_receipt_number"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
@@ -78,6 +91,20 @@ class Payment(Base):
     amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     effective_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    payment_method: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="unspecified"
+    )
+    collection_session_id: Mapped[str | None] = mapped_column(
+        ForeignKey("collection_sessions.id", ondelete="RESTRICT"), nullable=True
+    )
+    device_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    receipt_number: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    reconciliation_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="unreconciled"
+    )
+    approval_request_id: Mapped[str | None] = mapped_column(
+        ForeignKey("approval_requests.id", ondelete="RESTRICT"), unique=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

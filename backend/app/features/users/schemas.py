@@ -7,7 +7,17 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.schemas.common import to_camel
 
-UserRole = Literal["admin", "officer"]
+UserRole = Literal[
+    "admin",
+    "owner",
+    "manager",
+    "officer",
+    "loan_officer",
+    "collector",
+    "cashier",
+    "auditor",
+    "read_only_support",
+]
 
 
 class UserCreate(BaseModel):

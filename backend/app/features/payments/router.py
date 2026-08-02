@@ -1,11 +1,19 @@
 """Authenticated payment preview, confirmation, and history routes."""
 
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 
+from app.core.authorization import require_permission
 from app.core.dependencies import CurrentUser, DbSession
+from app.features.accounting.service import (
+    post_journal,
+    repayment_lines,
+    reversing_lines,
+)
+from app.features.approvals.service import consume_approved_request
 from app.features.automation.outbox import process_outbox_batch, publish_outbox_event
 from app.features.automation.schemas import DomainEventEnvelope, EventActor, EventEntity
 from app.features.loans import service as loan_service
@@ -31,7 +39,7 @@ async def preview_one_payment(
     db: DbSession,
     current_user: CurrentUser,
 ) -> PaymentPreviewResponse:
-    del current_user
+    require_permission(current_user, "payment.collect")
     try:
         preview = await payment_service.preview_payment(db, loan_id, payload)
         await db.rollback()
@@ -53,6 +61,7 @@ async def confirm_one_payment(
     db: DbSession,
     current_user: CurrentUser,
 ) -> PaymentResponse:
+    require_permission(current_user, "payment.collect")
     existing = await payment_service.get_payment_by_request_id(db, payload.request_id)
     if existing is not None:
         if not payment_service.payment_matches_request(existing, loan_id, payload):
@@ -64,6 +73,23 @@ async def confirm_one_payment(
     try:
         payment = await payment_service.record_payment(
             db, loan_id, payload, current_user
+        )
+        await post_journal(
+            db,
+            actor=current_user,
+            currency="PHP",
+            posted_at=datetime.now(UTC),
+            source_type="payment",
+            source_record_id=payment.id,
+            idempotency_key=f"payment:{payload.request_id}",
+            request_id=payload.request_id,
+            description=f"Payment received for loan {loan_id}",
+            lines=repayment_lines(
+                amount=payment.amount,
+                principal=payment.allocation.applied_principal,
+                interest=payment.allocation.applied_interest,
+                unapplied_credit=payment.allocation.unapplied_credit,
+            ),
         )
         envelope = DomainEventEnvelope[dict[str, Any]](
             eventType="payment.received",
@@ -87,7 +113,7 @@ async def confirm_one_payment(
         await publish_outbox_event(db, envelope)
         await db.commit()
         await process_outbox_batch(db, limit=5)
-    except LoanCalculationError as error:
+    except (LoanCalculationError, ValueError) as error:
         await db.rollback()
         code = (
             status.HTTP_404_NOT_FOUND
@@ -168,6 +194,7 @@ async def reverse_one_payment(
     current_user: CurrentUser,
 ) -> PaymentReversalResponse:
     """Reverse the latest payment without deleting its ledger history."""
+    require_permission(current_user, "payment.reverse")
     existing = await payment_service.get_payment_by_request_id(db, payload.request_id)
     if existing is not None:
         if not payment_service.reversal_matches_request(
@@ -178,13 +205,55 @@ async def reverse_one_payment(
                 detail="Request ID was already used for a different entry",
             )
         return PaymentReversalResponse.model_validate(existing)
+    if payload.approval_request_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="An approved maker-checker request is required",
+        )
     try:
+        await consume_approved_request(
+            db,
+            request_id=payload.approval_request_id,
+            action="payment.reverse",
+            entity_type="payment",
+            entity_id=payment_id,
+            maker=current_user,
+        )
         reversal = await payment_service.reverse_latest_payment(
             db, loan_id, payment_id, payload, current_user
         )
+        allocation = reversal.allocation
+        original_lines = repayment_lines(
+            amount=reversal.amount,
+            principal=allocation.applied_principal,
+            interest=allocation.applied_interest,
+            unapplied_credit=allocation.unapplied_credit,
+        )
+        await post_journal(
+            db,
+            actor=current_user,
+            currency="PHP",
+            posted_at=datetime.now(UTC),
+            source_type="payment_reversal",
+            source_record_id=reversal.id,
+            idempotency_key=f"payment-reversal:{payload.request_id}",
+            request_id=payload.request_id,
+            description=f"Reversal of payment {payment_id}",
+            lines=reversing_lines(original_lines),
+        )
         await db.commit()
-    except LoanCalculationError as error:
+    except PermissionError as error:
         await db.rollback()
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except (LoanCalculationError, ValueError) as error:
+        await db.rollback()
+        existing = await payment_service.get_payment_by_request_id(
+            db, payload.request_id
+        )
+        if existing is not None and payment_service.reversal_matches_request(
+            existing, loan_id, payment_id, payload
+        ):
+            return PaymentReversalResponse.model_validate(existing)
         code = (
             status.HTTP_404_NOT_FOUND
             if "not found" in str(error)

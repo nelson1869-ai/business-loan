@@ -41,6 +41,7 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+.coverage
 /screenshots/
 !/scripts/
 /lib/site-packages/

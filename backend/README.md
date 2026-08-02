@@ -20,9 +20,10 @@ Run the commands below from `D:\Development\lending_nelson\backend` in PowerShel
 ## Requirements
 
 - Python 3.12 or newer
-```
+- PostgreSQL
 
-It should resolve to `backend\.venv\Scripts\python.exe`.
+The project interpreter should resolve to
+`backend\.venv\Scripts\python.exe` on Windows.
 
 `bcrypt` is pinned to 4.3.0 because Passlib 1.7.4 is incompatible with bcrypt 5.0's password-length backend probe.
 
@@ -143,15 +144,16 @@ The OpenAPI document is the authoritative contract for request fields, response 
 
 ## 8. Run backend checks
 
+```powershell
+.\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m ruff format --check .
+.\.venv\Scripts\python.exe -m pytest --cov=app --cov-report=term
+.\.venv\Scripts\python.exe -m alembic heads
+.\.venv\Scripts\python.exe -m alembic check
 ```
 
-Last verified result:
-
-```text
-Compile: passed
-Backend tests: 63 executed, 60 passed, 3 skipped, 0 failed
-Alembic: no new upgrade operations detected
-```
+Do not copy static test totals into release evidence. Record the exact output of
+the current commands because the suite changes over time.
 
 If an embedded Windows Python distribution does not add the current backend directory to `sys.path`, use a standard `py -m venv .venv` environment. Do not change application imports merely to hide an incorrectly constructed virtual environment.
 

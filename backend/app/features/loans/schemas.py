@@ -9,7 +9,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from app.core.schemas.common import to_camel
 
-LoanStatus = Literal["Draft", "Active", "Paid", "Overdue", "Defaulted", "Cancelled"]
+LoanStatus = Literal[
+    "Draft", "Active", "Paid", "Overdue", "Defaulted", "Cancelled", "WrittenOff"
+]
 InstallmentStatus = Literal[
     "Scheduled",
     "PartiallyPaid",
@@ -28,6 +30,7 @@ class LoanCreate(BaseModel):
 
     borrower_id: str = Field(min_length=36, max_length=36)
     request_id: str | None = Field(default=None, min_length=36, max_length=36)
+    policy_version_id: str | None = Field(default=None, min_length=36, max_length=36)
     original_principal: Decimal = Field(gt=0, max_digits=18, decimal_places=2)
     monthly_rate: Decimal = Field(ge=0, max_digits=10, decimal_places=8)
     term_months: int = Field(gt=0, le=600)
@@ -46,7 +49,7 @@ class LoanCreate(BaseModel):
             raise ValueError("must be sent as an exact decimal string")
         return value
 
-    @field_validator("borrower_id", "request_id")
+    @field_validator("borrower_id", "request_id", "policy_version_id")
     @classmethod
     def validate_uuid(cls, value: str | None) -> str | None:
         """Require canonical UUID strings for borrower and request IDs."""
@@ -153,6 +156,8 @@ class LoanResponse(BaseModel):
     request_id: str
     borrower_id: str
     created_by_user_id: str
+    policy_version_id: str | None = None
+    policy_snapshot: dict[str, Any] = Field(default_factory=dict)
     original_principal: Decimal
     outstanding_principal: Decimal
     monthly_rate: Decimal
@@ -172,6 +177,12 @@ class LoanResponse(BaseModel):
         populate_by_name=True,
         from_attributes=True,
     )
+
+    @field_validator("policy_snapshot", mode="before")
+    @classmethod
+    def normalize_legacy_policy_snapshot(cls, value: Any) -> dict[str, Any]:
+        """Tolerate pre-migration and mocked loan objects during rolling upgrades."""
+        return value if isinstance(value, dict) else {}
 
 
 class LoanDetailResponse(LoanResponse):

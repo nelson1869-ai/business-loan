@@ -417,7 +417,8 @@ async def get_borrower_profile(
         borrower_id=current_account.borrower_id,
         first_name=borrower.first_name,
         last_name=borrower.last_name,
-        phone_number=current_account.phone_number_normalized or current_account.phone_number,
+        phone_number=current_account.phone_number_normalized
+        or current_account.phone_number,
         account_status=current_account.account_status,
         created_at=current_account.created_at,
     )

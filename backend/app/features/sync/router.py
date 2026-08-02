@@ -10,6 +10,7 @@ import app.features.collection.router as collection_router
 import app.features.documents.router as documents_router
 import app.features.notifications.router as notifications_router
 from app.core.dependencies import CurrentUser, DbSession
+from app.features.approvals.service import consume_approved_request
 from app.features.borrowers import service as borrower_service
 from app.features.borrowers.schemas import BorrowerCreate, BorrowerUpdate
 from app.features.business_settings.schemas import BusinessSettingUpdate
@@ -55,17 +56,19 @@ async def _replay_item(
 ) -> None:
     """Replay one validated mutation without committing it."""
     if item.endpoint == "/api/v1/loans" and item.method == "POST":
-        payload = LoanCreate.model_validate(item.payload)
-        if payload.request_id is None:
+        loan_payload = LoanCreate.model_validate(item.payload)
+        if loan_payload.request_id is None:
             raise SyncReplayError(
                 "INVALID_PAYLOAD",
                 "Offline loan creation requires requestId",
                 retryable=False,
             )
-        existing = await loan_service.get_loan_by_request_id(db, payload.request_id)
-        if existing is not None:
+        existing_loan = await loan_service.get_loan_by_request_id(
+            db, loan_payload.request_id
+        )
+        if existing_loan is not None:
             if not loan_service.loan_matches_request(
-                existing, payload, current_user.id
+                existing_loan, loan_payload, current_user.id
             ):
                 raise SyncReplayError(
                     "IDEMPOTENCY_CONFLICT",
@@ -73,13 +76,13 @@ async def _replay_item(
                     retryable=False,
                 )
             return
-        if await borrower_service.get_borrower(db, payload.borrower_id) is None:
+        if await borrower_service.get_borrower(db, loan_payload.borrower_id) is None:
             raise SyncReplayError(
                 "RESOURCE_NOT_FOUND",
                 "Borrower for loan does not exist",
                 retryable=False,
             )
-        await loan_service.create_loan(db, payload, current_user)
+        await loan_service.create_loan(db, loan_payload, current_user)
         return
 
     if "/payments" in item.endpoint and item.method == "POST":
@@ -87,13 +90,13 @@ async def _replay_item(
         loan_id = parts[4]
         if item.endpoint.endswith("/reversal"):
             payment_id = parts[6]
-            payload = PaymentReversalCreate.model_validate(item.payload)
-            existing = await payment_service.get_payment_by_request_id(
-                db, payload.request_id
+            reversal_payload = PaymentReversalCreate.model_validate(item.payload)
+            existing_reversal = await payment_service.get_payment_by_request_id(
+                db, reversal_payload.request_id
             )
-            if existing is not None:
+            if existing_reversal is not None:
                 if not payment_service.reversal_matches_request(
-                    existing, loan_id, payment_id, payload
+                    existing_reversal, loan_id, payment_id, reversal_payload
                 ):
                     raise SyncReplayError(
                         "IDEMPOTENCY_CONFLICT",
@@ -101,35 +104,51 @@ async def _replay_item(
                         retryable=False,
                     )
                 return
+            if reversal_payload.approval_request_id is None:
+                raise SyncReplayError(
+                    "APPROVAL_REQUIRED",
+                    "Payment reversal requires an approved request",
+                    retryable=False,
+                )
+            await consume_approved_request(
+                db,
+                request_id=reversal_payload.approval_request_id,
+                action="payment.reverse",
+                entity_type="payment",
+                entity_id=payment_id,
+                maker=current_user,
+            )
             await payment_service.reverse_latest_payment(
-                db, loan_id, payment_id, payload, current_user
+                db, loan_id, payment_id, reversal_payload, current_user
             )
             return
-        payload = PaymentCreate.model_validate(item.payload)
-        existing = await payment_service.get_payment_by_request_id(
-            db, payload.request_id
+        payment_payload = PaymentCreate.model_validate(item.payload)
+        existing_payment = await payment_service.get_payment_by_request_id(
+            db, payment_payload.request_id
         )
-        if existing is not None:
-            if not payment_service.payment_matches_request(existing, loan_id, payload):
+        if existing_payment is not None:
+            if not payment_service.payment_matches_request(
+                existing_payment, loan_id, payment_payload
+            ):
                 raise SyncReplayError(
                     "IDEMPOTENCY_CONFLICT",
                     "Payment request ID conflicts with existing data",
                     retryable=False,
                 )
             return
-        await payment_service.record_payment(db, loan_id, payload, current_user)
+        await payment_service.record_payment(db, loan_id, payment_payload, current_user)
         return
 
     if item.endpoint.endswith("/notes") and item.method == "POST":
         parts = item.endpoint.split("/")
-        borrower_id = parts[4]
-        loan_id = parts[6] if len(parts) > 6 else None
+        note_borrower_id = parts[4]
+        note_loan_id = parts[6] if len(parts) > 6 else None
         await note_service.create_note(
             db,
-            borrower_id,
+            note_borrower_id,
             NoteCreate.model_validate(item.payload),
             current_user,
-            loan_id,
+            note_loan_id,
         )
         return
 
@@ -143,13 +162,13 @@ async def _replay_item(
 
     if item.endpoint.endswith("/documents") and item.method == "POST":
         parts = item.endpoint.split("/")
-        borrower_id = parts[4]
-        loan_id = parts[6] if len(parts) > 6 else None
+        document_borrower_id = parts[4]
+        document_loan_id = parts[6] if len(parts) > 6 else None
         await documents_router._create(
             db,
             current_user,
-            borrower_id,
-            loan_id,
+            document_borrower_id,
+            document_loan_id,
             DocumentCreate.model_validate(item.payload),
         )
         return
@@ -233,11 +252,15 @@ async def _replay_item(
                     f"Endpoint or method is not supported for sync: {item.method} {item.endpoint}",
                     retryable=False,
                 )
-            payload = BorrowerCreate.model_validate(item.payload)
-            existing = await borrower_service.get_borrower(db, payload.id)
-            if existing is None:
+            borrower_create_payload = BorrowerCreate.model_validate(item.payload)
+            existing_borrower = await borrower_service.get_borrower(
+                db, borrower_create_payload.id
+            )
+            if existing_borrower is None:
                 try:
-                    await borrower_service.create_borrower(db, payload, current_user)
+                    await borrower_service.create_borrower(
+                        db, borrower_create_payload, current_user
+                    )
                 except borrower_service.BorrowerIdentityConflictError as error:
                     raise SyncReplayError(
                         "IDENTITY_CONFLICT",
@@ -264,8 +287,10 @@ async def _replay_item(
                 raise SyncReplayError(
                     "RESOURCE_NOT_FOUND", "Borrower does not exist", retryable=False
                 )
-            payload = BorrowerUpdate.model_validate(item.payload)
-            await borrower_service.update_borrower(db, borrower, payload, current_user)
+            borrower_update_payload = BorrowerUpdate.model_validate(item.payload)
+            await borrower_service.update_borrower(
+                db, borrower, borrower_update_payload, current_user
+            )
             return
 
     raise SyncReplayError(

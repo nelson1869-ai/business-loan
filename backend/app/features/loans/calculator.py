@@ -154,6 +154,14 @@ def build_installment_schedule(
             CENT,
             rounding=ROUND_HALF_UP,
         )
+        if not is_final_payment:
+            remaining_payment_count = number_of_payments - number
+            maximum_principal_now = balance - (CENT * remaining_payment_count)
+            if principal_paid > maximum_principal_now:
+                principal_paid = maximum_principal_now
+                payment = (interest + principal_paid).quantize(
+                    CENT, rounding=ROUND_HALF_UP
+                )
         if principal_paid <= 0:
             raise LoanCalculationError(
                 "regular payment must be greater than period interest"

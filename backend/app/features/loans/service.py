@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.features.admin_assistant.models import AuditLog
+from app.features.loan_policies.models import LoanPolicyVersion
+from app.features.loan_policies.service import policy_snapshot
 from app.features.loans.calculator import build_installment_schedule
 from app.features.loans.models import Installment, Loan
 from app.features.loans.schemas import (
@@ -97,6 +99,21 @@ async def create_loan(
     db: AsyncSession, payload: LoanCreate, user: User, *, initial_status: str = "Active"
 ) -> Loan:
     """Create a loan, its calculated schedule, and an audit event atomically."""
+    selected_policy = None
+    if payload.policy_version_id is not None:
+        selected_policy = await db.get(LoanPolicyVersion, payload.policy_version_id)
+        if selected_policy is None or selected_policy.status != "active":
+            raise ValueError("An active loan policy version is required")
+        if not (
+            selected_policy.minimum_rate
+            <= payload.monthly_rate
+            <= selected_policy.maximum_rate
+        ):
+            raise ValueError("Loan rate is outside the selected policy range")
+        if selected_policy.interest_method != payload.calculation_method:
+            raise ValueError(
+                "Loan calculation method does not match the selected policy"
+            )
     periodic_rate = payload.monthly_rate / Decimal(payload.payments_per_month)
     calculations = build_installment_schedule(
         payload.original_principal,
@@ -113,6 +130,18 @@ async def create_loan(
         request_id=payload.request_id or str(uuid4()),
         borrower_id=payload.borrower_id,
         created_by_user_id=user.id,
+        policy_version_id=selected_policy.id if selected_policy else None,
+        policy_snapshot=(
+            policy_snapshot(selected_policy)
+            if selected_policy
+            else {
+                "source": "legacy-explicit-terms",
+                "calculationMethod": payload.calculation_method,
+                "monthlyRate": str(payload.monthly_rate),
+                "rounding": "ROUND_HALF_UP",
+                "paymentAllocationOrder": ["interest", "principal", "unapplied_credit"],
+            }
+        ),
         original_principal=payload.original_principal,
         outstanding_principal=payload.original_principal,
         monthly_rate=payload.monthly_rate,
@@ -170,6 +199,7 @@ def loan_matches_request(loan: Loan, payload: LoanCreate, user_id: str) -> bool:
     return (
         loan.borrower_id == payload.borrower_id
         and loan.created_by_user_id == user_id
+        and loan.policy_version_id == payload.policy_version_id
         and loan.original_principal == payload.original_principal
         and loan.monthly_rate == payload.monthly_rate
         and loan.term_months == payload.term_months
@@ -187,7 +217,10 @@ async def get_loan_by_request_id(
     """Return the loan and schedule previously created for a request UUID."""
     result = await db.execute(
         select(Loan)
-        .options(selectinload(Loan.installments))
+        .options(
+            selectinload(Loan.installments),
+            selectinload(Loan.payments).selectinload(Payment.allocation),
+        )
         .where(Loan.request_id == request_id)
     )
     return result.scalar_one_or_none()
@@ -262,7 +295,10 @@ async def transition_loan(
     if action == "approve":
         if loan.status != "Draft" or loan.approved_at is not None:
             raise ValueError("Only an unapproved draft may be approved")
+        if loan.created_by_user_id == user.id:
+            raise ValueError("Maker cannot approve own loan")
         loan.approved_at = now
+        loan.approved_by_user_id = user.id
     elif action == "disburse":
         if (
             loan.status != "Draft"
@@ -271,6 +307,7 @@ async def transition_loan(
         ):
             raise ValueError("An approved draft is required before disbursement")
         loan.disbursed_at = now
+        loan.disbursed_by_user_id = user.id
     elif action == "activate":
         if loan.status != "Draft" or loan.disbursed_at is None:
             raise ValueError("A disbursed draft is required before activation")

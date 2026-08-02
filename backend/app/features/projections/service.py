@@ -118,9 +118,6 @@ def get_next_installment_priority(
     return next_inst, _money(next_amount), next_inst.due_date, is_overdue
 
 
-
-
-
 @dataclass(frozen=True)
 class LoanFinancialProjection:
     """Authoritative, strongly-typed financial projection for a loan."""
@@ -160,9 +157,7 @@ async def fetch_loan_payments(db: AsyncSession, loan: Loan) -> list[Payment]:
     if _is_loaded(loan, "payments") and loan.payments is not None:
         return list(loan.payments)
     result = await db.execute(
-        select(Payment)
-        .where(Payment.loan_id == loan.id)
-        .order_by(Payment.created_at)
+        select(Payment).where(Payment.loan_id == loan.id).order_by(Payment.created_at)
     )
     return list(result.scalars().all())
 
@@ -219,9 +214,7 @@ async def build_loan_financial_projection(
     )
 
 
-async def build_loan_last_activity_timestamp(
-    db: AsyncSession, loan: Loan
-) -> datetime:
+async def build_loan_last_activity_timestamp(db: AsyncSession, loan: Loan) -> datetime:
     """Return latest financial activity timestamp querying DB when relationships are unloaded."""
     candidates: list[datetime] = []
 
@@ -281,11 +274,13 @@ def get_loan_last_activity_timestamp(loan: Loan) -> datetime:
     return max(candidates)
 
 
-def compute_loan_financial_summary(
-    loan: Loan, as_of: date
-) -> LoanFinancialProjection:
+def compute_loan_financial_summary(loan: Loan, as_of: date) -> LoanFinancialProjection:
     """Synchronous calculation helper for eager-loaded loan objects."""
-    insts = loan.installments if _is_loaded(loan, "installments") and loan.installments else []
+    insts = (
+        loan.installments
+        if _is_loaded(loan, "installments") and loan.installments
+        else []
+    )
     pmts = loan.payments if _is_loaded(loan, "payments") and loan.payments else []
 
     total_interest = sum((inst.expected_interest for inst in insts), ZERO)
@@ -333,9 +328,7 @@ def compute_loan_financial_summary(
     )
 
 
-def compute_loan_financial_summary_dict(
-    loan: Loan, as_of: date
-) -> dict[str, Decimal]:
+def compute_loan_financial_summary_dict(loan: Loan, as_of: date) -> dict[str, Decimal]:
     """Deprecated dict wrapper preserved for backward compatibility."""
     proj = compute_loan_financial_summary(loan, as_of)
     return {

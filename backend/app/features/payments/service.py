@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from app.features.admin_assistant.models import AuditLog
 from app.features.borrowers.models import Borrower
+from app.features.collection.models import CollectionSession
 from app.features.loans.calculator import (
     CENT,
     LoanCalculationError,
@@ -204,6 +205,10 @@ async def reverse_latest_payment(
     original = next((entry for entry in ledger if entry.id == payment_id), None)
     if original is None or original.entry_type != "Payment":
         raise LoanCalculationError("payment not found")
+    if original.reconciliation_status == "reconciled":
+        raise LoanCalculationError(
+            "reconciled payment requires an approved reconciliation adjustment"
+        )
     if original.reversal is not None:
         raise LoanCalculationError("payment is already reversed")
     if not ledger or ledger[0].id != original.id:
@@ -229,6 +234,7 @@ async def reverse_latest_payment(
         amount=original.amount,
         effective_date=payload.effective_date,
         note=payload.reason,
+        approval_request_id=payload.approval_request_id,
     )
     reversal.allocation = PaymentAllocation(
         id=str(uuid4()),
@@ -332,6 +338,10 @@ def payment_matches_request(
         and payment.amount == payload.amount
         and payment.effective_date == payload.effective_date
         and payment.note == payload.note
+        and payment.payment_method == payload.payment_method
+        and payment.collection_session_id == payload.collection_session_id
+        and payment.device_id == payload.device_id
+        and payment.receipt_number == payload.receipt_number
         and payment.entry_type == "Payment"
     )
 
@@ -349,6 +359,7 @@ def reversal_matches_request(
         and reversal.amount > Decimal("0.00")
         and reversal.effective_date == payload.effective_date
         and reversal.note == payload.reason
+        and reversal.approval_request_id == payload.approval_request_id
         and reversal.entry_type == "Reversal"
     )
 
@@ -462,6 +473,25 @@ async def record_payment(
         carried,
         accrual_start,
     )
+    collection_session = None
+    if payload.payment_method == "cash":
+        if payload.collection_session_id is None or payload.receipt_number is None:
+            raise LoanCalculationError(
+                "cash payments require a collection session and receipt number"
+            )
+        collection_session = await db.scalar(
+            select(CollectionSession)
+            .where(CollectionSession.id == payload.collection_session_id)
+            .with_for_update()
+        )
+        if collection_session is None:
+            raise LoanCalculationError("collection session not found")
+        if collection_session.collector_user_id != user.id:
+            raise LoanCalculationError(
+                "collection session belongs to another collector"
+            )
+        if collection_session.status not in {"open", "collecting"}:
+            raise LoanCalculationError("collection session does not accept payments")
     payment = Payment(
         id=str(uuid4()),
         request_id=payload.request_id,
@@ -472,7 +502,16 @@ async def record_payment(
         amount=preview.payment_amount,
         effective_date=payload.effective_date,
         note=payload.note,
+        payment_method=payload.payment_method,
+        collection_session_id=payload.collection_session_id,
+        device_id=payload.device_id,
+        receipt_number=payload.receipt_number,
+        reconciliation_status="unreconciled",
     )
+    # Keep the already locked aggregate attached so response/event construction
+    # never attempts an implicit async lazy load after flush.
+    payment.loan = loan
+    payment.installment = installment
     payment.allocation = PaymentAllocation(
         id=str(uuid4()),
         interest_before=preview.total_interest_before,
@@ -502,6 +541,9 @@ async def record_payment(
             if future.installment_number > installment.installment_number:
                 future.status = "Cancelled"
     db.add(payment)
+    if collection_session is not None:
+        collection_session.status = "collecting"
+        collection_session.expected_cash += payment.amount
     db.add(
         AuditLog(
             id=str(uuid4()),

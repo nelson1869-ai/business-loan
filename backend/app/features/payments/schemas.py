@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.core.schemas.common import to_camel
 
@@ -39,11 +39,44 @@ class PaymentCreate(PaymentPreviewRequest):
 
     request_id: str = Field(min_length=36, max_length=36)
     note: str | None = Field(default=None, max_length=500)
+    payment_method: Literal["unspecified", "cash", "bank", "mobile_money"] = (
+        "unspecified"
+    )
+    collection_session_id: str | None = Field(
+        default=None, min_length=36, max_length=36
+    )
+    device_id: str | None = Field(default=None, min_length=1, max_length=120)
+    receipt_number: str | None = Field(default=None, min_length=1, max_length=120)
 
     @field_validator("request_id")
     @classmethod
     def validate_request_id(cls, value: str) -> str:
         return str(UUID(value))
+
+    @field_validator("collection_session_id")
+    @classmethod
+    def validate_session_id(cls, value: str | None) -> str | None:
+        return None if value is None else str(UUID(value))
+
+    @field_validator("device_id", "receipt_number")
+    @classmethod
+    def normalize_operational_reference(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("must not be blank")
+        return normalized
+
+    @model_validator(mode="after")
+    def require_cash_controls(self):
+        if self.payment_method == "cash" and (
+            self.collection_session_id is None or self.receipt_number is None
+        ):
+            raise ValueError(
+                "cash payments require collectionSessionId and receiptNumber"
+            )
+        return self
 
 
 class PaymentReversalCreate(BaseModel):
@@ -52,6 +85,7 @@ class PaymentReversalCreate(BaseModel):
     request_id: str = Field(min_length=36, max_length=36)
     effective_date: date
     reason: str = Field(min_length=3, max_length=500)
+    approval_request_id: str | None = Field(default=None, min_length=36, max_length=36)
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
@@ -59,6 +93,11 @@ class PaymentReversalCreate(BaseModel):
     @classmethod
     def validate_request_id(cls, value: str) -> str:
         return str(UUID(value))
+
+    @field_validator("approval_request_id")
+    @classmethod
+    def validate_approval_request_id(cls, value: str | None) -> str | None:
+        return None if value is None else str(UUID(value))
 
     @field_validator("reason")
     @classmethod
@@ -132,6 +171,12 @@ class PaymentResponse(BaseModel):
     amount: Decimal
     effective_date: date
     note: str | None
+    payment_method: str
+    collection_session_id: str | None
+    device_id: str | None
+    receipt_number: str | None
+    reconciliation_status: str
+    approval_request_id: str | None
     created_at: datetime
     allocation: PaymentAllocationResponse
 

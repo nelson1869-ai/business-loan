@@ -41,6 +41,8 @@ async def update_business_settings(
     settings.business_name = payload.business_name.strip()
     settings.currency_code = payload.currency_code.upper()
     settings.receipt_footer = payload.receipt_footer.strip()
+    if payload.timezone is not None:
+        settings.timezone = payload.timezone
     db.add(
         AuditLog(
             id=str(uuid4()),

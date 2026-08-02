@@ -13,6 +13,13 @@ if (keystorePropertiesFile.exists()) {
 val releaseTaskRequested = gradle.startParameter.taskNames.any {
     it.contains("release", ignoreCase = true)
 }
+fun requiredSigningProperty(name: String): String {
+    val value = keystoreProperties.getProperty(name)?.trim().orEmpty()
+    if (value.isEmpty() || value.startsWith("your_")) {
+        throw GradleException("Release signing property '$name' is missing or still a placeholder.")
+    }
+    return value
+}
 
 android {
     namespace = "com.nelson.lending"
@@ -33,13 +40,36 @@ android {
         versionName = flutter.versionName
     }
 
+    flavorDimensions += "environment"
+    productFlavors {
+        create("development") {
+            dimension = "environment"
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+            manifestPlaceholders["appName"] = "Lending Nelson Dev"
+        }
+        create("staging") {
+            dimension = "environment"
+            applicationIdSuffix = ".staging"
+            versionNameSuffix = "-staging"
+            manifestPlaceholders["appName"] = "Lending Nelson Staging"
+        }
+        create("production") {
+            dimension = "environment"
+            manifestPlaceholders["appName"] = "Lending Nelson"
+        }
+    }
+
     signingConfigs {
-        if (keystorePropertiesFile.exists()) {
+        if (keystorePropertiesFile.exists() && releaseTaskRequested) {
             create("release") {
-                keyAlias = keystoreProperties.getProperty("keyAlias")
-                keyPassword = keystoreProperties.getProperty("keyPassword")
-                storeFile = file(keystoreProperties.getProperty("storeFile"))
-                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = requiredSigningProperty("keyAlias")
+                keyPassword = requiredSigningProperty("keyPassword")
+                storeFile = file(requiredSigningProperty("storeFile"))
+                storePassword = requiredSigningProperty("storePassword")
+                if (!storeFile!!.exists()) {
+                    throw GradleException("Release keystore file does not exist: $storeFile")
+                }
             }
         }
     }

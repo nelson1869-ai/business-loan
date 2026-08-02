@@ -14,6 +14,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     func,
     text,
 )
@@ -86,6 +87,68 @@ class CollectionTaskState(Base):
     linked_payment_id: Mapped[str | None] = mapped_column(
         ForeignKey("payments.id", ondelete="RESTRICT"), nullable=True
     )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class CollectionSession(Base):
+    """Controlled cash-custody window owned by one collector."""
+
+    __tablename__ = "collection_sessions"
+    __table_args__ = (
+        Index(
+            "uq_collection_session_collector_open",
+            "collector_user_id",
+            unique=True,
+            postgresql_where=text(
+                "status IN ('open', 'collecting', 'submitted', 'reviewed', "
+                "'reconciled', 'deposited')"
+            ),
+        ),
+        UniqueConstraint("deposit_reference", name="uq_collection_deposit_reference"),
+        CheckConstraint(
+            "status IN ('open', 'collecting', 'submitted', 'reviewed', "
+            "'reconciled', 'deposited', 'closed')",
+            name="ck_collection_session_status",
+        ),
+        CheckConstraint(
+            "opening_cash >= 0 AND expected_cash >= 0 AND "
+            "actual_cash >= 0 AND deposit_amount >= 0",
+            name="ck_collection_session_amounts_nonnegative",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    collector_user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    opened_by_user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    opening_cash: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    expected_cash: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), nullable=False, default=Decimal("0.00")
+    )
+    actual_cash: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), nullable=False, default=Decimal("0.00")
+    )
+    cash_variance: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), nullable=False, default=Decimal("0.00")
+    )
+    variance_reason: Mapped[str | None] = mapped_column(Text)
+    deposit_amount: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), nullable=False, default=Decimal("0.00")
+    )
+    deposit_reference: Mapped[str | None] = mapped_column(String(120))
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="open")
+    reviewer_user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT")
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reconciled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    deposited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

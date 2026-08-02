@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app/app.dart';
 import 'app/app_router.dart';
 import 'core/background/background_sync_worker.dart';
+import 'core/config/environment_config.dart';
 import 'core/notifications/local_notification_service.dart';
 import 'core/notifications/firebase_mobile_services.dart';
 import 'core/telemetry/operational_telemetry.dart';
@@ -23,6 +24,7 @@ import 'features/borrower_communication/data/borrower_due_reminder_scheduler.dar
 ///  +------------------+     +------------------+
 /// ```
 Future<void> main() async {
+  EnvironmentConfig.validateForStartup();
   BindingBase.debugZoneErrorsAreFatal = true;
   final container = ProviderContainer();
   final telemetry = container.read(operationalTelemetryProvider);

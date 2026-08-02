@@ -110,7 +110,11 @@ async def get_borrower_payment_receipt(
     principal_paid = _money(alloc.applied_principal) if alloc else ZERO
     interest_paid = _money(alloc.applied_interest) if alloc else ZERO
     unapplied_credit = _money(alloc.unapplied_credit) if alloc else ZERO
-    remaining_balance = _money(alloc.principal_after) if alloc else _money(payment.loan.outstanding_principal)
+    remaining_balance = (
+        _money(alloc.principal_after)
+        if alloc
+        else _money(payment.loan.outstanding_principal)
+    )
 
     pmt_status = "reversed" if payment.entry_type == "Reversal" else "posted"
 

@@ -65,16 +65,13 @@ async def get_borrower_dashboard(
 
     # 3. Build financial projections for active loans
     projections = [
-        await build_loan_financial_projection(db, loan, today)
-        for loan in active_loans
+        await build_loan_financial_projection(db, loan, today) for loan in active_loans
     ]
 
     total_outstanding_balance = sum(
         (proj.outstanding_balance for proj in projections), ZERO
     )
-    overdue_amount = sum(
-        (proj.overdue_amount for proj in projections), ZERO
-    )
+    overdue_amount = sum((proj.overdue_amount for proj in projections), ZERO)
 
     # 4. Evaluate installments across active loans
     all_installments = []
@@ -133,7 +130,10 @@ async def get_borrower_dashboard(
         )
         recent_p = (await db.execute(recent_stmt)).scalar_one_or_none()
         if recent_p:
-            receipt_num = getattr(recent_p, "receipt_number", None) or f"RCPT-{recent_p.id.replace('-', '').upper()[:12]}"
+            receipt_num = (
+                getattr(recent_p, "receipt_number", None)
+                or f"RCPT-{recent_p.id.replace('-', '').upper()[:12]}"
+            )
             recent_payment_dto = DashboardRecentPayment(
                 id=recent_p.id,
                 amount=_money(recent_p.amount),
@@ -144,10 +144,11 @@ async def get_borrower_dashboard(
 
     # Derive last_updated from financial activity across active loans
     last_updated_candidates = [
-        await build_loan_last_activity_timestamp(db, loan)
-        for loan in active_loans
+        await build_loan_last_activity_timestamp(db, loan) for loan in active_loans
     ]
-    last_updated = max(last_updated_candidates) if last_updated_candidates else datetime.now(UTC)
+    last_updated = (
+        max(last_updated_candidates) if last_updated_candidates else datetime.now(UTC)
+    )
 
     summary = DashboardSummary(
         active_loan_count=active_loan_count,

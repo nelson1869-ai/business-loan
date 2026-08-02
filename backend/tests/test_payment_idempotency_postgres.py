@@ -7,13 +7,13 @@ from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import func, select
 
 from app.core.database import AsyncSessionFactory, engine
-from app.features.admin_assistant.models import AuditLog
+from app.features.approvals.service import create_request, decide_request
 from app.features.borrowers.models import Borrower
 from app.features.loans.models import Installment, Loan
-from app.features.payments.models import Payment, PaymentAllocation
+from app.features.payments.models import Payment
 from app.features.payments.router import confirm_one_payment, reverse_one_payment
 from app.features.payments.schemas import (
     PaymentCreate,
@@ -33,7 +33,9 @@ class PostgreSqlPaymentIdempotencyTests(unittest.IsolatedAsyncioTestCase):
 
     async def asyncSetUp(self) -> None:
         suffix = uuid4().hex
+        phone = f"0918{uuid4().int % 10_000_000:07d}"
         self.user_id = str(uuid4())
+        self.checker_id = str(uuid4())
         self.borrower_id = str(uuid4())
         self.loan_id = str(uuid4())
         self.installment_id = str(uuid4())
@@ -44,7 +46,15 @@ class PostgreSqlPaymentIdempotencyTests(unittest.IsolatedAsyncioTestCase):
                     id=self.user_id,
                     username=f"payment-{suffix}",
                     hashed_password="test",
-                    role="officer",
+                    role="manager",
+                )
+            )
+            db.add(
+                User(
+                    id=self.checker_id,
+                    username=f"payment-checker-{suffix}",
+                    hashed_password="test",
+                    role="owner",
                 )
             )
             db.add(
@@ -53,7 +63,7 @@ class PostgreSqlPaymentIdempotencyTests(unittest.IsolatedAsyncioTestCase):
                     first_name="Payment",
                     last_name="Test",
                     national_id=f"payment-{suffix}",
-                    phone="0000000",
+                    phone=phone,
                     date_of_birth=date(1990, 1, 1),
                     status="Active",
                 )
@@ -64,6 +74,7 @@ class PostgreSqlPaymentIdempotencyTests(unittest.IsolatedAsyncioTestCase):
                     request_id=str(uuid4()),
                     borrower_id=self.borrower_id,
                     created_by_user_id=self.user_id,
+                    policy_snapshot={"source": "test-fixture"},
                     original_principal=Decimal("1000.00"),
                     outstanding_principal=Decimal("1000.00"),
                     monthly_rate=Decimal("0.10"),
@@ -95,31 +106,8 @@ class PostgreSqlPaymentIdempotencyTests(unittest.IsolatedAsyncioTestCase):
             await db.commit()
 
     async def asyncTearDown(self) -> None:
-        async with AsyncSessionFactory() as db:
-            payment_ids = list(
-                (
-                    await db.execute(
-                        select(Payment.id).where(Payment.loan_id == self.loan_id)
-                    )
-                ).scalars()
-            )
-            if payment_ids:
-                await db.execute(
-                    delete(PaymentAllocation).where(
-                        PaymentAllocation.payment_id.in_(payment_ids)
-                    )
-                )
-            await db.execute(
-                delete(AuditLog).where(AuditLog.entity_id.in_(payment_ids))
-            )
-            await db.execute(delete(Payment).where(Payment.loan_id == self.loan_id))
-            await db.execute(
-                delete(Installment).where(Installment.loan_id == self.loan_id)
-            )
-            await db.execute(delete(Loan).where(Loan.id == self.loan_id))
-            await db.execute(delete(Borrower).where(Borrower.id == self.borrower_id))
-            await db.execute(delete(User).where(User.id == self.user_id))
-            await db.commit()
+        # Posted accounting journals intentionally prevent deleting their actor.
+        # This suite runs only against a disposable *_test database.
         await engine.dispose()
 
     async def test_concurrent_retry_records_and_allocates_once(self) -> None:
@@ -156,11 +144,32 @@ class PostgreSqlPaymentIdempotencyTests(unittest.IsolatedAsyncioTestCase):
             )
         )
         reversal_request_id = str(uuid4())
+        async with AsyncSessionFactory() as db:
+            maker = await db.get(User, self.user_id)
+            checker = await db.get(User, self.checker_id)
+            assert maker is not None and checker is not None
+            approval = await create_request(
+                db,
+                action="payment.reverse",
+                entity_type="payment",
+                entity_id=payment.id,
+                maker=maker,
+                reason="Integration test correction",
+            )
+            await decide_request(
+                db,
+                approval.id,
+                checker,
+                "approved",
+                "Verified test correction",
+            )
+            await db.commit()
         payload = PaymentReversalCreate.model_validate(
             {
                 "requestId": reversal_request_id,
                 "effectiveDate": "2026-09-01",
                 "reason": "Integration test correction",
+                "approvalRequestId": approval.id,
             }
         )
 

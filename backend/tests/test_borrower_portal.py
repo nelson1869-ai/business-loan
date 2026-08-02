@@ -94,7 +94,9 @@ class TestLocalDevelopmentOTP(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(accepted)
             self.assertEqual(cooldown, 60)
             stored_otp = db.add.call_args.args[0]
-            self.assertEqual(stored_otp.otp_code_hash, hash_secret(LOCAL_DEVELOPMENT_OTP))
+            self.assertEqual(
+                stored_otp.otp_code_hash, hash_secret(LOCAL_DEVELOPMENT_OTP)
+            )
             self.assertNotEqual(stored_otp.otp_code_hash, LOCAL_DEVELOPMENT_OTP)
             self.assertEqual(
                 dev_otp_provider.last_delivered_otp[phone], LOCAL_DEVELOPMENT_OTP

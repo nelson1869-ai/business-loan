@@ -132,6 +132,7 @@ $BorrowerDir = Join-Path $ProjectRoot "apps\borrower_mobile"
 
 $flutterArguments = @(
     "run",
+    "--flavor=development",
     "--dart-define=API_BASE_URL=$ApiUrl",
     "--dart-define=APP_ENV=development",
     "--dart-define=LOCAL_BORROWER_OTP_ENABLED=true"
@@ -143,7 +144,7 @@ if ($App -eq "borrower") {
     & flutter @flutterArguments
 } elseif ($App -eq "all") {
     Write-Host "[START] Launching Borrower App in background..." -ForegroundColor Cyan
-    Start-Process powershell -ArgumentList @("-NoExit", "-Command", "Set-Location '$BorrowerDir'; flutter run --dart-define=API_BASE_URL=$ApiUrl --dart-define=APP_ENV=development --dart-define=LOCAL_BORROWER_OTP_ENABLED=true")
+    Start-Process powershell -ArgumentList @("-NoExit", "-Command", "Set-Location '$BorrowerDir'; flutter run --flavor=development --dart-define=API_BASE_URL=$ApiUrl --dart-define=APP_ENV=development --dart-define=LOCAL_BORROWER_OTP_ENABLED=true")
     Set-Location -LiteralPath $ProjectRoot
     Write-Host "[START] Officer Flutter client ($($flutterArguments -join ' '))" -ForegroundColor Cyan
     & flutter @flutterArguments

@@ -19,7 +19,7 @@ class LoanIdempotencyTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_identical_retry_returns_existing_loan_and_schedule(self) -> None:
         payload = _payload()
-        user = SimpleNamespace(id="user-1")
+        user = SimpleNamespace(id="user-1", role="officer")
         loan = _loan()
 
         with patch(
@@ -34,7 +34,7 @@ class LoanIdempotencyTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_changed_terms_reusing_request_id_are_rejected(self) -> None:
         payload = _payload(originalPrincipal="1200.00")
-        user = SimpleNamespace(id="user-1")
+        user = SimpleNamespace(id="user-1", role="officer")
 
         with patch(
             "app.features.loans.router.loan_service.get_loan_by_request_id",

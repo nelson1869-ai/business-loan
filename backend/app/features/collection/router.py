@@ -1,16 +1,25 @@
-"""Authenticated collection follow-up scheduling and completion."""
+"""Authenticated collection tasks and cash reconciliation controls."""
 
+import json
 from datetime import UTC, datetime
+from decimal import Decimal
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
 from sqlalchemy import select
 
+from app.core.authorization import has_permission, require_permission
 from app.core.dependencies import CurrentUser, DbSession
+from app.features.accounting.service import cash_deposit_lines, post_journal
 from app.features.admin_assistant.models import AuditLog
 from app.features.borrowers.models import Borrower
-from app.features.collection.models import CollectionTaskState
+from app.features.collection.models import CollectionSession, CollectionTaskState
 from app.features.collection.schemas import (
+    CollectionSessionCreate,
+    CollectionSessionDecision,
+    CollectionSessionDeposit,
+    CollectionSessionResponse,
+    CollectionSessionSubmit,
     CollectionTaskComplete,
     CollectionTaskCreate,
     CollectionTaskResponse,
@@ -22,6 +31,231 @@ from app.features.payments.models import Payment
 from app.features.users.models import User
 
 router = APIRouter(prefix="/api/v1/collection-tasks", tags=["Collection Tasks"])
+session_router = APIRouter(
+    prefix="/api/v1/collection-sessions", tags=["Collection Sessions"]
+)
+
+
+def _session_audit(
+    db: DbSession,
+    user_id: str,
+    action: str,
+    session: CollectionSession,
+    reason: str | None = None,
+) -> None:
+    db.add(
+        AuditLog(
+            id=str(uuid4()),
+            user_id=user_id,
+            action=action,
+            entity_name="collection_session",
+            entity_id=session.id,
+            new_state_json=json.dumps(
+                {
+                    "status": session.status,
+                    "expectedCash": str(session.expected_cash),
+                    "actualCash": str(session.actual_cash),
+                    "cashVariance": str(session.cash_variance),
+                    "reason": reason,
+                }
+            ),
+        )
+    )
+
+
+async def _locked_session(db: DbSession, session_id: str) -> CollectionSession:
+    session = await db.scalar(
+        select(CollectionSession)
+        .where(CollectionSession.id == session_id)
+        .with_for_update()
+    )
+    if session is None:
+        raise HTTPException(status_code=404, detail="Collection session not found")
+    return session
+
+
+@session_router.post("", response_model=CollectionSessionResponse, status_code=201)
+async def open_session(
+    payload: CollectionSessionCreate,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> CollectionSession:
+    require_permission(current_user, "reconciliation.submit")
+    if payload.collector_user_id != current_user.id:
+        require_permission(current_user, "reconciliation.approve")
+    if await db.get(User, payload.collector_user_id) is None:
+        raise HTTPException(status_code=404, detail="Collector not found")
+    session = CollectionSession(
+        id=str(uuid4()),
+        collector_user_id=payload.collector_user_id,
+        opened_by_user_id=current_user.id,
+        opening_cash=payload.opening_cash,
+        expected_cash=payload.opening_cash,
+        actual_cash=Decimal("0.00"),
+        cash_variance=Decimal("0.00"),
+        deposit_amount=Decimal("0.00"),
+        status="open",
+    )
+    db.add(session)
+    _session_audit(db, current_user.id, "OPEN_COLLECTION_SESSION", session)
+    await db.commit()
+    await db.refresh(session)
+    return session
+
+
+@session_router.get("", response_model=list[CollectionSessionResponse])
+async def list_sessions(db: DbSession, current_user: CurrentUser):
+    query = select(CollectionSession).order_by(CollectionSession.created_at.desc())
+    if not has_permission(current_user, "reconciliation.approve"):
+        query = query.where(CollectionSession.collector_user_id == current_user.id)
+    return list((await db.execute(query)).scalars())
+
+
+@session_router.post("/{session_id}/submit", response_model=CollectionSessionResponse)
+async def submit_session(
+    session_id: str,
+    payload: CollectionSessionSubmit,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> CollectionSession:
+    require_permission(current_user, "reconciliation.submit")
+    session = await _locked_session(db, session_id)
+    if session.collector_user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the collector may submit")
+    if session.status not in {"open", "collecting"}:
+        raise HTTPException(status_code=409, detail="Session cannot be submitted")
+    variance = payload.actual_cash - session.expected_cash
+    reason = payload.variance_reason.strip() if payload.variance_reason else None
+    if variance != Decimal("0.00") and not reason:
+        raise HTTPException(status_code=422, detail="Cash variance requires a reason")
+    session.actual_cash = payload.actual_cash
+    session.cash_variance = variance
+    session.variance_reason = reason
+    session.status = "submitted"
+    _session_audit(db, current_user.id, "SUBMIT_COLLECTION_SESSION", session, reason)
+    await db.commit()
+    await db.refresh(session)
+    return session
+
+
+@session_router.post("/{session_id}/review", response_model=CollectionSessionResponse)
+async def review_session(
+    session_id: str,
+    payload: CollectionSessionDecision,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> CollectionSession:
+    require_permission(current_user, "reconciliation.approve")
+    session = await _locked_session(db, session_id)
+    if session.status != "submitted":
+        raise HTTPException(
+            status_code=409, detail="Only submitted sessions may be reviewed"
+        )
+    if session.collector_user_id == current_user.id:
+        raise HTTPException(
+            status_code=403, detail="Collector cannot review own session"
+        )
+    session.status = "reviewed"
+    session.reviewer_user_id = current_user.id
+    session.reviewed_at = datetime.now(UTC)
+    _session_audit(
+        db, current_user.id, "REVIEW_COLLECTION_SESSION", session, payload.reason
+    )
+    await db.commit()
+    await db.refresh(session)
+    return session
+
+
+@session_router.post(
+    "/{session_id}/reconcile", response_model=CollectionSessionResponse
+)
+async def reconcile_session(
+    session_id: str,
+    payload: CollectionSessionDecision,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> CollectionSession:
+    require_permission(current_user, "reconciliation.approve")
+    session = await _locked_session(db, session_id)
+    if session.status != "reviewed" or session.reviewer_user_id != current_user.id:
+        raise HTTPException(status_code=409, detail="Reviewed session required")
+    session.status = "reconciled"
+    session.reconciled_at = datetime.now(UTC)
+    payments = (
+        await db.execute(
+            select(Payment).where(
+                Payment.collection_session_id == session.id,
+                Payment.entry_type == "Payment",
+            )
+        )
+    ).scalars()
+    for payment in payments:
+        payment.reconciliation_status = "reconciled"
+    _session_audit(
+        db, current_user.id, "RECONCILE_COLLECTION_SESSION", session, payload.reason
+    )
+    await db.commit()
+    await db.refresh(session)
+    return session
+
+
+@session_router.post("/{session_id}/deposit", response_model=CollectionSessionResponse)
+async def deposit_session(
+    session_id: str,
+    payload: CollectionSessionDeposit,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> CollectionSession:
+    require_permission(current_user, "reconciliation.approve")
+    session = await _locked_session(db, session_id)
+    if session.status != "reconciled":
+        raise HTTPException(status_code=409, detail="Reconciled session required")
+    if payload.amount != session.actual_cash:
+        raise HTTPException(status_code=422, detail="Deposit must equal actual cash")
+    session.deposit_amount = payload.amount
+    session.deposit_reference = payload.reference.strip()
+    session.deposited_at = datetime.now(UTC)
+    session.status = "deposited"
+    await post_journal(
+        db,
+        actor=current_user,
+        currency="PHP",
+        posted_at=session.deposited_at,
+        source_type="cash_deposit",
+        source_record_id=session.id,
+        idempotency_key=f"cash-deposit:{session.id}",
+        description=f"Collection session {session.id} cash deposit",
+        lines=cash_deposit_lines(payload.amount),
+    )
+    _session_audit(db, current_user.id, "DEPOSIT_COLLECTION_SESSION", session)
+    await db.commit()
+    await db.refresh(session)
+    return session
+
+
+@session_router.post("/{session_id}/close", response_model=CollectionSessionResponse)
+async def close_session(
+    session_id: str,
+    payload: CollectionSessionDecision,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> CollectionSession:
+    require_permission(current_user, "reconciliation.approve")
+    session = await _locked_session(db, session_id)
+    if session.status != "deposited":
+        raise HTTPException(status_code=409, detail="Deposited session required")
+    if session.cash_variance != Decimal("0.00") and not session.variance_reason:
+        raise HTTPException(
+            status_code=409, detail="Unexplained variance blocks closure"
+        )
+    session.status = "closed"
+    session.closed_at = datetime.now(UTC)
+    _session_audit(
+        db, current_user.id, "CLOSE_COLLECTION_SESSION", session, payload.reason
+    )
+    await db.commit()
+    await db.refresh(session)
+    return session
 
 
 async def _locked_task(db: DbSession, task_id: str) -> CollectionTaskState | None:

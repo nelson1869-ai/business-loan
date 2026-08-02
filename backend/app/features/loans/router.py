@@ -6,8 +6,10 @@ from typing import Annotated, Any
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy.exc import IntegrityError
 
+from app.core.authorization import require_permission
 from app.core.config import get_settings
 from app.core.dependencies import CurrentUser, DbSession
+from app.features.accounting.service import loan_disbursement_lines, post_journal
 from app.features.admin_assistant.explanation_service import (
     AIExplanationUnavailable,
     explain_loan,
@@ -60,7 +62,7 @@ async def quote_loan(
     current_user: CurrentUser,
 ) -> LoanQuoteResponse:
     """Return an authenticated, non-persistent loan quote."""
-    del current_user
+    require_permission(current_user, "loan.create")
     return loan_service.build_quote(payload)
 
 
@@ -71,6 +73,7 @@ async def create_draft_loan(
     payload: LoanCreate, db: DbSession, current_user: CurrentUser
 ) -> LoanDetailResponse:
     """Create a draft for the explicit approval/disbursement workflow."""
+    require_permission(current_user, "loan.create")
     borrower = await borrower_service.get_borrower(db, payload.borrower_id)
     if borrower is None:
         raise HTTPException(status_code=404, detail="Borrower not found")
@@ -110,6 +113,7 @@ async def create_one_loan(
     current_user: CurrentUser,
 ) -> LoanDetailResponse:
     """Create an active loan and persist its complete installment schedule."""
+    require_permission(current_user, "loan.create")
     current_user_id = current_user.id
     if payload.request_id is not None:
         existing = await loan_service.get_loan_by_request_id(db, payload.request_id)
@@ -130,6 +134,18 @@ async def create_one_loan(
         )
     try:
         created_loan = await loan_service.create_loan(db, payload, current_user)
+        await post_journal(
+            db,
+            actor=current_user,
+            currency="PHP",
+            posted_at=created_loan.activated_at or created_loan.created_at,
+            source_type="loan_disbursement",
+            source_record_id=created_loan.id,
+            idempotency_key=f"loan-disbursement:{created_loan.id}",
+            request_id=created_loan.request_id,
+            description=f"Loan {created_loan.id} disbursed",
+            lines=loan_disbursement_lines(created_loan.original_principal),
+        )
         await db.commit()
     except IntegrityError as error:
         await db.rollback()
@@ -243,10 +259,32 @@ async def transition_one_loan(
     loan_id: str, action: LoanWorkflowAction, db: DbSession, current_user: CurrentUser
 ) -> LoanWorkflowResponse:
     """Apply a validated loan lifecycle command."""
+    permission = {
+        "approve": "loan.approve",
+        "disburse": "loan.disburse",
+        "activate": "loan.disburse",
+        "complete": "loan.approve",
+        "default": "loan.write_off",
+        "cancel": "loan.approve",
+        "close": "loan.approve",
+    }[action]
+    require_permission(current_user, permission)
     try:
         loan, occurred_at = await loan_service.transition_loan(
             db, loan_id, action, current_user
         )
+        if action == "disburse":
+            await post_journal(
+                db,
+                actor=current_user,
+                currency="PHP",
+                posted_at=occurred_at,
+                source_type="loan_disbursement",
+                source_record_id=loan.id,
+                idempotency_key=f"loan-disbursement:{loan.id}",
+                description=f"Loan {loan.id} disbursed",
+                lines=loan_disbursement_lines(loan.original_principal),
+            )
         event_type = f"loan.{action}"
         envelope = DomainEventEnvelope[dict[str, Any]](
             eventType=event_type,
