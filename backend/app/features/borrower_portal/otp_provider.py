@@ -25,7 +25,10 @@ class DevelopmentOTPProvider(BaseOTPProvider):
         """Store OTP for dev test inspection; never log sensitive data in production."""
         if self.is_development:
             self.last_delivered_otp[phone_number_normalized] = otp
-            logger.info("Dev OTP generated for %s (redacted in prod)", phone_number_normalized[:6] + "...")
+            logger.info(
+                "Dev OTP generated for %s (redacted in prod)",
+                phone_number_normalized[:6] + "...",
+            )
         return True
 
 
@@ -35,5 +38,7 @@ class SmsGatewayOTPProvider(BaseOTPProvider):
     async def send_otp(self, phone_number_normalized: str, otp: str) -> bool:
         """Dispatch OTP via production SMS API credentials."""
         # Production gateway payload logic goes here
-        logger.info("Dispatched production SMS OTP to %s", phone_number_normalized[:6] + "...")
+        logger.info(
+            "Dispatched production SMS OTP to %s", phone_number_normalized[:6] + "..."
+        )
         return True

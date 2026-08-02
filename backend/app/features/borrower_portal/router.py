@@ -4,13 +4,23 @@ import secrets
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser
+from app.features.borrower_portal.dashboard_schemas import BorrowerDashboardResponse
+from app.features.borrower_portal.dashboard_service import get_borrower_dashboard
 from app.features.borrower_portal.dependencies import ActiveBorrowerAccount
+from app.features.borrower_portal.loans_schemas import (
+    BorrowerLoanDetailResponse,
+    BorrowerLoanListResponse,
+)
+from app.features.borrower_portal.loans_service import (
+    get_borrower_loan_detail,
+    get_borrower_loans,
+)
 from app.features.borrower_portal.models import BorrowerDevice
 from app.features.borrower_portal.schemas import (
     BorrowerProfileResponse,
@@ -46,9 +56,7 @@ async def request_borrower_otp(
     db: DbSession,
 ) -> OTPRequestResponse:
     """Public endpoint to request an SMS OTP code without account enumeration."""
-    _, cooldown = await request_otp(
-        db, payload.phone_number, payload.invitation_code
-    )
+    _, cooldown = await request_otp(db, payload.phone_number, payload.invitation_code)
     await db.commit()
     return OTPRequestResponse(
         message="If the phone number is eligible, an OTP has been sent.",
@@ -98,9 +106,12 @@ async def refresh_borrower_token(
 ) -> BorrowerTokenResponse:
     """Rotate borrower refresh token and issue a fresh access token."""
     try:
-        account, access_token, new_refresh_token, expires_in = (
-            await rotate_borrower_refresh_token(db, payload.refresh_token)
-        )
+        (
+            account,
+            access_token,
+            new_refresh_token,
+            expires_in,
+        ) = await rotate_borrower_refresh_token(db, payload.refresh_token)
         await db.commit()
     except ValueError as error:
         await db.rollback()
@@ -155,6 +166,52 @@ async def get_borrower_profile(
         account_status=current_account.account_status,
         created_at=current_account.created_at,
     )
+
+
+@client_router.get("/dashboard", response_model=BorrowerDashboardResponse)
+async def get_client_dashboard(
+    db: DbSession,
+    current_account: ActiveBorrowerAccount,
+) -> BorrowerDashboardResponse:
+    """Return read-only dashboard overview for the authenticated borrower."""
+    return await get_borrower_dashboard(db, current_account)
+
+
+@client_router.get("/loans", response_model=BorrowerLoanListResponse)
+async def list_borrower_loans(
+    db: DbSession,
+    current_account: ActiveBorrowerAccount,
+    status: str | None = Query(
+        default=None,
+        description="Filter loans by status (active, paid, overdue, etc.)",
+    ),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=100),
+) -> BorrowerLoanListResponse:
+    """Return paginated, borrower-scoped loan list for the authenticated borrower."""
+    return await get_borrower_loans(
+        db,
+        current_account,
+        status_filter=status,
+        offset=offset,
+        limit=limit,
+    )
+
+
+@client_router.get("/loans/{loan_id}", response_model=BorrowerLoanDetailResponse)
+async def get_borrower_loan(
+    loan_id: str,
+    db: DbSession,
+    current_account: ActiveBorrowerAccount,
+) -> BorrowerLoanDetailResponse:
+    """Return read-only loan detail overview for the authenticated borrower."""
+    detail = await get_borrower_loan_detail(db, current_account, loan_id)
+    if detail is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Loan not found",
+        )
+    return detail
 
 
 @client_router.post("/devices", response_model=DeviceResponse)

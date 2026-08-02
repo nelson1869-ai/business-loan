@@ -4,7 +4,6 @@ Executes real PostgreSQL SQL statements asserting database-level IntegrityErrors
 unique indexes, foreign key restrictions/cascades, default values, and nullability rules.
 """
 
-import os
 import secrets
 import unittest
 from datetime import UTC, datetime, timedelta
@@ -13,7 +12,6 @@ from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.core.database import Base
 from app.features.borrower_portal.models import (
     BorrowerAccount,
     BorrowerDevice,
@@ -23,27 +21,27 @@ from app.features.borrower_portal.models import (
 )
 from app.features.borrower_portal.service import hash_secret
 from app.features.borrowers.models import Borrower
+from app.features.loans.models import Installment, Loan
+from app.features.payments.models import Payment
 from app.features.users.models import User
-
-TEST_DB_URL = os.getenv(
-    "TEST_DATABASE_URL",
-    "postgresql+asyncpg://postgres:01869-Nelson@localhost:5434/lending_nelson_test",
-)
+from tests.db_test_utils import get_verified_test_db_url
 
 
 class TestBorrowerPortalDatabaseConstraints(unittest.IsolatedAsyncioTestCase):
     """Direct database schema constraint verification tests."""
 
     async def asyncSetUp(self) -> None:
-        self.engine = create_async_engine(TEST_DB_URL, echo=False, future=True)
-        async with self.engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+        db_url = get_verified_test_db_url()
+        self.engine = create_async_engine(db_url, echo=False, future=True)
 
         self.session_factory = async_sessionmaker(
             self.engine, class_=AsyncSession, expire_on_commit=False
         )
 
         async with self.session_factory() as db:
+            await db.execute(delete(Payment))
+            await db.execute(delete(Installment))
+            await db.execute(delete(Loan))
             await db.execute(delete(BorrowerRefreshToken))
             await db.execute(delete(BorrowerDevice))
             await db.execute(delete(BorrowerOTP))
@@ -207,7 +205,9 @@ class TestBorrowerPortalDatabaseConstraints(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(IntegrityError):
                 await db.commit()
 
-    async def test_cascade_delete_borrower_account_removes_tokens_and_devices(self) -> None:
+    async def test_cascade_delete_borrower_account_removes_tokens_and_devices(
+        self,
+    ) -> None:
         """Enforces ON DELETE CASCADE on refresh tokens and devices when account is deleted."""
         async with self.session_factory() as db:
             b = Borrower(
@@ -249,8 +249,18 @@ class TestBorrowerPortalDatabaseConstraints(unittest.IsolatedAsyncioTestCase):
             await db.delete(acct)
             await db.commit()
 
-            dev_check = (await db.execute(select(BorrowerDevice).where(BorrowerDevice.id == device.id))).scalar_one_or_none()
-            tok_check = (await db.execute(select(BorrowerRefreshToken).where(BorrowerRefreshToken.id == token.id))).scalar_one_or_none()
+            dev_check = (
+                await db.execute(
+                    select(BorrowerDevice).where(BorrowerDevice.id == device.id)
+                )
+            ).scalar_one_or_none()
+            tok_check = (
+                await db.execute(
+                    select(BorrowerRefreshToken).where(
+                        BorrowerRefreshToken.id == token.id
+                    )
+                )
+            ).scalar_one_or_none()
             self.assertIsNone(dev_check)
             self.assertIsNone(tok_check)
 

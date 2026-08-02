@@ -1,28 +1,31 @@
-# Borrower Mobile Application Architecture
+# Borrower App Architecture Documentation
 
-## System Overview
-The Borrower Mobile Application (`apps/borrower_mobile`) is an online-first, security-hardened Flutter client designed for borrowers to manage loans, view balances, request OTP verification, and receive account updates.
+## Architecture Overview
+The **Borrower Mobile Client** (`apps/borrower_mobile`) follows **Feature-First Clean Architecture** with **Riverpod** state management.
 
-```
-apps/borrower_mobile/
-├── android/                   # Native Android Platform (com.nelson.lending.borrower)
-├── lib/
-│   ├── app/                   # App entrypoint, GoRouter configuration, design theme
-│   │   ├── router.dart
-│   │   ├── theme/
-│   ├── core/                  # Shared utilities, HTTP client, storage, auth notifier
-│   │   ├── api/               # Dio ApiClient & AuthInterceptor
-│   │   ├── auth/              # AuthNotifier, AuthState state management
-│   │   ├── storage/           # Flutter Secure Storage for JWT access/refresh tokens
-│   │   └── widgets/           # AppButton, AppTextField UI components
-│   └── features/
-│       ├── authentication/    # LoginScreen, OtpScreen
-│       └── home/              # HomeScreen
-└── test/                      # Unit & Widget Tests
+```text
+apps/borrower_mobile/lib/
+├── app/                  # App configuration & GoRouter setup
+├── core/                 # Shared utilities, API client, secure storage, auth interceptors
+└── features/
+    ├── authentication/   # Login, OTP verification
+    ├── dashboard/        # Borrower overview dashboard & caching
+    ├── loans/            # Loan list, status filter, loan detail & local cache
+    ├── notifications/    # Notifications placeholder
+    ├── payments/         # Payments placeholder
+    └── profile/          # Profile placeholder
 ```
 
-## Architectural Principles
-1. **Feature-First Clean Architecture**: Presentation, core state, and data access layers are strictly isolated. Business logic resides in `AuthNotifier` and `ApiClient`, never in Widgets.
-2. **GoRouter Declarative Navigation**: App state is driven by Riverpod (`authNotifierProvider`), enabling GoRouter to perform declarative auth redirects (`/` -> `/login` when unauthenticated, `/login` -> `/home` when authenticated).
-3. **Secure Token Storage**: Access and refresh tokens are stored exclusively using `FlutterSecureStorage` (`EncryptedSharedPreferences` on Android).
-4. **Resilient Interceptor-Driven Refresh**: Automatic token refresh is managed by `AuthInterceptor` using a dedicated, un-intercepted `Dio` instance (`_refreshDio`) with a `Completer` concurrency lock.
+## Security & Data Privacy
+1. **Single Source of Truth**: The app displays authoritative ledger data calculated on the FastAPI backend. It does not perform local financial calculations.
+2. **Encrypted Secure Storage**: Auth tokens and cached loan data are stored using `FlutterSecureStorage`.
+3. **Cache Isolation**: All local cache keys are scoped by `borrowerAccountId` (e.g., `cached_loans_list_<account_id>_<status>`). Logging out purges or isolates cached data so account switching never exposes stale borrower data.
+4. **Offline Mode**: When offline, cached views display an explicit warning banner showing the last-updated timestamp.
+
+## Routing
+Managed by `GoRouter`:
+* `/login` - Borrower activation / login
+* `/verify` - OTP code verification
+* `/home` - Borrower dashboard screen
+* `/loans` - Paginated borrower loan list screen
+* `/loans/:loanId` - Detailed read-only loan overview screen

@@ -93,6 +93,7 @@ jobs:
     env:
       APP_ENV: test
       DATABASE_URL: postgresql+asyncpg://postgres:test-only-password@localhost:5432/lending_nelson_test
+      TEST_DATABASE_URL: postgresql+asyncpg://postgres:test-only-password@localhost:5432/lending_nelson_test
       JWT_SECRET_KEY: ci-only-random-placeholder-0123456789abcdef
       CORS_ORIGINS: http://localhost
       AI_ENABLED: "false"
@@ -122,15 +123,38 @@ jobs:
       - name: Check formatting with Ruff
         run: python -m ruff format --check .
 
+      - name: Verify PostgreSQL service readiness
+        run: |
+          python -c "
+          import os, asyncio, asyncpg
+          url = os.environ['TEST_DATABASE_URL'].replace('postgresql+asyncpg://', 'postgresql://')
+          async def check():
+              for _ in range(15):
+                  try:
+                      conn = await asyncpg.connect(url)
+                      await conn.close()
+                      print('PostgreSQL service is ready.')
+                      return
+                  except Exception:
+                      await asyncio.sleep(1)
+              raise RuntimeError('PostgreSQL service failed to become ready')
+          asyncio.run(check())
+          "
+
+      - name: Apply Alembic migrations
+        run: alembic upgrade head
+
+      - name: Verify Alembic schema drift
+        run: alembic check
+
       - name: Run pytest suite with coverage
         run: python -m pytest --cov=app --cov-report=term-missing
 
       - name: Verify FastAPI application factory
         run: python -c "from app.main import app; assert app.title"
 
-      - name: Verify Alembic migration path
+      - name: Verify Alembic migration round-trip
         run: |
-          alembic upgrade head
           alembic downgrade base
           alembic upgrade head
           alembic check

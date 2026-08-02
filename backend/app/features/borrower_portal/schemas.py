@@ -15,7 +15,9 @@ class BaseSchema(BaseModel):
 class OTPRequest(BaseSchema):
     """Payload to request an OTP code."""
 
-    phone_number: str = Field(..., alias="phoneNumber", description="Input phone number")
+    phone_number: str = Field(
+        ..., alias="phoneNumber", description="Input phone number"
+    )
     invitation_code: str | None = Field(
         None, alias="invitationCode", description="Optional activation code"
     )

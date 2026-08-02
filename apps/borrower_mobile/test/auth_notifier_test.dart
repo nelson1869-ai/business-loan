@@ -48,11 +48,11 @@ class FakeApiClient implements ApiClient {
   @override
   final void Function()? onUnrecoverableAuthError;
 
-  FakeApiClient(
-      {this.onGet,
-      SecureTokenStorage? tokenStorage,
-      this.onUnrecoverableAuthError})
-      : tokenStorage = tokenStorage ?? FakeSecureTokenStorage();
+  FakeApiClient({
+    this.onGet,
+    SecureTokenStorage? tokenStorage,
+    this.onUnrecoverableAuthError,
+  }) : tokenStorage = tokenStorage ?? FakeSecureTokenStorage();
 
   @override
   Future<Map<String, dynamic>> get(String path,
@@ -60,22 +60,20 @@ class FakeApiClient implements ApiClient {
     if (onGet != null) {
       return onGet!(path);
     }
-    throw ApiError(message: 'Endpoint not mocked', statusCode: 404);
+    throw const ApiError(message: 'Endpoint not mocked', statusCode: 404);
   }
 
   @override
-  Future<Map<String, dynamic>> post(String path, {dynamic data}) async {
-    throw ApiError(message: 'Not implemented', statusCode: 500);
+  Future<Map<String, dynamic>> post(
+    String path, {
+    Map<String, dynamic>? data,
+  }) async {
+    throw const ApiError(message: 'Not implemented', statusCode: 500);
   }
 
   @override
-  Future<Map<String, dynamic>> put(String path, {dynamic data}) async {
-    throw ApiError(message: 'Not implemented', statusCode: 500);
-  }
-
-  @override
-  Future<Map<String, dynamic>> delete(String path) async {
-    throw ApiError(message: 'Not implemented', statusCode: 500);
+  Future<void> delete(String path) async {
+    throw const ApiError(message: 'Not implemented', statusCode: 500);
   }
 }
 
@@ -139,7 +137,7 @@ void main() {
               'accountStatus': 'active',
             };
           }
-          throw ApiError(message: 'Not found', statusCode: 404);
+          throw const ApiError(message: 'Not found', statusCode: 404);
         },
       );
 
@@ -164,7 +162,7 @@ void main() {
 
       final apiClient = FakeApiClient(
         onGet: (path) {
-          throw ApiError(message: 'Account suspended', statusCode: 401);
+          throw const ApiError(message: 'Account suspended', statusCode: 401);
         },
       );
 

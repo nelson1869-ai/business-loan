@@ -6,6 +6,7 @@ import 'package:borrower_mobile/core/auth/auth_state.dart';
 import 'package:borrower_mobile/features/authentication/login_screen.dart';
 import 'package:borrower_mobile/features/authentication/otp_screen.dart';
 import 'package:borrower_mobile/features/dashboard/dashboard_screen.dart';
+import 'package:borrower_mobile/features/loans/loan_detail_screen.dart';
 import 'package:borrower_mobile/features/loans/loans_screen.dart';
 import 'package:borrower_mobile/features/notifications/notifications_screen.dart';
 import 'package:borrower_mobile/features/payments/payments_screen.dart';
@@ -64,6 +65,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/loans',
         builder: (context, state) => const LoansScreen(),
+        routes: [
+          GoRoute(
+            path: ':loanId',
+            builder: (context, state) {
+              final loanId = state.pathParameters['loanId'] ?? '';
+              return LoanDetailScreen(loanId: loanId);
+            },
+          ),
+        ],
       ),
       GoRoute(
         path: '/payments',

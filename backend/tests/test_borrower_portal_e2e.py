@@ -110,10 +110,16 @@ class TestBorrowerPortalMockedApiLifecycle(unittest.IsolatedAsyncioTestCase):
                 pass
 
             if "from borrower_otps" in stmt_str:
-                latest_otp = list(db_store["otps"].values())[-1] if db_store["otps"] else None
+                latest_otp = (
+                    list(db_store["otps"].values())[-1] if db_store["otps"] else None
+                )
                 res.scalar_one_or_none.return_value = latest_otp
             elif "from borrower_invitations" in stmt_str:
-                latest_inv = list(db_store["invitations"].values())[-1] if db_store["invitations"] else None
+                latest_inv = (
+                    list(db_store["invitations"].values())[-1]
+                    if db_store["invitations"]
+                    else None
+                )
                 res.scalar_one_or_none.return_value = latest_inv
             elif "from borrower_accounts" in stmt_str:
                 accts = list(db_store["accounts"].values())
@@ -124,7 +130,10 @@ class TestBorrowerPortalMockedApiLifecycle(unittest.IsolatedAsyncioTestCase):
             elif "from borrower_refresh_tokens" in stmt_str:
                 matched_token = None
                 for param_val in params.values():
-                    if isinstance(param_val, str) and param_val in db_store["refresh_tokens_by_hash"]:
+                    if (
+                        isinstance(param_val, str)
+                        and param_val in db_store["refresh_tokens_by_hash"]
+                    ):
                         matched_token = db_store["refresh_tokens_by_hash"][param_val]
                         break
                 if matched_token is None and db_store["refresh_tokens"]:

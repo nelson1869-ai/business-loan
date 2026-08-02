@@ -192,7 +192,7 @@ async def verify_otp_and_login(
         # Require invitation code for initial linking if no account exists yet
         if not invitation_code:
             raise ValueError("Activation code required for initial account setup")
-        
+
         inv_hash = hash_secret(invitation_code)
         inv_stmt = (
             select(BorrowerInvitation)
@@ -358,7 +358,10 @@ async def rotate_borrower_refresh_token(
     if token_record.revoked_at is not None or token_record.expires_at <= now:
         await db.execute(
             update(BorrowerRefreshToken)
-            .where(BorrowerRefreshToken.borrower_account_id == token_record.borrower_account_id)
+            .where(
+                BorrowerRefreshToken.borrower_account_id
+                == token_record.borrower_account_id
+            )
             .values(revoked_at=now)
         )
         await db.flush()

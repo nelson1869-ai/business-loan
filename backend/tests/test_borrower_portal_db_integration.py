@@ -5,7 +5,6 @@ JWT issuance, and FastAPI dependency checks against a live, real SQLAlchemy asyn
 and real database tables (NO MagicMock or AsyncMock for database sessions).
 """
 
-import os
 import secrets
 import unittest
 from datetime import datetime
@@ -14,7 +13,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.core.database import Base, get_db
+from app.core.database import get_db
 from app.features.auth.service import create_token
 from app.features.borrower_portal.models import (
     BorrowerAccount,
@@ -25,13 +24,11 @@ from app.features.borrower_portal.models import (
 )
 from app.features.borrower_portal.service import dev_otp_provider, hash_secret
 from app.features.borrowers.models import Borrower
+from app.features.loans.models import Installment, Loan
+from app.features.payments.models import Payment
 from app.features.users.models import User
 from app.main import app
-
-TEST_DB_URL = os.getenv(
-    "TEST_DATABASE_URL",
-    "postgresql+asyncpg://postgres:01869-Nelson@localhost:5434/lending_nelson_test",
-)
+from tests.db_test_utils import get_verified_test_db_url
 
 
 class TestBorrowerPortalRealDatabaseIntegration(unittest.IsolatedAsyncioTestCase):
@@ -42,15 +39,14 @@ class TestBorrowerPortalRealDatabaseIntegration(unittest.IsolatedAsyncioTestCase
     """
 
     async def asyncSetUp(self) -> None:
-        # Connect to real PostgreSQL test database
+        db_url = get_verified_test_db_url()
+
+        # Connect to real PostgreSQL test database (schema initialized via Alembic)
         self.engine = create_async_engine(
-            TEST_DB_URL,
+            db_url,
             echo=False,
             future=True,
         )
-
-        async with self.engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
 
         self.session_factory = async_sessionmaker(
             self.engine,
@@ -60,6 +56,9 @@ class TestBorrowerPortalRealDatabaseIntegration(unittest.IsolatedAsyncioTestCase
 
         # Truncate tables for a clean test run
         async with self.session_factory() as db:
+            await db.execute(delete(Payment))
+            await db.execute(delete(Installment))
+            await db.execute(delete(Loan))
             await db.execute(delete(BorrowerRefreshToken))
             await db.execute(delete(BorrowerDevice))
             await db.execute(delete(BorrowerOTP))
@@ -140,7 +139,9 @@ class TestBorrowerPortalRealDatabaseIntegration(unittest.IsolatedAsyncioTestCase
                 )
                 inv_record = (await db.execute(stmt)).scalar_one()
                 self.assertNotEqual(inv_record.invitation_code_hash, raw_inv_code)
-                self.assertEqual(inv_record.invitation_code_hash, hash_secret(raw_inv_code))
+                self.assertEqual(
+                    inv_record.invitation_code_hash, hash_secret(raw_inv_code)
+                )
 
             # 7. Request an OTP
             phone_num = "09171234567"
@@ -191,10 +192,22 @@ class TestBorrowerPortalRealDatabaseIntegration(unittest.IsolatedAsyncioTestCase
             # 14. Confirm the invitation becomes used and cannot be reused
             # 15. Confirm the OTP becomes used and cannot be reused
             async with self.session_factory() as db:
-                inv_used = (await db.execute(select(BorrowerInvitation).where(BorrowerInvitation.borrower_id == borrower.id))).scalar_one()
+                inv_used = (
+                    await db.execute(
+                        select(BorrowerInvitation).where(
+                            BorrowerInvitation.borrower_id == borrower.id
+                        )
+                    )
+                ).scalar_one()
                 self.assertIsNotNone(inv_used.used_at)
 
-                otp_used = (await db.execute(select(BorrowerOTP).where(BorrowerOTP.phone_number_normalized == norm_phone))).scalar_one()
+                otp_used = (
+                    await db.execute(
+                        select(BorrowerOTP).where(
+                            BorrowerOTP.phone_number_normalized == norm_phone
+                        )
+                    )
+                ).scalar_one()
                 self.assertIsNotNone(otp_used.used_at)
 
             reuse_otp_res = await client.post(
@@ -246,7 +259,9 @@ class TestBorrowerPortalRealDatabaseIntegration(unittest.IsolatedAsyncioTestCase
             async with self.session_factory() as db:
                 dev_rec = await db.get(BorrowerDevice, dev_res1.json()["id"])
                 self.assertIsNotNone(dev_rec)
-                self.assertEqual(dev_rec.device_identifier_hash, hash_secret("real_device_id_uuid_1"))
+                self.assertEqual(
+                    dev_rec.device_identifier_hash, hash_secret("real_device_id_uuid_1")
+                )
 
             # 22. Rotate refresh token
             refresh_res = await client.post(
@@ -260,7 +275,14 @@ class TestBorrowerPortalRealDatabaseIntegration(unittest.IsolatedAsyncioTestCase
 
             # 23. Confirm the old refresh token is revoked
             async with self.session_factory() as db:
-                old_token_rec = (await db.execute(select(BorrowerRefreshToken).where(BorrowerRefreshToken.token_hash == hash_secret(refresh_token)))).scalar_one()
+                old_token_rec = (
+                    await db.execute(
+                        select(BorrowerRefreshToken).where(
+                            BorrowerRefreshToken.token_hash
+                            == hash_secret(refresh_token)
+                        )
+                    )
+                ).scalar_one()
                 self.assertIsNotNone(old_token_rec.revoked_at)
 
             # 24. Attempt reuse of old refresh token and confirm 401 rejection
@@ -329,7 +351,13 @@ class TestBorrowerPortalRealDatabaseIntegration(unittest.IsolatedAsyncioTestCase
                     pass
 
             async with self.session_factory() as db:
-                orphaned = (await db.execute(select(BorrowerAccount).where(BorrowerAccount.borrower_id == "non_existent_borrower_id"))).scalar_one_or_none()
+                orphaned = (
+                    await db.execute(
+                        select(BorrowerAccount).where(
+                            BorrowerAccount.borrower_id == "non_existent_borrower_id"
+                        )
+                    )
+                ).scalar_one_or_none()
                 self.assertIsNone(orphaned)
 
 

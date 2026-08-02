@@ -183,9 +183,7 @@ class BorrowerDevice(Base):
         onupdate=func.now(),
     )
 
-    borrower_account: Mapped["BorrowerAccount"] = relationship(
-        back_populates="devices"
-    )
+    borrower_account: Mapped["BorrowerAccount"] = relationship(back_populates="devices")
 
 
 from app.features.borrowers.models import Borrower  # noqa: E402

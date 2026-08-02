@@ -32,7 +32,9 @@ class TestPhoneNormalization(unittest.TestCase):
         self.assertEqual(normalize_ph_phone_number("639171234567"), "+639171234567")
 
     def test_normalizes_spaces_dashes_parentheses(self) -> None:
-        self.assertEqual(normalize_ph_phone_number("+63 (917) 123-4567"), "+639171234567")
+        self.assertEqual(
+            normalize_ph_phone_number("+63 (917) 123-4567"), "+639171234567"
+        )
 
     def test_rejects_malformed_numbers(self) -> None:
         with self.assertRaisesRegex(ValueError, "Invalid Philippine mobile number"):
