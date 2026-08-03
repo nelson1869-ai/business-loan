@@ -23,11 +23,10 @@ class PaymentRepository {
       );
     }
     try {
-      final json =
-          await apiClient.get('/api/v1/client/loans/$loanId/payments');
-      final history =
-          BorrowerPaymentHistory.fromJson(json, isFromCache: false);
-      await localCache.saveCachedLoanPayments(borrowerAccountId, loanId, history);
+      final json = await apiClient.get('/api/v1/client/loans/$loanId/payments');
+      final history = BorrowerPaymentHistory.fromJson(json, isFromCache: false);
+      await localCache.saveCachedLoanPayments(
+          borrowerAccountId, loanId, history);
       return history;
     } catch (e) {
       final cached =
@@ -53,8 +52,7 @@ class PaymentRepository {
     try {
       final json =
           await apiClient.get('/api/v1/client/payments/$paymentId/receipt');
-      final receipt =
-          BorrowerReceiptDetail.fromJson(json, isFromCache: false);
+      final receipt = BorrowerReceiptDetail.fromJson(json, isFromCache: false);
       await localCache.saveCachedReceipt(borrowerAccountId, receipt);
       return receipt;
     } catch (e) {

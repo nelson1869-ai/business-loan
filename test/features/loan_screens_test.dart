@@ -69,39 +69,36 @@ void main() {
     );
   });
 
-  testWidgets(
-    'loan creation never calls the remote repository in the foreground',
-    (tester) async {
-      final repository = _FailingLoanRepository();
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            serverHealthServiceProvider.overrideWithValue(
-              FakeServerHealthService(true),
-            ),
-            remoteLoanRepositoryProvider.overrideWithValue(repository),
-            borrowerServerVerifiedProvider(
-              'borrower-1',
-            ).overrideWith((ref) async => true),
-          ],
-          child: const MaterialApp(
-            home: LoanCreateScreen(borrowerId: 'borrower-1'),
+  testWidgets('draft creation uses the online repository', (tester) async {
+    final repository = _FailingLoanRepository();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          serverHealthServiceProvider.overrideWithValue(
+            FakeServerHealthService(true),
           ),
+          remoteLoanRepositoryProvider.overrideWithValue(repository),
+          borrowerServerVerifiedProvider(
+            'borrower-1',
+          ).overrideWith((ref) async => true),
+        ],
+        child: const MaterialApp(
+          home: LoanCreateScreen(borrowerId: 'borrower-1'),
         ),
-      );
-      await tester.enterText(find.byType(TextFormField).first, '1000.00');
+      ),
+    );
+    await tester.enterText(find.byType(TextFormField).first, '1000.00');
 
-      final btn = find.widgetWithText(FilledButton, 'Create Loan');
-      await tester.ensureVisible(btn);
-      await tester.pump();
-      await tester.tap(btn);
-      await tester.pumpAndSettle();
+    final btn = find.widgetWithText(FilledButton, 'Create Loan');
+    await tester.ensureVisible(btn);
+    await tester.pump();
+    await tester.tap(btn);
+    await tester.pumpAndSettle();
 
-      expect(repository.requests, isEmpty);
-    },
-  );
+    expect(repository.requests, hasLength(1));
+  });
 
-  testWidgets('submit does not wait for a pending remote request', (
+  testWidgets('draft creation waits for the online backend response', (
     tester,
   ) async {
     final repository = _PendingLoanRepository();
@@ -125,7 +122,9 @@ void main() {
 
     await tester.tap(find.widgetWithText(FilledButton, 'Create Loan'));
     await tester.pump();
-    expect(repository.requests, isEmpty);
+    expect(repository.requests, hasLength(1));
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   testWidgets('detail screen renders the backend installment breakdown', (
@@ -163,7 +162,7 @@ class _FailingLoanRepository extends RemoteLoanRepository {
   final List<LoanCreateRequest> requests = <LoanCreateRequest>[];
 
   @override
-  Future<Loan> createLoan(LoanCreateRequest request) async {
+  Future<Loan> createDraft(LoanCreateRequest request) async {
     requests.add(request);
     throw const RemoteLoanException('Temporary failure', isRetryable: true);
   }
@@ -176,7 +175,7 @@ class _PendingLoanRepository extends RemoteLoanRepository {
   final Completer<Loan> completer = Completer<Loan>();
 
   @override
-  Future<Loan> createLoan(LoanCreateRequest request) {
+  Future<Loan> createDraft(LoanCreateRequest request) {
     requests.add(request);
     return completer.future;
   }

@@ -5,17 +5,14 @@ import 'package:go_router/go_router.dart';
 import '../../loans/domain/models/loan.dart';
 import '../../loans/presentation/providers/loans_provider.dart';
 import '../domain/borrower_model.dart';
-import '../providers/borrower_recommendation_provider.dart';
 import '../providers/borrowers_state.dart';
 import '../widgets/borrower_active_loan_card.dart';
 import '../widgets/borrower_alert_banner.dart';
-import '../widgets/borrower_customer_score_card.dart';
 import '../widgets/borrower_emergency_guarantor_card.dart';
 import '../widgets/borrower_financial_snapshot.dart';
 import '../widgets/borrower_header_card.dart';
 import '../widgets/borrower_payment_behavior_card.dart';
 import '../widgets/borrower_quick_actions.dart';
-import '../widgets/borrower_recommendation_card.dart';
 import '../widgets/borrower_recommended_actions.dart';
 import '../widgets/borrower_skeleton_loader.dart';
 import '../widgets/tabs/activity_tab_view.dart';
@@ -109,9 +106,6 @@ class _BorrowerDetailContent extends ConsumerWidget {
 
     final effectiveBorrowerId = borrower.id;
     final loansAsync = ref.watch(borrowerLoansProvider(effectiveBorrowerId));
-    final recommendationAsync = ref.watch(
-      borrowerRecommendationProvider(effectiveBorrowerId),
-    );
     final loans = loansAsync.valueOrNull ?? const <Loan>[];
     final activeLoan = loans
         .where((l) => l.status == 'Active' || l.status == 'Overdue')
@@ -135,15 +129,8 @@ class _BorrowerDetailContent extends ConsumerWidget {
       }
     }
 
-    final recommendation = recommendationAsync.valueOrNull;
-
     final overviewSections = <Widget>[
-      BorrowerHeaderCard(borrower: borrower, recommendation: recommendation),
-      const SizedBox(height: 12),
-      BorrowerCustomerScoreCard(
-        borrower: borrower,
-        recommendation: recommendation,
-      ),
+      BorrowerHeaderCard(borrower: borrower),
       if (overdueAmount > 0) ...[
         const SizedBox(height: 12),
         BorrowerAlertBanner(
@@ -179,18 +166,6 @@ class _BorrowerDetailContent extends ConsumerWidget {
       ],
       const SizedBox(height: 16),
       BorrowerEmergencyGuarantorCard(borrower: borrower),
-      if (recommendation != null) ...[
-        const SizedBox(height: 16),
-        BorrowerRecommendationCard(
-          recommendation: recommendation,
-          onApplyRecommended: () {
-            context.push(
-              '/borrowers/$effectiveBorrowerId/loans/new',
-              extra: borrower,
-            );
-          },
-        ),
-      ],
     ];
 
     return TabBarView(

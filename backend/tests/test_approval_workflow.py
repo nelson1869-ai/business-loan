@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 from app.features.approvals.models import ApprovalRequest
+from app.features.approvals.router import REQUEST_PERMISSION
 from app.features.approvals.service import (
     consume_approved_request,
     create_request,
@@ -25,6 +26,10 @@ def _request(*, status: str = "pending") -> ApprovalRequest:
 
 
 class ApprovalWorkflowTests(unittest.IsolatedAsyncioTestCase):
+    def test_maker_permissions_can_submit_controlled_requests(self) -> None:
+        self.assertEqual(REQUEST_PERMISSION["loan.approve"], "loan.create")
+        self.assertEqual(REQUEST_PERMISSION["payment.reverse"], "payment.collect")
+
     async def test_creation_records_maker_and_redacted_audit(self) -> None:
         db = MagicMock()
         db.flush = AsyncMock()

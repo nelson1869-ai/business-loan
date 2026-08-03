@@ -68,8 +68,7 @@ class DashboardSummary extends Equatable {
 
   factory DashboardSummary.fromJson(Map<String, dynamic> json) {
     return DashboardSummary(
-      activeLoanCount:
-          _intFromJson(json['activeLoanCount'], 'activeLoanCount'),
+      activeLoanCount: _intFromJson(json['activeLoanCount'], 'activeLoanCount'),
       totalOutstandingBalance: _doubleFromJson(
         json['totalOutstandingBalance'],
         'totalOutstandingBalance',

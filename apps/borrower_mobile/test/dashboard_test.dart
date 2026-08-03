@@ -215,6 +215,38 @@ void main() {
       expect(find.text('My Loans'), findsOneWidget);
     });
 
+    testWidgets('keeps bottom actions above Android system navigation', (
+      tester,
+    ) async {
+      final repository = DashboardRepository(
+        apiClient: FakeApiClient(responseData: sampleJson),
+        localCache: FakeDashboardLocalCache(),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            dashboardNotifierProvider.overrideWith(
+              (ref) => DashboardNotifier(
+                repository: repository,
+                borrowerAccountId: 'account-123',
+              ),
+            ),
+          ],
+          child: const MaterialApp(
+            home: MediaQuery(
+              data: MediaQueryData(viewPadding: EdgeInsets.only(bottom: 48)),
+              child: DashboardScreen(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final list = tester.widget<ListView>(find.byType(ListView).first);
+      expect(list.padding, const EdgeInsets.fromLTRB(16, 16, 16, 64));
+    });
+
     testWidgets('renders offline banner when data is cached', (tester) async {
       final fakeApi =
           FakeApiClient(responseData: sampleJson, shouldThrow: true);

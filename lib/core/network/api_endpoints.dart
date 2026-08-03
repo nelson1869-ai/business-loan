@@ -14,6 +14,12 @@ class ApiEndpoints {
   /// Loan collection endpoint.
   static const String loans = '/api/v1/loans';
 
+  /// Controlled loan lifecycle endpoints. These are never queued offline.
+  static const String loanDrafts = '$loans/drafts';
+
+  static String loanWorkflow(String loanId, String action) =>
+      '$loans/$loanId/workflow/$action';
+
   /// Non-persistent loan quote calculator endpoint.
   static const String loanQuote = '$loans/quote';
 

@@ -102,8 +102,7 @@ class LoanRepository {
       );
     }
     try {
-      final json =
-          await apiClient.get('/api/v1/client/loans/$loanId/schedule');
+      final json = await apiClient.get('/api/v1/client/loans/$loanId/schedule');
       final schedule =
           BorrowerInstallmentSchedule.fromJson(json, isFromCache: false);
       await localCache.saveCachedLoanSchedule(borrowerAccountId, schedule);

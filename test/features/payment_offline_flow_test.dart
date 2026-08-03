@@ -9,6 +9,8 @@ import 'package:lending_nelson/core/database/database_service.dart';
 import 'package:lending_nelson/core/network/offline_sync_service.dart';
 import 'package:lending_nelson/core/security/encryption_service.dart';
 import 'package:lending_nelson/features/loans/data/repositories/local_loan_repository.dart';
+import 'package:lending_nelson/features/loans/data/repositories/remote_payment_repository.dart';
+import 'package:lending_nelson/features/loans/domain/models/payment.dart';
 import 'package:lending_nelson/features/loans/presentation/providers/payment_notifier.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -17,7 +19,7 @@ void main() {
   databaseFactory = databaseFactoryFfi;
 
   test(
-    'offline collection persists payment, balance, and replay queue',
+    'supported non-cash payment persists after an authoritative preview',
     () async {
       final databaseService = DatabaseService(dbPath: inMemoryDatabasePath);
       addTearDown(databaseService.close);
@@ -107,6 +109,9 @@ void main() {
         overrides: [
           localLoanRepositoryProvider.overrideWithValue(localRepository),
           offlineSyncServiceProvider.overrideWithValue(syncService),
+          remotePaymentRepositoryProvider.overrideWithValue(
+            _PreviewPaymentRepository(),
+          ),
         ],
       );
       addTearDown(container.dispose);
@@ -122,19 +127,13 @@ void main() {
         loanId: 'loan-1',
         amount: '200.00',
         effectiveDate: '2026-07-15',
-        outstandingPrincipal: '1000.00',
-        interestDue: '50.00',
-        dueDate: '2026-02-01',
-        daysEarly: 0,
-        overdueDays: 164,
-        scheduledPayment: '200.00',
-        periodicRate: 0.05,
-        installmentId: 'installment-1',
       );
       await notifier.confirm(
         loanId: 'loan-1',
         amount: '200.00',
         effectiveDate: '2026-07-15',
+        method: 'bank',
+        deviceId: 'installation-1',
         note: 'Offline collection',
       );
 
@@ -151,6 +150,36 @@ void main() {
       expect(queue, hasLength(1));
       expect(queue.single['entity_type'], 'repayment');
     },
+  );
+}
+
+class _PreviewPaymentRepository extends RemotePaymentRepository {
+  _PreviewPaymentRepository() : super(Dio());
+
+  @override
+  Future<PaymentPreview> preview({
+    required String loanId,
+    required String amount,
+    required String effectiveDate,
+  }) async => PaymentPreview(
+    loanId: loanId,
+    installmentId: 'installment-1',
+    paymentAmount: amount,
+    effectiveDate: effectiveDate,
+    dueDate: '2026-02-01',
+    daysEarly: 0,
+    overdueDays: 164,
+    accruedInterest: '50.00',
+    totalInterestBefore: '50.00',
+    principalBefore: '1000.00',
+    appliedInterest: '50.00',
+    appliedPrincipal: '150.00',
+    unappliedCredit: '0.00',
+    interestAfter: '0.00',
+    principalAfter: '850.00',
+    amountAboveScheduled: '0.00',
+    nextPeriodInterest: '42.50',
+    isPayoff: false,
   );
 }
 

@@ -188,8 +188,8 @@ class ReceiptModal extends ConsumerWidget {
         _buildAllocationRow(
             'Penalty Applied', currencyFormat.format(receipt.penaltyPaid)),
         const Divider(height: 16),
-        _buildAllocationRow('Unapplied Credit',
-            currencyFormat.format(receipt.unappliedCredit)),
+        _buildAllocationRow(
+            'Unapplied Credit', currencyFormat.format(receipt.unappliedCredit)),
         const Divider(height: 16),
         _buildAllocationRow(
           'Remaining Principal Balance',
@@ -216,7 +216,8 @@ class ReceiptModal extends ConsumerWidget {
     );
   }
 
-  Widget _buildAllocationRow(String label, String value, {bool isBold = false}) {
+  Widget _buildAllocationRow(String label, String value,
+      {bool isBold = false}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [

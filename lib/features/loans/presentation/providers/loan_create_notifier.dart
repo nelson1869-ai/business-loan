@@ -4,14 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/utils/formatters.dart';
-import '../../../../core/utils/loan_calculator.dart';
 import '../../data/models/loan_create_request.dart';
 import '../../data/models/loan_quote.dart';
-import '../../data/repositories/local_loan_repository.dart';
+import '../../data/repositories/remote_loan_repository.dart';
 import '../../domain/models/loan.dart';
 import '../../../borrowers/data/borrower_repository.dart';
-import '../../../../core/network/offline_sync_service.dart';
-import '../../../../core/network/api_endpoints.dart';
 import 'loans_provider.dart';
 import '../../../borrower_communication/data/borrower_due_reminder_scheduler.dart';
 
@@ -32,10 +29,10 @@ class LoanCreateState {
 }
 
 class LoanCreateNotifier extends StateNotifier<LoanCreateState> {
-  LoanCreateNotifier(this._localLoanRepository, this.ref)
+  LoanCreateNotifier(this._remoteLoanRepository, this.ref)
     : super(const LoanCreateState());
 
-  final LocalLoanRepository _localLoanRepository;
+  final RemoteLoanRepository _remoteLoanRepository;
   final Ref ref;
   String? _requestId;
   String? _requestFingerprint;
@@ -49,40 +46,13 @@ class LoanCreateNotifier extends StateNotifier<LoanCreateState> {
   }) async {
     state = const LoanCreateState(isCalculating: true);
     final monthlyRateStr = percentageToDecimalRate(rate);
-    final double periodicRate =
-        (double.tryParse(monthlyRateStr) ?? 0.0) / paymentsPerMonth;
-
     try {
-      final schedule = LoanCalculator.buildInstallmentSchedule(
-        originalPrincipal: principal,
-        periodicRate: periodicRate,
-        numberOfPayments: termMonths * paymentsPerMonth,
-      );
-      int totalIntCents = 0;
-      for (final item in schedule) {
-        totalIntCents += LoanCalculator.parseCents(
-          item.interestAmount,
-          'interest',
-        );
-      }
-      final totalRepaymentCents =
-          LoanCalculator.parseCents(principal, 'principal') + totalIntCents;
-
-      final firstDueStr = formatDateOnly(firstDueDate);
-      final firstDueDT = DateTime.parse(firstDueStr);
-      final finalDueDT = DateTime(
-        firstDueDT.year,
-        firstDueDT.month + schedule.length - 1,
-        firstDueDT.day,
-      );
-      final finalDueDateStr = formatDateOnly(finalDueDT);
-
-      final quote = LoanQuote(
-        regularPaymentAmount: schedule.first.paymentAmount,
-        totalInterest: LoanCalculator.formatCents(totalIntCents),
-        totalRepayment: LoanCalculator.formatCents(totalRepaymentCents),
-        numberOfPayments: schedule.length,
-        finalDueDate: finalDueDateStr,
+      final quote = await _remoteLoanRepository.calculateQuote(
+        principal: principal,
+        monthlyRate: monthlyRateStr,
+        termMonths: termMonths,
+        paymentsPerMonth: paymentsPerMonth,
+        firstDueDate: formatDateOnly(firstDueDate),
       );
       state = LoanCreateState(quote: quote);
       return quote;
@@ -145,18 +115,7 @@ class LoanCreateNotifier extends StateNotifier<LoanCreateState> {
     );
 
     try {
-      final loan = await _localLoanRepository.createLoanOffline(createRequest);
-      final syncService = ref.read(offlineSyncServiceProvider);
-      await syncService.enqueue(
-        endpoint: ApiEndpoints.loans,
-        method: 'POST',
-        payload: createRequest.toJson(),
-        entityType: 'loan',
-        entityLocalId: loan.id,
-        operationType: 'create',
-        dependencyIds: [borrowerId],
-      );
-      unawaited(syncService.drainQueue());
+      final loan = await _remoteLoanRepository.createDraft(createRequest);
       ref.invalidate(borrowerLoansProvider(borrowerId));
       unawaited(
         ref
@@ -177,5 +136,5 @@ final loanCreateNotifierProvider =
     StateNotifierProvider.autoDispose<LoanCreateNotifier, LoanCreateState>((
       ref,
     ) {
-      return LoanCreateNotifier(ref.watch(localLoanRepositoryProvider), ref);
+      return LoanCreateNotifier(ref.watch(remoteLoanRepositoryProvider), ref);
     });

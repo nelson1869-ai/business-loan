@@ -8,13 +8,13 @@ class PaymentHistorySection extends StatelessWidget {
     super.key,
     required this.payments,
     required this.working,
-    required this.onReverse,
+    this.onReverse,
     this.onSendToBorrower,
   });
 
   final List<LoanPayment> payments;
   final bool working;
-  final ValueChanged<LoanPayment> onReverse;
+  final ValueChanged<LoanPayment>? onReverse;
   final ValueChanged<LoanPayment>? onSendToBorrower;
 
   @override
@@ -33,8 +33,9 @@ class PaymentHistorySection extends StatelessWidget {
           _PaymentTile(
             payment: payments[i],
             isReversed: reversedIds.contains(payments[i].id),
-            onReverse: i == 0 && latestCanReverse && !working
-                ? () => onReverse(payments[i])
+            onReverse:
+                i == 0 && latestCanReverse && !working && onReverse != null
+                ? () => onReverse!(payments[i])
                 : null,
             onSendToBorrower:
                 payments[i].entryType == 'Payment' &&

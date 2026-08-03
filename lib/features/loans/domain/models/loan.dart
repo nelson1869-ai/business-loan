@@ -23,6 +23,11 @@ class Loan {
     required this.finalDueDate,
     required this.status,
     required this.createdAt,
+    this.approvedByUserId,
+    this.approvedAt,
+    this.disbursedByUserId,
+    this.disbursedAt,
+    this.activatedAt,
     this.unappliedCredit = '0.00',
     Iterable<Installment> installments = const <Installment>[],
   }) : installments = UnmodifiableListView<Installment>(installments);
@@ -44,6 +49,11 @@ class Loan {
   final String finalDueDate;
   final String status;
   final String createdAt;
+  final String? approvedByUserId;
+  final String? approvedAt;
+  final String? disbursedByUserId;
+  final String? disbursedAt;
+  final String? activatedAt;
 
   /// Net advance credit currently held for this loan that has not yet been
   /// applied to a future installment. Populated from the backend's
@@ -88,6 +98,11 @@ class Loan {
       finalDueDate: _parseDate(json, 'finalDueDate'),
       status: _parseString(json, 'status', fallback: 'Active'),
       createdAt: _parseDate(json, 'createdAt'),
+      approvedByUserId: _nullableString(json, 'approvedByUserId'),
+      approvedAt: _nullableString(json, 'approvedAt'),
+      disbursedByUserId: _nullableString(json, 'disbursedByUserId'),
+      disbursedAt: _nullableString(json, 'disbursedAt'),
+      activatedAt: _nullableString(json, 'activatedAt'),
       unappliedCredit: _parseDecimal(json, 'unappliedCredit'),
       installments: installmentRows
           .whereType<Map<dynamic, dynamic>>()
@@ -119,11 +134,21 @@ class Loan {
     'finalDueDate': finalDueDate,
     'status': status,
     'createdAt': createdAt,
+    if (approvedByUserId != null) 'approvedByUserId': approvedByUserId,
+    if (approvedAt != null) 'approvedAt': approvedAt,
+    if (disbursedByUserId != null) 'disbursedByUserId': disbursedByUserId,
+    if (disbursedAt != null) 'disbursedAt': disbursedAt,
+    if (activatedAt != null) 'activatedAt': activatedAt,
     'unappliedCredit': unappliedCredit,
     'installments': installments
         .map((Installment installment) => installment.toJson())
         .toList(growable: false),
   };
+}
+
+String? _nullableString(Map<String, dynamic> json, String key) {
+  final value = json[key] ?? json[_toSnakeCase(key)];
+  return value == null || value.toString().isEmpty ? null : value.toString();
 }
 
 String _parseString(

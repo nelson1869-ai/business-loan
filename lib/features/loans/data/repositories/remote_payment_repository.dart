@@ -43,6 +43,10 @@ class RemotePaymentRepository {
     required String requestId,
     required String amount,
     required String effectiveDate,
+    required String method,
+    required String deviceId,
+    String? collectionSessionId,
+    String? receiptNumber,
     String? note,
   }) async {
     try {
@@ -52,6 +56,11 @@ class RemotePaymentRepository {
           'requestId': requestId,
           'amount': amount,
           'effectiveDate': effectiveDate,
+          'paymentMethod': method,
+          'deviceId': deviceId,
+          'collectionSessionId': ?collectionSessionId,
+          if (receiptNumber != null && receiptNumber.trim().isNotEmpty)
+            'receiptNumber': receiptNumber.trim(),
           if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
         },
       );
@@ -99,6 +108,7 @@ class RemotePaymentRepository {
     required String requestId,
     required String effectiveDate,
     required String reason,
+    required String approvalRequestId,
   }) async {
     try {
       final response = await _dio.post<Map<String, dynamic>>(
@@ -107,6 +117,7 @@ class RemotePaymentRepository {
           'requestId': requestId,
           'effectiveDate': effectiveDate,
           'reason': reason.trim(),
+          'approvalRequestId': approvalRequestId,
         },
       );
       final payment = LoanPayment.fromJson(_requiredMap(response.data));

@@ -21,6 +21,24 @@ class ApprovalRepository {
         .toList(growable: false);
   }
 
+  Future<ApprovalRequest> create({
+    required String action,
+    required String entityType,
+    required String entityId,
+    required String reason,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      ApiEndpoints.approvals,
+      data: {
+        'action': action,
+        'entityType': entityType,
+        'entityId': entityId,
+        'reason': reason,
+      },
+    );
+    return ApprovalRequest.fromJson(response.data!);
+  }
+
   Future<ApprovalRequest> decide({
     required String requestId,
     required String decision,

@@ -28,29 +28,29 @@ class LoansScreen extends ConsumerWidget {
           ),
         ),
         body: Column(
-        children: [
-          // Status Filter Bar
-          _buildFilterBar(context, ref, state.selectedStatus),
+          children: [
+            // Status Filter Bar
+            _buildFilterBar(context, ref, state.selectedStatus),
 
-          // Main Body
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: () async {
-                await ref
-                    .read(loansListNotifierProvider.notifier)
-                    .loadLoans(isRefresh: true);
-              },
-              child: _buildBody(
-                context,
-                ref,
-                state,
-                currencyFormat,
-                dateFormat,
-                timeFormat,
+            // Main Body
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  await ref
+                      .read(loansListNotifierProvider.notifier)
+                      .loadLoans(isRefresh: true);
+                },
+                child: _buildBody(
+                  context,
+                  ref,
+                  state,
+                  currencyFormat,
+                  dateFormat,
+                  timeFormat,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
         ),
       ),
     );

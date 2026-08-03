@@ -13,6 +13,7 @@ import 'widgets/loan_header_card.dart';
 import 'widgets/loan_payment_status_banner.dart';
 import 'widgets/loan_quick_actions.dart';
 import 'widgets/loan_skeleton_loader.dart';
+import 'widgets/loan_workflow_actions.dart';
 import 'widgets/tabs/loan_activity_tab.dart';
 import 'widgets/tabs/loan_documents_tab.dart';
 import 'widgets/tabs/loan_notes_tab.dart';
@@ -177,6 +178,7 @@ class _LoanDetailContent extends StatelessWidget {
                 children: [
                   // Loan Header Card
                   LoanHeaderCard(loan: loan),
+                  LoanWorkflowActions(loan: loan),
                   const SizedBox(height: 12),
                   // Payment Status Banner (Overdue Alert / Healthy Status)
                   LoanPaymentStatusBanner(

@@ -14,7 +14,6 @@ class DeviceRegisterRequest extends Equatable {
   Map<String, dynamic> toJson() => {
         'deviceIdentifier': deviceIdentifier,
         'platform': platform,
-
         if (pushToken != null) 'pushToken': pushToken,
       };
 

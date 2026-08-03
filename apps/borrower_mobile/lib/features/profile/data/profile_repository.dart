@@ -53,7 +53,8 @@ class ProfileRepository {
         data: request.toJson(),
       );
       final response = DeviceResponse.fromJson(json);
-      await localCache.saveCachedDeviceRegistration(borrowerAccountId, response);
+      await localCache.saveCachedDeviceRegistration(
+          borrowerAccountId, response);
       return response;
     } catch (e) {
       final cached =

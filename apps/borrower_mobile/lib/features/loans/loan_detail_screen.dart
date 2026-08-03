@@ -646,8 +646,7 @@ class LoanDetailScreen extends ConsumerWidget {
                 ],
               ),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
                   color: statusBg,
                   borderRadius: BorderRadius.circular(10),
@@ -809,9 +808,8 @@ class LoanDetailScreen extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: isReversed
-                        ? Colors.red.shade50
-                        : Colors.green.shade50,
+                    color:
+                        isReversed ? Colors.red.shade50 : Colors.green.shade50,
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
@@ -855,7 +853,9 @@ class LoanDetailScreen extends ConsumerWidget {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    color: isReversed ? Colors.red.shade700 : const Color(0xFF0F172A),
+                    color: isReversed
+                        ? Colors.red.shade700
+                        : const Color(0xFF0F172A),
                   ),
                 ),
                 const SizedBox(width: 4),

@@ -40,6 +40,36 @@ void main() {
     expect(loan.installments, hasLength(1));
   });
 
+  test('draft creation uses the controlled workflow endpoint', () async {
+    adapter.responseData = _loanJson(includeInstallments: true);
+    const request = LoanCreateRequest(
+      borrowerId: 'borrower-1',
+      requestId: '00000000-0000-4000-8000-000000000002',
+      originalPrincipal: '1000.00',
+      monthlyRate: '0.10',
+      termMonths: 5,
+      paymentsPerMonth: 2,
+      startDate: '2026-08-01',
+      firstDueDate: '2026-08-05',
+    );
+
+    await repository.createDraft(request);
+
+    expect(adapter.lastRequest?.path, '/api/v1/loans/drafts');
+    expect(adapter.lastRequest?.data, request.toJson());
+  });
+
+  test('workflow transition uses the existing action endpoint', () async {
+    adapter.responseData = _loanJson(includeInstallments: true)
+      ..['approvedAt'] = '2026-08-02T10:00:00Z';
+
+    final loan = await repository.transition('loan-1', 'approve');
+
+    expect(adapter.lastRequest?.method, 'POST');
+    expect(adapter.lastRequest?.path, '/api/v1/loans/loan-1/workflow/approve');
+    expect(loan.approvedAt, '2026-08-02T10:00:00Z');
+  });
+
   test('list sends borrower filter and parses loan summaries', () async {
     adapter.responseData = <Map<String, dynamic>>[
       _loanJson(includeInstallments: false),

@@ -44,11 +44,16 @@ class OfficerSession {
 }
 
 const _allPermissions = <String>{
+  'borrower.create',
+  'borrower.update',
+  'borrower.archive',
+  'loan.create',
   'loan.approve',
   'loan.disburse',
   'loan.restructure',
   'loan.write_off',
   'payment.reverse',
+  'payment.collect',
   'accounting.view',
   'accounting.post_adjustment',
   'policy.create',
@@ -63,9 +68,22 @@ const _rolePermissions = <String, Set<String>>{
   'admin': _allPermissions,
   'owner': _allPermissions,
   'manager': _allPermissions,
-  'officer': {'reconciliation.submit', 'report.view'},
-  'loan_officer': {'report.view'},
-  'collector': {'reconciliation.submit'},
+  'officer': {
+    'borrower.create',
+    'borrower.update',
+    'loan.create',
+    'payment.collect',
+    'reconciliation.submit',
+    'report.view',
+  },
+  'loan_officer': {
+    'borrower.create',
+    'borrower.update',
+    'loan.create',
+    'payment.collect',
+    'report.view',
+  },
+  'collector': {'payment.collect', 'reconciliation.submit'},
   'cashier': {
     'reconciliation.submit',
     'reconciliation.approve',

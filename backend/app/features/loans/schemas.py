@@ -170,6 +170,11 @@ class LoanResponse(BaseModel):
     first_due_date: date
     final_due_date: date
     status: LoanStatus
+    approved_by_user_id: str | None = None
+    approved_at: datetime | None = None
+    disbursed_by_user_id: str | None = None
+    disbursed_at: datetime | None = None
+    activated_at: datetime | None = None
     created_at: datetime
 
     model_config = ConfigDict(

@@ -6,7 +6,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 
-from app.core.authorization import require_permission
+from app.core.authorization import require_any_permission, require_permission
 from app.core.dependencies import CurrentUser, DbSession
 from app.features.accounting.service import (
     post_journal,
@@ -194,7 +194,7 @@ async def reverse_one_payment(
     current_user: CurrentUser,
 ) -> PaymentReversalResponse:
     """Reverse the latest payment without deleting its ledger history."""
-    require_permission(current_user, "payment.reverse")
+    require_any_permission(current_user, {"payment.collect", "payment.reverse"})
     existing = await payment_service.get_payment_by_request_id(db, payload.request_id)
     if existing is not None:
         if not payment_service.reversal_matches_request(

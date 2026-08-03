@@ -16,7 +16,7 @@ param (
 
     [Parameter()]
     [ValidateSet("officer", "borrower", "all")]
-    [string]$App = "officer",
+    [string]$App = "all",
 
     [Parameter()]
     [ValidateRange(1, 65535)]
@@ -54,8 +54,8 @@ if (-not $AdbExe) {
 $ApiUrl = "http://${ServerIp}:${Port}"
 
 Write-Host "[DEV ONLY] Trusted local Wi-Fi launcher" -ForegroundColor Yellow
-Write-Host "Phone: $PhoneAddress"
-Write-Host "Backend: $ApiUrl"
+Write-Host "Phone: $PhoneAddress" -ForegroundColor Cyan
+Write-Host "Backend: $ApiUrl" -ForegroundColor Yellow
 
 & $AdbExe connect $PhoneAddress
 if ($LASTEXITCODE -ne 0) {
@@ -141,7 +141,7 @@ if (-not (Test-Path -LiteralPath $VenvPython -PathType Leaf)) {
     throw "Backend virtual-environment Python was not found at $VenvPython"
 }
 
-$backendArguments = @("-NoProfile", "-Command", "Set-Location '$BackendDir'; & '$VenvPython' -m uvicorn app.main:app --host 0.0.0.0 --port $Port")
+$backendArguments = @("-NoProfile", "-Command", "`$env:APP_ENV='development'; `$env:LOCAL_BORROWER_OTP_ENABLED='true'; Set-Location '$BackendDir'; & '$VenvPython' -m uvicorn app.main:app --host 0.0.0.0 --port $Port")
 $backendProcess = Start-Process powershell -ArgumentList $backendArguments -WindowStyle Hidden -PassThru
 
 $healthy = $false
@@ -163,22 +163,41 @@ if (-not (Test-BackendHealth -HealthUrl $ApiUrl)) {
 }
 Write-Host "[OK] Backend restarted and is reachable from the LAN address." -ForegroundColor Green
 
+Set-Location -LiteralPath $ProjectRoot
+$flutterCommand = Get-Command flutter -ErrorAction Stop
+$flutterBin = Split-Path -Parent $flutterCommand.Source
+$flutterSdkRoot = Split-Path -Parent $flutterBin
+
+$env:GIT_CONFIG_COUNT = "1"
+$env:GIT_CONFIG_KEY_0 = "safe.directory"
+$env:GIT_CONFIG_VALUE_0 = $flutterSdkRoot
+
 $BorrowerDir = Join-Path $ProjectRoot "apps\borrower_mobile"
+
+$flutterArguments = @(
+    "run",
+    "-d",
+    $PhoneAddress,
+    "--flavor=development",
+    "--dart-define=API_BASE_URL=$ApiUrl",
+    "--dart-define=APP_ENV=development",
+    "--dart-define=LOCAL_BORROWER_OTP_ENABLED=true"
+)
 
 if ($App -eq "borrower") {
     Set-Location -LiteralPath $BorrowerDir
-    Write-Host "[START] Launching Borrower App on $PhoneAddress..." -ForegroundColor Cyan
-    flutter run -d $PhoneAddress --dart-define="API_BASE_URL=$ApiUrl"
+    Write-Host "[START] Borrower Flutter client on $PhoneAddress ($($flutterArguments -join ' '))" -ForegroundColor Cyan
+    & flutter @flutterArguments
 } elseif ($App -eq "all") {
     Write-Host "[START] Launching Borrower App on $PhoneAddress in background..." -ForegroundColor Cyan
-    Start-Process powershell -ArgumentList @("-NoExit", "-Command", "Set-Location '$BorrowerDir'; flutter run -d $PhoneAddress --dart-define=API_BASE_URL=$ApiUrl")
+    Start-Process powershell -ArgumentList @("-NoExit", "-Command", "Set-Location '$BorrowerDir'; flutter run -d $PhoneAddress --flavor=development --dart-define=API_BASE_URL=$ApiUrl --dart-define=APP_ENV=development --dart-define=LOCAL_BORROWER_OTP_ENABLED=true")
     Set-Location -LiteralPath $ProjectRoot
     Write-Host "[START] Launching Officer App on $PhoneAddress..." -ForegroundColor Cyan
-    flutter run -d $PhoneAddress --dart-define="API_BASE_URL=$ApiUrl"
+    & flutter @flutterArguments
 } else {
     Set-Location -LiteralPath $ProjectRoot
     Write-Host "[START] Launching Officer App on $PhoneAddress..." -ForegroundColor Cyan
-    flutter run -d $PhoneAddress --dart-define="API_BASE_URL=$ApiUrl"
+    & flutter @flutterArguments
 }
 
 if ($LASTEXITCODE -ne 0) {

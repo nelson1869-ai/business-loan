@@ -2,9 +2,37 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_mapper.dart';
+import '../../../core/presentation/design_system/app_state_views.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/online_required_banner.dart';
 import 'operational_report_provider.dart';
+
+String agingBucketLabel(String key) => switch (key) {
+  'current' => 'Current',
+  'days17' => '1–7 days',
+  'days830' => '8–30 days',
+  'days3160' => '31–60 days',
+  'days6190' => '61–90 days',
+  'daysOver90' => 'Over 90 days',
+  _ => key,
+};
+
+Widget reportSegmentLabel(String label) => FittedBox(
+  fit: BoxFit.scaleDown,
+  child: Text(label, maxLines: 1, softWrap: false),
+);
+
+Widget emptyCollectionReportState() => const Center(
+  child: Padding(
+    padding: EdgeInsets.all(24),
+    child: AppEmptyState(
+      icon: Icons.receipt_long_outlined,
+      title: 'No collection sessions in this period',
+      description:
+          'Cash collected, deposits, and collector variances will appear after sessions are recorded for the selected period.',
+    ),
+  ),
+);
 
 /// Backend-calculated portfolio, cash, variance, and trial-balance reports.
 class OperationalReportsPage extends ConsumerStatefulWidget {
@@ -30,38 +58,50 @@ class _OperationalReportsPageState
     final report = ref.watch(operationalReportProvider(query));
     return Scaffold(
       appBar: AppBar(title: const Text('Operational Reports')),
-      body: Column(
-        children: [
-          const OnlineRequiredBanner(),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: 'portfolio', label: Text('Portfolio')),
-                ButtonSegment(value: 'collections', label: Text('Cash')),
-                ButtonSegment(value: 'trial', label: Text('Trial Balance')),
-              ],
-              selected: {_type},
-              onSelectionChanged: (selection) {
-                setState(() => _type = selection.single);
-              },
-            ),
-          ),
-          Expanded(
-            child: report.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => Center(
-                child: FilledButton.icon(
-                  onPressed: () =>
-                      ref.invalidate(operationalReportProvider(query)),
-                  icon: const Icon(Icons.refresh),
-                  label: Text(ApiErrorMapper.message(error)),
-                ),
+      body: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            const OnlineRequiredBanner(),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: SegmentedButton<String>(
+                segments: [
+                  ButtonSegment(
+                    value: 'portfolio',
+                    label: reportSegmentLabel('Portfolio'),
+                  ),
+                  ButtonSegment(
+                    value: 'collections',
+                    label: reportSegmentLabel('Cash'),
+                  ),
+                  ButtonSegment(
+                    value: 'trial',
+                    label: reportSegmentLabel('Trial Balance'),
+                  ),
+                ],
+                selected: {_type},
+                onSelectionChanged: (selection) {
+                  setState(() => _type = selection.single);
+                },
               ),
-              data: (data) => _ReportBody(type: _type, data: data),
             ),
-          ),
-        ],
+            Expanded(
+              child: report.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, _) => Center(
+                  child: FilledButton.icon(
+                    onPressed: () =>
+                        ref.invalidate(operationalReportProvider(query)),
+                    icon: const Icon(Icons.refresh),
+                    label: Text(ApiErrorMapper.message(error)),
+                  ),
+                ),
+                data: (data) => _ReportBody(type: _type, data: data),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -95,7 +135,9 @@ class _ReportBody extends StatelessWidget {
         _metric('PAR 60', data['par60']),
         _metric('PAR 90', data['par90']),
         const Divider(),
-        ...aging.entries.map((entry) => _metric(entry.key, entry.value)),
+        ...aging.entries.map(
+          (entry) => _metric(agingBucketLabel(entry.key), entry.value),
+        ),
       ],
     );
   }
@@ -103,9 +145,7 @@ class _ReportBody extends StatelessWidget {
   Widget _collections() {
     final rows = data['rows'] as List<dynamic>? ?? const [];
     if (rows.isEmpty) {
-      return const Center(
-        child: Text('No collection sessions in this period.'),
-      );
+      return emptyCollectionReportState();
     }
     return ListView.builder(
       padding: const EdgeInsets.all(16),

@@ -28,6 +28,13 @@ ACTION_PERMISSION = {
     "interest_rate.modify": "loan.approve",
 }
 
+REQUEST_PERMISSION = {
+    **ACTION_PERMISSION,
+    "loan.approve": "loan.create",
+    "payment.reverse": "payment.collect",
+    "loan.write_off": "loan.write_off",
+}
+
 
 @router.post("", response_model=ApprovalRequestResponse, status_code=201)
 async def create_approval_request(
@@ -35,7 +42,7 @@ async def create_approval_request(
     db: DbSession,
     current_user: CurrentUser,
 ):
-    require_permission(current_user, ACTION_PERMISSION[payload.action])
+    require_permission(current_user, REQUEST_PERMISSION[payload.action])
     try:
         request = await service.create_request(
             db,

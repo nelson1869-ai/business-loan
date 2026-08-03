@@ -51,6 +51,10 @@ void main() {
         requestId: '00000000-0000-4000-8000-000000000099',
         amount: '200.00',
         effectiveDate: '2026-08-16',
+        method: 'cash',
+        deviceId: 'install-1',
+        collectionSessionId: '00000000-0000-4000-8000-000000000101',
+        receiptNumber: 'R-100',
         note: ' First collection ',
       );
 
@@ -61,6 +65,9 @@ void main() {
       );
       expect(adapter.lastRequest?.data['amount'], isA<String>());
       expect(adapter.lastRequest?.data['note'], 'First collection');
+      expect(adapter.lastRequest?.data['paymentMethod'], 'cash');
+      expect(adapter.lastRequest?.data['deviceId'], 'install-1');
+      expect(adapter.lastRequest?.data['receiptNumber'], 'R-100');
       expect(payment.allocation.principalAfter, '850.00');
     },
   );
@@ -88,6 +95,7 @@ void main() {
       requestId: '00000000-0000-4000-8000-000000000100',
       effectiveDate: '2026-08-17',
       reason: ' Wrong amount ',
+      approvalRequestId: '00000000-0000-4000-8000-000000000102',
     );
 
     expect(
@@ -98,6 +106,7 @@ void main() {
       'requestId': '00000000-0000-4000-8000-000000000100',
       'effectiveDate': '2026-08-17',
       'reason': 'Wrong amount',
+      'approvalRequestId': '00000000-0000-4000-8000-000000000102',
     });
     expect(reversal.entryType, 'Reversal');
     expect(reversal.reversalOfPaymentId, 'payment-1');

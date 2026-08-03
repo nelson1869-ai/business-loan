@@ -26,6 +26,12 @@ class PaymentFormCard extends StatelessWidget {
     required this.theme,
     this.installmentAmount,
     this.payoffAmount,
+    required this.method,
+    required this.onMethodChanged,
+    required this.receiptController,
+    this.sessionOptions = const {},
+    this.collectionSessionId,
+    this.onSessionChanged,
   });
 
   final GlobalKey<FormState> formKey;
@@ -39,6 +45,12 @@ class PaymentFormCard extends StatelessWidget {
   final ThemeData theme;
   final String? installmentAmount;
   final String? payoffAmount;
+  final String method;
+  final ValueChanged<String?> onMethodChanged;
+  final TextEditingController receiptController;
+  final Map<String, String> sessionOptions;
+  final String? collectionSessionId;
+  final ValueChanged<String?>? onSessionChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -83,6 +95,61 @@ class PaymentFormCard extends StatelessWidget {
                       ),
                   ],
                 ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: method,
+                decoration: const InputDecoration(
+                  labelText: 'Payment method',
+                  prefixIcon: Icon(Icons.account_balance_wallet_outlined),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'cash', child: Text('Cash')),
+                  DropdownMenuItem(value: 'bank', child: Text('Bank transfer')),
+                  DropdownMenuItem(
+                    value: 'mobile_money',
+                    child: Text('Mobile money'),
+                  ),
+                  DropdownMenuItem(value: 'other', child: Text('Other')),
+                ],
+                onChanged: working ? null : onMethodChanged,
+              ),
+              if (method == 'cash') ...[
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: collectionSessionId,
+                  decoration: const InputDecoration(
+                    labelText: 'Active collection session',
+                    prefixIcon: Icon(Icons.point_of_sale_outlined),
+                  ),
+                  items: sessionOptions.entries
+                      .map(
+                        (entry) => DropdownMenuItem(
+                          value: entry.key,
+                          child: Text(entry.value),
+                        ),
+                      )
+                      .toList(growable: false),
+                  validator: (value) => value == null
+                      ? 'An active collection session is required for cash'
+                      : null,
+                  onChanged: working ? null : onSessionChanged,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: receiptController,
+                  enabled: !working,
+                  maxLength: 100,
+                  decoration: const InputDecoration(
+                    labelText: 'Receipt number',
+                    prefixIcon: Icon(Icons.receipt_long_outlined),
+                    counterText: '',
+                  ),
+                  validator: (value) => value == null || value.trim().isEmpty
+                      ? 'Receipt number is required for cash'
+                      : null,
+                  onChanged: (_) => onFieldChange(),
+                ),
+              ],
               const SizedBox(height: 12),
               TextFormField(
                 controller: amountController,

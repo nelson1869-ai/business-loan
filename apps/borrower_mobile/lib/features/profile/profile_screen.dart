@@ -94,8 +94,9 @@ class ProfileScreen extends ConsumerWidget {
       );
     }
 
-    final initials = (profile.firstName.isNotEmpty ? profile.firstName[0] : '') +
-        (profile.lastName.isNotEmpty ? profile.lastName[0] : '');
+    final initials =
+        (profile.firstName.isNotEmpty ? profile.firstName[0] : '') +
+            (profile.lastName.isNotEmpty ? profile.lastName[0] : '');
 
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
@@ -206,7 +207,8 @@ class ProfileScreen extends ConsumerWidget {
                 const Divider(height: 16),
                 _buildInfoRow('Borrower ID', profile.borrowerId),
                 const Divider(height: 16),
-                _buildInfoRow('Member Since', dateFormat.format(profile.createdAt)),
+                _buildInfoRow(
+                    'Member Since', dateFormat.format(profile.createdAt)),
               ],
             ),
           ),
@@ -244,11 +246,15 @@ class ProfileScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
                 if (state.deviceRegistration != null) ...[
-                  _buildInfoRow('Platform', state.deviceRegistration!.platform.toUpperCase()),
+                  _buildInfoRow('Platform',
+                      state.deviceRegistration!.platform.toUpperCase()),
                   const Divider(height: 16),
                   _buildInfoRow('Push Notifications', 'ACTIVE'),
                   const Divider(height: 16),
-                  _buildInfoRow('Last Synced', timeFormat.format(state.deviceRegistration!.lastSeenAt.toLocal())),
+                  _buildInfoRow(
+                      'Last Synced',
+                      timeFormat.format(
+                          state.deviceRegistration!.lastSeenAt.toLocal())),
                 ] else
                   const Text(
                     'Android Device Push Token Registered',

@@ -122,11 +122,15 @@ void main() {
       final formKey = GlobalKey<FormState>();
       final amountCtrl = TextEditingController();
       final noteCtrl = TextEditingController();
+      final receiptCtrl = TextEditingController();
       return withApp(
         PaymentFormCard(
           formKey: formKey,
           amountController: amountCtrl,
           noteController: noteCtrl,
+          receiptController: receiptCtrl,
+          method: 'bank',
+          onMethodChanged: (_) {},
           dateLabel: dateLabel ?? '2026-07-20',
           working: working,
           theme: ThemeData(),
@@ -161,12 +165,16 @@ void main() {
         final formKey = GlobalKey<FormState>();
         final amountCtrl = TextEditingController();
         final noteCtrl = TextEditingController();
+        final receiptCtrl = TextEditingController();
         await tester.pumpWidget(
           withApp(
             PaymentFormCard(
               formKey: formKey,
               amountController: amountCtrl,
               noteController: noteCtrl,
+              receiptController: receiptCtrl,
+              method: 'bank',
+              onMethodChanged: (_) {},
               dateLabel: '2026-07-20',
               working: false,
               theme: ThemeData(),

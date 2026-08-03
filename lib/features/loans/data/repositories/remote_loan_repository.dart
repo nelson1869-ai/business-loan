@@ -59,52 +59,10 @@ class RemoteLoanRepository {
       if (json == null) throw const FormatException('Empty quote response');
       return LoanQuote.fromJson(json);
     } on DioException catch (error) {
-      final mapped = _mapError(error, 'Unable to calculate loan quote');
-      if (mapped.isRetryable) {
-        return _calculateLocalQuote(
-          principal: principal,
-          monthlyRate: monthlyRate,
-          termMonths: termMonths,
-          paymentsPerMonth: paymentsPerMonth,
-          firstDueDate: firstDueDate,
-        );
-      }
-      throw mapped;
+      throw _mapError(error, 'Unable to calculate loan quote');
     } on FormatException catch (error) {
       throw RemoteLoanException(error.message, isRetryable: false);
     }
-  }
-
-  LoanQuote _calculateLocalQuote({
-    required String principal,
-    required String monthlyRate,
-    required int termMonths,
-    required int paymentsPerMonth,
-    required String firstDueDate,
-  }) {
-    final p = double.tryParse(principal) ?? 0.0;
-    final r = double.tryParse(monthlyRate) ?? 0.0;
-    final totalInt = p * r * termMonths;
-    final totalRep = p + totalInt;
-    final numPayments = (termMonths * paymentsPerMonth).clamp(1, 600);
-    final regPayment = totalRep / numPayments;
-
-    final parsedDate = DateTime.tryParse(firstDueDate) ?? DateTime.now();
-    final finalDate = DateTime(
-      parsedDate.year,
-      parsedDate.month + termMonths,
-      parsedDate.day,
-    );
-    final finalDueDateStr =
-        '${finalDate.year.toString().padLeft(4, '0')}-${finalDate.month.toString().padLeft(2, '0')}-${finalDate.day.toString().padLeft(2, '0')}';
-
-    return LoanQuote(
-      regularPaymentAmount: regPayment.toStringAsFixed(2),
-      totalInterest: totalInt.toStringAsFixed(2),
-      totalRepayment: totalRep.toStringAsFixed(2),
-      numberOfPayments: numPayments,
-      finalDueDate: finalDueDateStr,
-    );
   }
 
   /// Creates a loan.  On success the result is cached locally.  On a retryable
@@ -137,6 +95,39 @@ class RemoteLoanRepository {
         return fallbackLoan;
       }
       throw mapped;
+    }
+  }
+
+  /// Creates an online-only draft for maker-checker processing.
+  Future<Loan> createDraft(LoanCreateRequest request) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        ApiEndpoints.loanDrafts,
+        data: request.toJson(),
+      );
+      final loan = _parseLoan(response.data, 'Draft response was empty');
+      await _localRepo?.saveLoan(loan);
+      return loan;
+    } on DioException catch (error) {
+      throw _mapError(error, 'Internet is required to create a loan draft');
+    }
+  }
+
+  /// Applies one backend-authorized online-only lifecycle transition.
+  Future<Loan> transition(String loanId, String action) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        ApiEndpoints.loanWorkflow(loanId, action),
+      );
+      final data = response.data;
+      if (data == null) throw const FormatException('Empty loan response');
+      final loan = Loan.fromJson(data);
+      await _localRepo?.saveLoan(loan);
+      return loan;
+    } on DioException catch (error) {
+      throw _mapError(error, 'Unable to update the loan workflow');
+    } on FormatException catch (error) {
+      throw RemoteLoanException(error.message, isRetryable: false);
     }
   }
 

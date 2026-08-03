@@ -5,8 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_mapper.dart';
-import '../../../core/utils/loan_calculator.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/security/device_identifier.dart';
+import '../../../core/security/officer_session.dart';
+import '../../approvals/data/approval_repository.dart';
+import '../../collection_sessions/presentation/collection_session_provider.dart';
 import '../domain/models/payment.dart';
 import '../../borrower_communication/presentation/borrower_communication_provider.dart';
 import '../../borrower_communication/presentation/send_to_borrower_sheet.dart';
@@ -35,12 +38,16 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
   final _noteController = TextEditingController();
+  final _receiptController = TextEditingController();
   DateTime _effectiveDate = DateTime.now();
+  String _paymentMethod = 'cash';
+  String? _collectionSessionId;
 
   @override
   void dispose() {
     _amountController.dispose();
     _noteController.dispose();
+    _receiptController.dispose();
     super.dispose();
   }
 
@@ -63,80 +70,13 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     if (!_formKey.currentState!.validate()) return;
     final loan = ref.read(loanDetailProvider(widget.loanId)).valueOrNull;
     if (loan == null) return;
-    final terms = _paymentTerms(loan);
-    if (terms == null) return;
-    ref
+    await ref
         .read(paymentNotifierProvider.notifier)
         .loadPreview(
           loanId: widget.loanId,
           amount: _amountController.text.trim(),
           effectiveDate: _date,
-          outstandingPrincipal: loan.outstandingPrincipal,
-          interestDue: terms.quote.interestDue,
-          dueDate: terms.dueDate,
-          daysEarly: terms.quote.daysEarly,
-          overdueDays: terms.quote.overdueDays,
-          scheduledPayment: terms.installmentAmount,
-          periodicRate: terms.periodicRate,
-          installmentId: terms.installmentId,
         );
-  }
-
-  _PaymentTerms? _paymentTerms(Loan loan) {
-    final openInstallments =
-        loan.installments
-            .where(
-              (item) => item.status != 'Paid' && item.status != 'Cancelled',
-            )
-            .toList()
-          ..sort(
-            (left, right) =>
-                left.installmentNumber.compareTo(right.installmentNumber),
-          );
-    if (openInstallments.isEmpty) return null;
-
-    final installment = openInstallments.first;
-    final dueDate = DateTime.tryParse(installment.dueDate);
-    final installmentIndex = loan.installments.indexOf(installment);
-    final periodStart = installmentIndex > 0
-        ? DateTime.tryParse(loan.installments[installmentIndex - 1].dueDate)
-        : DateTime.tryParse(loan.startDate);
-    final monthlyRate = double.tryParse(loan.monthlyRate);
-    if (dueDate == null ||
-        periodStart == null ||
-        monthlyRate == null ||
-        loan.paymentsPerMonth <= 0) {
-      return null;
-    }
-
-    final periodicRate = monthlyRate / loan.paymentsPerMonth;
-    try {
-      final remainingCents =
-          LoanCalculator.parseCents(
-            installment.expectedPayment,
-            'expectedPayment',
-          ) -
-          LoanCalculator.parseCents(installment.paidAmount, 'paidAmount') -
-          LoanCalculator.parseCents(loan.unappliedCredit, 'unappliedCredit');
-      final quote = LoanCalculator.quotePayoff(
-        outstandingPrincipal: loan.outstandingPrincipal,
-        periodicRate: periodicRate,
-        periodStartDate: periodStart,
-        dueDate: dueDate,
-        effectiveDate: _effectiveDate,
-      );
-      return _PaymentTerms(
-        quote: quote,
-        installmentAmount: LoanCalculator.formatCents(
-          remainingCents < 0 ? 0 : remainingCents,
-        ),
-        dueDate: installment.dueDate,
-        periodicRate: periodicRate,
-        installmentId: installment.id,
-      );
-    } on LoanCalculationException {
-      return null;
-    }
   }
 
   Future<void> _confirm() async {
@@ -165,12 +105,18 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       ),
     );
     if (accepted != true || !mounted) return;
+    final deviceId = await ref.read(deviceIdentifierProvider.future);
+    if (!mounted) return;
     await ref
         .read(paymentNotifierProvider.notifier)
         .confirm(
           loanId: widget.loanId,
           amount: _amountController.text.trim(),
           effectiveDate: _date,
+          method: _paymentMethod,
+          deviceId: deviceId,
+          collectionSessionId: _collectionSessionId,
+          receiptNumber: _receiptController.text,
           note: _noteController.text,
         );
     if (!mounted) return;
@@ -185,6 +131,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     );
     _amountController.clear();
     _noteController.clear();
+    _receiptController.clear();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Payment recorded successfully')),
@@ -199,6 +146,36 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       builder: (_) => PaymentReversalDialog(paymentDate: paymentDate),
     );
     if (result == null || !mounted) return;
+    final approvals = await ref.read(approvalRepositoryProvider).list();
+    final session = await ref.read(officerSessionProvider.future);
+    if (!mounted || session == null) return;
+    final approved = approvals.where(
+      (request) =>
+          request.action == 'payment.reverse' &&
+          request.entityType == 'payment' &&
+          request.entityId == payment.id &&
+          request.makerUserId == session.userId &&
+          request.status == 'approved',
+    );
+    if (approved.isEmpty) {
+      await ref
+          .read(approvalRepositoryProvider)
+          .create(
+            action: 'payment.reverse',
+            entityType: 'payment',
+            entityId: payment.id,
+            reason: result.$1,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Reversal approval requested. A different authorized user must approve it before reversal.',
+          ),
+        ),
+      );
+      return;
+    }
     await ref
         .read(paymentNotifierProvider.notifier)
         .reversePayment(
@@ -206,6 +183,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           paymentId: payment.id,
           effectiveDate: formatDateOnly(result.$2),
           reason: result.$1,
+          approvalRequestId: approved.last.id,
         );
     if (!mounted) return;
     if (ref.read(paymentNotifierProvider).error != null) return;
@@ -242,11 +220,25 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     final loanAsync = ref.watch(loanDetailProvider(widget.loanId));
     final working = paymentState.working;
     final theme = Theme.of(context);
+    final session = ref.watch(officerSessionProvider).valueOrNull;
+    final canCollect = session?.can('payment.collect') ?? false;
+    final canRequestReversal = session?.can('payment.collect') ?? false;
+    final collectionSessions = ref.watch(collectionSessionsProvider);
 
     final loan = loanAsync.valueOrNull;
-    final terms = loan == null ? null : _paymentTerms(loan);
-    final installmentAmount = terms?.installmentAmount;
-    final payoffAmount = terms?.quote.payoffAmount;
+    final activeSessions =
+        collectionSessions.valueOrNull
+            ?.where(
+              (item) =>
+                  item.collectorUserId == session?.userId &&
+                  (item.status == 'open' || item.status == 'collecting'),
+            )
+            .toList(growable: false) ??
+        const [];
+    final sessionOptions = {
+      for (final item in activeSessions)
+        item.id: 'Opened ${formatDateOnly(item.createdAt)}',
+    };
 
     ref.listen(paymentNotifierProvider, (_, next) {
       if (next.error != null) {
@@ -278,10 +270,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             if (loan != null) ...[
               PaymentBorrowerCard(loan: loan),
               const SizedBox(height: 14),
-              PaymentSummaryCards(
-                loan: loan,
-                installmentAmount: installmentAmount,
-              ),
+              PaymentSummaryCards(loan: loan),
               const SizedBox(height: 16),
             ],
             if (loan?.status == 'Paid')
@@ -305,7 +294,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                   ),
                 ),
               )
-            else ...[
+            else if (canCollect) ...[
               PaymentFormCard(
                 formKey: _formKey,
                 amountController: _amountController,
@@ -313,8 +302,22 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                 dateLabel: _date,
                 working: working,
                 theme: theme,
-                installmentAmount: installmentAmount,
-                payoffAmount: payoffAmount,
+                method: _paymentMethod,
+                onMethodChanged: (value) {
+                  if (value == null) return;
+                  setState(() {
+                    _paymentMethod = value;
+                    if (value != 'cash') _collectionSessionId = null;
+                  });
+                  ref.read(paymentNotifierProvider.notifier).resetPreview();
+                },
+                receiptController: _receiptController,
+                sessionOptions: sessionOptions,
+                collectionSessionId: _collectionSessionId,
+                onSessionChanged: (value) {
+                  setState(() => _collectionSessionId = value);
+                  ref.read(paymentNotifierProvider.notifier).resetPreview();
+                },
                 onPickDate: _pickDate,
                 onPreview: _loadPreview,
                 onFieldChange: () =>
@@ -328,7 +331,15 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                   onConfirm: _confirm,
                 ),
               ],
-            ],
+            ] else
+              const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text(
+                    'You do not have permission to collect payments.',
+                  ),
+                ),
+              ),
             const SizedBox(height: 24),
             Text('Payment History', style: theme.textTheme.titleLarge),
             const SizedBox(height: 8),
@@ -350,7 +361,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                   : PaymentHistorySection(
                       payments: payments,
                       working: working,
-                      onReverse: _reversePayment,
+                      onReverse: canRequestReversal ? _reversePayment : null,
                       onSendToBorrower: loan == null
                           ? null
                           : (payment) => _sendReceipt(loan, payment),
@@ -361,20 +372,4 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       ),
     );
   }
-}
-
-class _PaymentTerms {
-  const _PaymentTerms({
-    required this.quote,
-    required this.installmentAmount,
-    required this.dueDate,
-    required this.periodicRate,
-    required this.installmentId,
-  });
-
-  final LoanPayoffQuote quote;
-  final String installmentAmount;
-  final String dueDate;
-  final double periodicRate;
-  final String installmentId;
 }

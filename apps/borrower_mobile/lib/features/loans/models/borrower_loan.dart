@@ -334,8 +334,7 @@ class BorrowerLoanDetail extends Equatable {
       status: json['status'] as String,
       financialSummary: BorrowerLoanFinancialSummary.fromJson(
           json['financialSummary'] as Map<String, dynamic>),
-      terms: BorrowerLoanTerms.fromJson(
-          json['terms'] as Map<String, dynamic>),
+      terms: BorrowerLoanTerms.fromJson(json['terms'] as Map<String, dynamic>),
       nextInstallment: json['nextInstallment'] != null
           ? BorrowerNextInstallment.fromJson(
               json['nextInstallment'] as Map<String, dynamic>)

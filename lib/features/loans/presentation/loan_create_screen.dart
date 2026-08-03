@@ -4,8 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../borrowers/domain/borrower_model.dart';
-import '../../borrowers/providers/borrower_recommendation_provider.dart';
-import '../../borrowers/widgets/borrower_recommendation_card.dart';
 import 'providers/loan_create_notifier.dart';
 import 'widgets/loan_date_field.dart';
 
@@ -160,51 +158,15 @@ class _LoanCreateScreenState extends ConsumerState<LoanCreateScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           children: [
-            Consumer(
-              builder: (context, ref, child) {
-                final recommendationAsync = ref.watch(
-                  borrowerRecommendationProvider(widget.borrowerId),
-                );
-                return recommendationAsync.when(
-                  data: (rec) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12.0),
-                    child: BorrowerRecommendationCard(
-                      recommendation: rec,
-                      onApplyRecommended: isSubmitting
-                          ? null
-                          : () {
-                              setState(() {
-                                _principalController.text =
-                                    rec.maxRecommendedPrincipal;
-                                final rateVal =
-                                    (double.tryParse(
-                                          rec.suggestedMonthlyRate,
-                                        ) ??
-                                        0.03) *
-                                    100;
-                                _rateController.text = rateVal.toStringAsFixed(
-                                  rateVal.truncateToDouble() == rateVal ? 0 : 1,
-                                );
-                              });
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Applied recommended loan principal & interest rate!',
-                                  ),
-                                  duration: Duration(seconds: 2),
-                                ),
-                              );
-                            },
-                    ),
-                  ),
-                  loading: () => const Padding(
-                    padding: EdgeInsets.all(8.0),
-                    child: Center(child: CircularProgressIndicator()),
-                  ),
-                  error: (_, _) => const SizedBox.shrink(),
-                );
-              },
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(12),
+                child: Text(
+                  'No backend-owned credit assessment is available. Enter terms only under an approved lending policy.',
+                ),
+              ),
             ),
+            const SizedBox(height: 12),
             TextFormField(
               controller: _principalController,
               decoration: const InputDecoration(

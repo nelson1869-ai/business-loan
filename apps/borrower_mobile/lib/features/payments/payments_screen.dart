@@ -21,7 +21,9 @@ class PaymentsScreen extends ConsumerWidget {
       ),
       body: RefreshIndicator(
         onRefresh: () async {
-          await ref.read(loansListNotifierProvider.notifier).loadLoans(isRefresh: true);
+          await ref
+              .read(loansListNotifierProvider.notifier)
+              .loadLoans(isRefresh: true);
         },
         child: _buildBody(context, ref, loansState, currencyFormat, dateFormat),
       ),
@@ -48,10 +50,12 @@ class PaymentsScreen extends ConsumerWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
+                const Icon(Icons.error_outline,
+                    color: Colors.redAccent, size: 48),
                 const SizedBox(height: 16),
                 const Text('Failed to load payments',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -61,8 +65,9 @@ class PaymentsScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton.icon(
-                  onPressed: () =>
-                      ref.read(loansListNotifierProvider.notifier).loadLoans(isRefresh: true),
+                  onPressed: () => ref
+                      .read(loansListNotifierProvider.notifier)
+                      .loadLoans(isRefresh: true),
                   icon: const Icon(Icons.refresh),
                   label: const Text('Retry'),
                 ),

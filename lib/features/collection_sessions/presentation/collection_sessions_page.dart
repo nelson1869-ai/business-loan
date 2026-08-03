@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_mapper.dart';
+import '../../../core/presentation/design_system/app_state_views.dart';
 import '../../../core/security/officer_session.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/online_required_banner.dart';
@@ -32,51 +33,75 @@ class CollectionSessionsPage extends ConsumerWidget {
             ),
         ],
       ),
-      body: Column(
-        children: [
-          const OnlineRequiredBanner(),
-          Expanded(
-            child: sessions.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => Center(
-                child: FilledButton.icon(
-                  onPressed: () => ref.invalidate(collectionSessionsProvider),
-                  icon: const Icon(Icons.refresh),
-                  label: Text(ApiErrorMapper.message(error)),
+      body: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            const OnlineRequiredBanner(),
+            Expanded(
+              child: sessions.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, _) => Center(
+                  child: FilledButton.icon(
+                    onPressed: () => ref.invalidate(collectionSessionsProvider),
+                    icon: const Icon(Icons.refresh),
+                    label: Text(ApiErrorMapper.message(error)),
+                  ),
                 ),
-              ),
-              data: (items) => items.isEmpty
-                  ? const Center(child: Text('No collection sessions.'))
-                  : RefreshIndicator(
-                      onRefresh: () =>
-                          ref.refresh(collectionSessionsProvider.future),
-                      child: ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: items.length,
-                        itemBuilder: (context, index) {
-                          final item = items[index];
-                          return Card(
-                            child: ListTile(
-                              title: Text(
-                                'Session ${item.id.substring(0, 8)} • ${item.status}',
+                data: (items) => items.isEmpty
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: AppEmptyState(
+                            icon: Icons.point_of_sale_outlined,
+                            title: 'No collection sessions',
+                            description:
+                                'Open a session before accepting cash so expected cash and reconciliation remain backend-controlled.',
+                            actionLabel:
+                                session?.can('reconciliation.submit') == true &&
+                                    online
+                                ? 'Open Session'
+                                : null,
+                            onAction:
+                                session?.can('reconciliation.submit') == true &&
+                                    online &&
+                                    session != null
+                                ? () => _open(context, ref, session)
+                                : null,
+                          ),
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: () =>
+                            ref.refresh(collectionSessionsProvider.future),
+                        child: ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: items.length,
+                          itemBuilder: (context, index) {
+                            final item = items[index];
+                            return Card(
+                              child: ListTile(
+                                title: Text(
+                                  'Session ${item.id.substring(0, 8)} • ${item.status}',
+                                ),
+                                subtitle: Text(
+                                  'Expected ${formatCurrency(item.expectedCash)} • '
+                                  'Actual ${formatCurrency(item.actualCash)}\n'
+                                  'Variance ${formatCurrency(item.cashVariance)}',
+                                ),
+                                isThreeLine: true,
+                                trailing: const Icon(Icons.chevron_right),
+                                onTap: () =>
+                                    _details(context, ref, item, session),
                               ),
-                              subtitle: Text(
-                                'Expected ${formatCurrency(item.expectedCash)} • '
-                                'Actual ${formatCurrency(item.actualCash)}\n'
-                                'Variance ${formatCurrency(item.cashVariance)}',
-                              ),
-                              isThreeLine: true,
-                              trailing: const Icon(Icons.chevron_right),
-                              onTap: () =>
-                                  _details(context, ref, item, session),
-                            ),
-                          );
-                        },
+                            );
+                          },
+                        ),
                       ),
-                    ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_mapper.dart';
+import '../../../core/presentation/design_system/app_state_views.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/online_required_banner.dart';
 import '../domain/journal_entry.dart';
@@ -16,47 +17,60 @@ class JournalListPage extends ConsumerWidget {
     final journals = ref.watch(journalsProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Accounting Journals')),
-      body: Column(
-        children: [
-          const OnlineRequiredBanner(),
-          Expanded(
-            child: journals.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => Center(
-                child: FilledButton.icon(
-                  onPressed: () => ref.invalidate(journalsProvider),
-                  icon: const Icon(Icons.refresh),
-                  label: Text(ApiErrorMapper.message(error)),
+      body: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            const OnlineRequiredBanner(),
+            Expanded(
+              child: journals.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, _) => Center(
+                  child: FilledButton.icon(
+                    onPressed: () => ref.invalidate(journalsProvider),
+                    icon: const Icon(Icons.refresh),
+                    label: Text(ApiErrorMapper.message(error)),
+                  ),
                 ),
-              ),
-              data: (items) => items.isEmpty
-                  ? const Center(child: Text('No posted journals.'))
-                  : RefreshIndicator(
-                      onRefresh: () => ref.refresh(journalsProvider.future),
-                      child: ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: items.length,
-                        itemBuilder: (context, index) {
-                          final journal = items[index];
-                          return Card(
-                            child: ListTile(
-                              leading: const Icon(Icons.lock_outline),
-                              title: Text(journal.description),
-                              subtitle: Text(
-                                '${journal.sourceType} • ${journal.status}\n'
-                                '${journal.postedAt.toLocal()}',
+                data: (items) => items.isEmpty
+                    ? const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(24),
+                          child: AppEmptyState(
+                            icon: Icons.account_balance_outlined,
+                            title: 'No posted journals',
+                            description:
+                                'Immutable journal entries will appear here after a supported financial transaction is posted.',
+                          ),
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: () => ref.refresh(journalsProvider.future),
+                        child: ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: items.length,
+                          itemBuilder: (context, index) {
+                            final journal = items[index];
+                            return Card(
+                              child: ListTile(
+                                leading: const Icon(Icons.lock_outline),
+                                title: Text(journal.description),
+                                subtitle: Text(
+                                  '${journal.sourceType} • ${journal.status}\n'
+                                  '${journal.postedAt.toLocal()}',
+                                ),
+                                isThreeLine: true,
+                                trailing: const Icon(Icons.chevron_right),
+                                onTap: () => _showJournal(context, journal),
                               ),
-                              isThreeLine: true,
-                              trailing: const Icon(Icons.chevron_right),
-                              onTap: () => _showJournal(context, journal),
-                            ),
-                          );
-                        },
+                            );
+                          },
+                        ),
                       ),
-                    ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

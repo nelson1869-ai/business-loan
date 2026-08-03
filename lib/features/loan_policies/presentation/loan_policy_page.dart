@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_mapper.dart';
+import '../../../core/presentation/design_system/app_state_views.dart';
 import '../../../core/security/officer_session.dart';
 import '../../../core/widgets/online_required_banner.dart';
 import '../data/loan_policy_repository.dart';
@@ -30,46 +31,72 @@ class LoanPolicyPage extends ConsumerWidget {
             ),
         ],
       ),
-      body: Column(
-        children: [
-          const OnlineRequiredBanner(),
-          Expanded(
-            child: policies.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => Center(
-                child: FilledButton.icon(
-                  onPressed: () => ref.invalidate(loanPoliciesProvider),
-                  icon: const Icon(Icons.refresh),
-                  label: Text(ApiErrorMapper.message(error)),
+      body: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            const OnlineRequiredBanner(),
+            Expanded(
+              child: policies.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, _) => Center(
+                  child: FilledButton.icon(
+                    onPressed: () => ref.invalidate(loanPoliciesProvider),
+                    icon: const Icon(Icons.refresh),
+                    label: Text(ApiErrorMapper.message(error)),
+                  ),
                 ),
-              ),
-              data: (items) => items.isEmpty
-                  ? const Center(child: Text('No policy versions.'))
-                  : RefreshIndicator(
-                      onRefresh: () => ref.refresh(loanPoliciesProvider.future),
-                      child: ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: items.length,
-                        itemBuilder: (context, index) {
-                          final policy = items[index];
-                          return Card(
-                            child: ListTile(
-                              title: Text('${policy.name} v${policy.version}'),
-                              subtitle: Text(
-                                '${policy.status.toUpperCase()} • '
-                                '${policy.currency} • effective ${policy.effectiveDate}',
+                data: (items) => items.isEmpty
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: AppEmptyState(
+                            icon: Icons.policy_outlined,
+                            title: 'No loan policies yet',
+                            description:
+                                'Create a draft policy to define versioned lending rules. A different authorized user must activate it.',
+                            actionLabel:
+                                session?.can('policy.create') == true &&
+                                    ref.watch(backendOnlineProvider)
+                                ? 'Create Draft'
+                                : null,
+                            onAction:
+                                session?.can('policy.create') == true &&
+                                    ref.watch(backendOnlineProvider)
+                                ? () => _createDraft(context, ref)
+                                : null,
+                          ),
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: () =>
+                            ref.refresh(loanPoliciesProvider.future),
+                        child: ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: items.length,
+                          itemBuilder: (context, index) {
+                            final policy = items[index];
+                            return Card(
+                              child: ListTile(
+                                title: Text(
+                                  '${policy.name} v${policy.version}',
+                                ),
+                                subtitle: Text(
+                                  '${policy.status.toUpperCase()} • '
+                                  '${policy.currency} • effective ${policy.effectiveDate}',
+                                ),
+                                trailing: const Icon(Icons.chevron_right),
+                                onTap: () =>
+                                    _details(context, ref, policy, session),
                               ),
-                              trailing: const Icon(Icons.chevron_right),
-                              onTap: () =>
-                                  _details(context, ref, policy, session),
-                            ),
-                          );
-                        },
+                            );
+                          },
+                        ),
                       ),
-                    ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

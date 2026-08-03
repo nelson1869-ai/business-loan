@@ -63,7 +63,8 @@ class EnvConfig {
       throw StateError('Debug logging cannot be enabled in production.');
     }
     if (uri == null || uri.scheme != 'https' || !uri.hasAuthority) {
-      throw StateError('Production API_BASE_URL must be an absolute HTTPS URL.');
+      throw StateError(
+          'Production API_BASE_URL must be an absolute HTTPS URL.');
     }
     if ({'localhost', '127.0.0.1', '10.0.2.2', '::1'}.contains(uri.host)) {
       throw StateError('Production API_BASE_URL cannot point to localhost.');

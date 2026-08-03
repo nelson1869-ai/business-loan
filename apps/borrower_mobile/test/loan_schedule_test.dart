@@ -3,7 +3,8 @@ import 'package:borrower_mobile/features/loans/models/borrower_loan.dart';
 
 void main() {
   group('BorrowerInstallmentSchedule Unit Tests', () {
-    test('BorrowerInstallmentItem.fromJson parses correct numbers and fields', () {
+    test('BorrowerInstallmentItem.fromJson parses correct numbers and fields',
+        () {
       final json = {
         'installmentNumber': 1,
         'dueDate': '2026-09-01T00:00:00.000',
@@ -25,7 +26,8 @@ void main() {
       expect(item.status, equals('scheduled'));
     });
 
-    test('BorrowerInstallmentSchedule.fromJson parses collection correctly', () {
+    test('BorrowerInstallmentSchedule.fromJson parses collection correctly',
+        () {
       final json = {
         'loanId': 'loan-123',
         'loanReference': 'LN-2026-000123',
