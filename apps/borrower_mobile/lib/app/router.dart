@@ -11,6 +11,8 @@ import 'package:borrower_mobile/features/loans/loans_screen.dart';
 import 'package:borrower_mobile/features/notifications/notifications_screen.dart';
 import 'package:borrower_mobile/features/payments/payments_screen.dart';
 import 'package:borrower_mobile/features/profile/profile_screen.dart';
+import 'package:borrower_mobile/features/registration/registration_screen.dart';
+import 'package:borrower_mobile/features/registration/registration_status_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authNotifier = ref.watch(authNotifierProvider.notifier);
@@ -28,7 +30,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         return loc == '/' ? null : '/';
       }
 
-      final isLoggingInOrVerifying = loc == '/login' || loc == '/verify';
+      final isLoggingInOrVerifying = loc == '/login' ||
+          loc == '/verify' ||
+          loc == '/register' ||
+          loc == '/registration-status';
 
       if (!isAuth) {
         return isLoggingInOrVerifying ? null : '/login';
@@ -58,6 +63,12 @@ final routerProvider = Provider<GoRouter>((ref) {
           return OtpScreen(invitationCode: invCode);
         },
       ),
+      GoRoute(
+          path: '/register',
+          builder: (context, state) => const RegistrationScreen()),
+      GoRoute(
+          path: '/registration-status',
+          builder: (context, state) => const RegistrationStatusScreen()),
       GoRoute(
         path: '/home',
         builder: (context, state) => const DashboardScreen(),

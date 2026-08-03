@@ -35,6 +35,7 @@ import 'package:lending_nelson/features/collection_sessions/presentation/collect
 import 'package:lending_nelson/features/loan_policies/presentation/loan_policy_page.dart';
 import 'package:lending_nelson/features/operational_reports/presentation/operational_reports_page.dart';
 import 'package:lending_nelson/features/operations/presentation/operations_hub_page.dart';
+import 'package:lending_nelson/features/borrower_registrations/presentation/borrower_registration_requests_page.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/',
@@ -101,6 +102,10 @@ final appRouter = GoRouter(
         GoRoute(
           path: 'reports',
           builder: (context, state) => const OperationalReportsPage(),
+        ),
+        GoRoute(
+          path: 'borrower-registrations',
+          builder: (context, state) => const BorrowerRegistrationRequestsPage(),
         ),
       ],
     ),

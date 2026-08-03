@@ -1,8 +1,19 @@
 """Borrower portal database models."""
 
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, func
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -56,6 +67,81 @@ class BorrowerAccount(Base):
     )
     devices: Mapped[list["BorrowerDevice"]] = relationship(
         back_populates="borrower_account", cascade="all, delete-orphan"
+    )
+
+
+class BorrowerRegistrationRequest(Base):
+    """Untrusted public application awaiting an explicit staff link decision."""
+
+    __tablename__ = "borrower_registration_requests"
+    __table_args__ = (
+        Index("ix_registration_pending_phone", "phone_number_normalized", "status"),
+        CheckConstraint(
+            "status IN ('pending','approved','rejected','cancelled','expired')",
+            name="ck_registration_status",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    first_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    middle_name: Mapped[str | None] = mapped_column(String(100))
+    last_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    suffix: Mapped[str | None] = mapped_column(String(30))
+    phone_number: Mapped[str] = mapped_column(String(32), nullable=False)
+    phone_number_normalized: Mapped[str] = mapped_column(
+        String(32), nullable=False, index=True
+    )
+    date_of_birth: Mapped[date] = mapped_column(Date, nullable=False)
+    email: Mapped[str | None] = mapped_column(String(254))
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default="pending", index=True
+    )
+    status_token_hash: Mapped[str] = mapped_column(
+        String(128), nullable=False, unique=True, index=True
+    )
+    privacy_accepted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    terms_accepted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    submitted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reviewed_by_user_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="RESTRICT")
+    )
+    review_notes: Mapped[str | None] = mapped_column(Text)
+    rejection_reason: Mapped[str | None] = mapped_column(String(500))
+    linked_borrower_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("borrowers.id", ondelete="RESTRICT"), index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
+class BorrowerRegistrationAudit(Base):
+    """PII-minimal immutable security event for registration/account actions."""
+
+    __tablename__ = "borrower_registration_audits"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    actor_user_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="RESTRICT"), index=True
+    )
+    action: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    target_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    target_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    metadata_json: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
 

@@ -1,331 +1,336 @@
-# Agent Guidelines & Rules — Lending Nelson (Production)
+# AGENTS.md
 
-This file defines the mandatory rules, architecture, coding standards, security requirements, and release policies for AI coding agents working on the **Lending Nelson** project.
+## Project
 
-These rules take precedence over convenience. Never sacrifice security, maintainability, or production quality.
+Lending Nelson is an offline-first lending platform.
+
+Repository consists of:
+
+- Flutter Officer/Admin application (`lib/`)
+- Flutter Borrower application (`apps/borrower_mobile/`)
+- FastAPI backend (`backend/app/`)
+- PostgreSQL
+- SQLAlchemy 2 Async
+- Alembic
+- Riverpod
+- Local SQLite offline storage
+- Offline synchronization
+- JWT authentication
+- OTP borrower authentication
+
+This project handles financial records and borrower PII.
+
+Financial correctness, authorization, privacy and auditability are more important than speed.
 
 ---
 
-# 🏗️ Project Architecture
+## General Rules
 
-## Platform
+Before writing code:
 
-* Flutter (Stable)
-* Android Production Application
-* Package: `com.nelson.lending`
-
-Future platforms:
-
-* Web Admin
-* Windows Desktop
+1. Inspect existing implementation.
+2. Reuse existing architecture.
+3. Never duplicate existing logic.
+4. Extend instead of rewriting.
+5. Keep changes minimal and reviewable.
+6. Never commit unless instructed.
+7. Never push unless instructed.
 
 ---
 
 ## Architecture
 
-Use **Feature-First Clean Architecture**.
+Backend
 
-Every feature must be separated into:
+- FastAPI
+- Feature-based modules
+- SQLAlchemy 2 Async
+- PostgreSQL
+- Alembic
+- Pydantic v2
 
-* presentation
-* domain
-* data
+Flutter
 
-Business logic must never leak across layers.
+- Clean Architecture
+- Riverpod
+- Repository pattern
+- Existing API layer
+- Existing routing
+- Existing theme
 
----
-
-## Navigation
-
-Use **GoRouter** only.
-
-No Navigator.push unless absolutely required.
-
----
-
-## State Management
-
-Use **Riverpod** with code generation (`@riverpod`) whenever appropriate.
-
-UI reads state only.
-
-Controllers and Notifiers perform actions.
+Do not introduce another architecture.
 
 ---
 
-## Networking
+## Financial Rules
 
-Use **Dio**.
+Money is critical.
 
-Requirements:
+Never:
 
-* JWT Authentication
-* Interceptors
-* Automatic refresh handling (if implemented)
-* HTTPS only in production
-* Certificate pinning when enabled
+- use floating point for money
+- silently round values
+- rewrite financial calculations
+- delete ledger history
+
+Backend is always the source of truth for:
+
+- balances
+- schedules
+- receipts
+- statements
+- reports
+- payment allocation
+
+Flutter displays backend results.
 
 ---
 
-## Local Storage
+## Offline Rules
+
+Officer application is offline-first.
+
+Never break:
+
+- SQLite
+- Sync Queue
+- Retry
+- Conflict handling
+- UUID idempotency
+- Server-off workflow
+
+Every new synchronized entity must define:
+
+- local storage
+- sync payload
+- retry
+- conflict
+- dependency
+- tests
+
+---
+
+## Borrower App Rules
+
+Borrower application is separate.
+
+Never expose:
+
+- admin pages
+- officer features
+- management APIs
+
+Borrowers only access:
+
+- profile
+- dashboard
+- loans
+- schedules
+- receipts
+- payment history
+
+Borrowers never modify financial records.
+
+---
+
+## Borrower Registration
+
+Workflow:
+
+Borrower
+→ Register
+→ Pending
+
+Admin
+→ Review
+→ Link to existing borrower
+→ Approve
+
+Borrower
+→ OTP Verification
+→ Active
+
+Never:
+
+- auto approve
+- auto link by name
+- trust borrowerId from client
+
+Only backend assigns borrower relationships.
+
+---
+
+## Authentication
+
+Officer authentication and borrower authentication are separate.
+
+Preserve:
+
+- JWT
+- Refresh Tokens
+- OTP
+- Device registration
+
+Never log:
+
+- tokens
+- OTP
+- passwords
+- secrets
+
+---
+
+## Authorization
+
+Authorization belongs in backend.
+
+Never trust:
+
+- borrowerId
+- userId
+- role
+- account status
+
+coming from client requests.
+
+---
+
+## Database
+
+Every schema change requires:
+
+- Alembic migration
+- tests
+- documentation updates
+
+Never modify old migrations.
+
+---
+
+## API Rules
 
 Use:
 
-* Flutter Secure Storage
-* Encrypted SQLite/Isar
+- Request schemas
+- Response schemas
+- Validation
+- Proper HTTP status codes
 
-Never store sensitive information in plaintext.
+Never expose:
 
----
-
-# 📜 Coding Standards
-
-## Business Logic
-
-Never place:
-
-* loan calculations
-* interest calculations
-* penalties
-* validation
-* business rules
-
-inside Widgets.
-
-Only Domain or Application layers may perform business calculations.
+- SQL errors
+- stack traces
+- secrets
 
 ---
 
-## Widgets
+## Security
 
-Widgets must never:
+Always protect:
 
-* call APIs
-* execute SQL
-* perform repository work
-* contain business calculations
+- borrower PII
+- phone numbers
+- documents
+- balances
+- payments
 
-Widgets only display state and dispatch user actions.
+Mask sensitive information in logs.
 
----
+Never commit:
 
-## File Size
-
-Recommended:
-
-* Widgets: under 200 lines
-* Controllers: focused and single responsibility
-* Services: one responsibility only
-
-Split large files.
+- .env
+- keys
+- passwords
+- JWT secrets
+- borrower data
 
 ---
 
-## Null Safety
+## Flutter Rules
 
-Maintain strict null safety.
+Reuse:
 
-Avoid `!` unless the value has already been validated.
+- providers
+- repositories
+- widgets
+- theme
+- navigation
+
+Do not create duplicate state management.
+
+Avoid business logic inside widgets.
+
+---
+
+## Testing
+
+Every feature requires tests.
+
+Run relevant project checks before completion.
+
+Do not report tests as passing unless actually executed.
+
+---
+
+## Git Rules
+
+Before work:
+
+git status
+
+Review changes before commit.
+
+Keep commits focused.
+
+Never commit generated files.
+
+Never push unless instructed.
 
 ---
 
 ## Documentation
 
-Public APIs must use Dart documentation comments (`///`).
+Update documentation whenever:
 
-Document:
-
-* classes
-* providers
-* repositories
-* public methods
-
-Use `//` only for implementation details.
+- API changes
+- database changes
+- authentication changes
+- architecture changes
+- deployment changes
 
 ---
 
-## Formatting
+## Task Completion Report
 
-Before every commit:
+After completing work provide:
 
-* `dart format lib test`
-* `flutter analyze`
-* `flutter test`
-
-All must pass.
-
----
-
-# 🔒 Security Requirements
-
-## Secrets
-
-Never commit:
-
-* API keys
-* JWT secrets
-* passwords
-* Firebase credentials
-* Google service accounts
-* signing keystores
-* `key.properties`
-* `.env`
-
-Use secure environment configuration.
+- Summary
+- Files changed
+- Database changes
+- API changes
+- Flutter changes
+- Tests added
+- Verification results
+- Known limitations
+- git status
+- Suggested commit message
 
 ---
 
-## PII Protection
+## Absolute Rules
 
-Encrypt borrower information stored locally, including:
+Never:
 
-* names
-* phone numbers
-* government IDs
-* addresses
-
-Never expose sensitive information in logs.
-
----
-
-## Logging
-
-Never log:
-
-* passwords
-* JWTs
-* borrower names
-* payment details
-* IDs
-* secrets
-
-Sensitive values must be redacted.
-
----
-
-## Auditing
-
-Every data mutation must create an audit log entry.
-
-Audit records must be immutable.
-
----
-
-# 🚫 Development Feature Policy
-
-Development-only functionality must never exist in production.
-
-Do not add or restore:
-
-* Seed database
-* Reset database
-* Delete-all tools
-* Debug pages
-* Developer menu
-* Queue inspector
-* Fake borrower generators
-* Diagnostic endpoints
-* Test-only APIs
-
-These belong only in temporary development branches, not in the production repository.
-
----
-
-# 🌐 Production Deployment
-
-The application is intended to be:
-
-* Public GitHub repository
-* Self-hosted backend (Windows PC)
-
-Production requirements:
-
-* HTTPS
-* Strong JWT secret
-* Secure CORS configuration
-* No debug mode
-* PostgreSQL not publicly exposed
-* Windows Defender Firewall configured
-* Regular encrypted backups
-* Service auto-restart
-* Log rotation
-
----
-
-# 📱 Android Release
-
-Release builds must:
-
-* use production signing
-* never use debug signing
-* never include localhost URLs
-* never include hardcoded credentials
-* disable cleartext traffic
-* build successfully with a local, uncommitted keystore
-
-Never commit:
-
-* keystore files
-* `android/key.properties`
-
----
-
-# 🌿 Git Standards
-
-## Branches
-
-* `main` is always production-ready.
-
-Development work should be completed in feature branches.
-
----
-
-## Commits
-
-Use conventional commits:
-
-* `feat:`
-* `fix:`
-* `docs:`
-* `refactor:`
-* `test:`
-* `chore:`
-* `security:`
-
-Each commit should represent one logical change.
-
----
-
-# ✅ Quality Gates
-
-Before considering any task complete, verify:
-
-* Flutter analyzer passes
-* Flutter tests pass
-* Backend tests pass
-* Formatting passes
-* No broken imports
-* No dead code
-* No unused files
-* No committed secrets
-* No known dependency vulnerabilities (when scanning tools are available)
-
-Never claim success unless checks were actually executed.
-
----
-
-# 🤖 Agent Behavior
-
-When modifying this repository:
-
-* Preserve the existing architecture.
-* Avoid unnecessary refactoring.
-* Do not introduce breaking changes without justification.
-* Remove dead code rather than hiding it.
-* Prefer secure defaults.
-* Explain significant architectural decisions.
-* Only report results that were actually verified.
-
-When offering multiple solutions, always present the **recommended** option first and explain any trade-offs.
-
-The goal is to keep this repository production-ready, secure, maintainable, and suitable for public GitHub publication.
+- expose another borrower's data
+- bypass authorization
+- bypass validation
+- commit secrets
+- connect Flutter directly to PostgreSQL
+- weaken security to satisfy tests
+- rewrite working architecture
+- auto approve borrower registration
+- auto link borrower accounts
+- remove audit logging
+- break offline synchronization
+- claim tests passed when they were not run
+- commit or push unless explicitly instructed

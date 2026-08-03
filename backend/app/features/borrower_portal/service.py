@@ -86,6 +86,28 @@ async def request_otp(
 
     now = datetime.now(UTC)
 
+    # Only an approved/active account or a valid invitation is OTP-eligible.
+    # The public response remains identical for all other identities.
+    account_result = await db.execute(
+        select(BorrowerAccount).where(
+            BorrowerAccount.phone_number_normalized == normalized_phone,
+            BorrowerAccount.account_status.in_(("approved", "active")),
+        )
+    )
+    account = account_result.scalar_one_or_none()
+    invitation_is_valid = False
+    if invitation_code:
+        invitation_result = await db.execute(
+            select(BorrowerInvitation).where(
+                BorrowerInvitation.invitation_code_hash == hash_secret(invitation_code),
+                BorrowerInvitation.used_at.is_(None),
+                BorrowerInvitation.expires_at > now,
+            )
+        )
+        invitation_is_valid = invitation_result.scalar_one_or_none() is not None
+    if account is None and not invitation_is_valid:
+        return False, 60
+
     # Check resend cooldown
     stmt = (
         select(BorrowerOTP)

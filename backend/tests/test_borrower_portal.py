@@ -75,9 +75,13 @@ class TestLocalDevelopmentOTP(unittest.IsolatedAsyncioTestCase):
     async def test_fixed_local_otp_is_hashed_before_storage(self) -> None:
         db = AsyncMock()
         db.add = MagicMock()
-        result = MagicMock()
-        result.scalar_one_or_none.return_value = None
-        db.execute.return_value = result
+        account_result = MagicMock()
+        account_result.scalar_one_or_none.return_value = SimpleNamespace(
+            account_status="active"
+        )
+        otp_result = MagicMock()
+        otp_result.scalar_one_or_none.return_value = None
+        db.execute.side_effect = [account_result, otp_result]
         settings = Settings(
             app_env="development",
             database_url="postgresql+asyncpg://user:pass@localhost:5432/db",

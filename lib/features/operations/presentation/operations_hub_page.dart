@@ -13,6 +13,13 @@ class OperationsHubPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(officerSessionProvider).valueOrNull;
     final items = <_OperationItem>[
+      if (session?.can('borrower_registration.review') == true)
+        const _OperationItem(
+          'Pending Borrower Registrations',
+          'Review and explicitly link portal access requests',
+          Icons.person_search_outlined,
+          '/operations/borrower-registrations',
+        ),
       if (session?.can('policy.create') == true ||
           session?.can('policy.approve') == true)
         const _OperationItem(

@@ -62,6 +62,8 @@ const _allPermissions = <String>{
   'reconciliation.approve',
   'report.view',
   'audit.view',
+  'borrower_registration.review',
+  'borrower_account.manage',
 };
 
 const _rolePermissions = <String, Set<String>>{

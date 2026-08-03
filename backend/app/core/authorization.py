@@ -27,13 +27,15 @@ PERMISSIONS = frozenset(
         "policy.approve",
         "user.manage",
         "audit.view",
+        "borrower_registration.review",
+        "borrower_account.manage",
     }
 )
 
 ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
     "admin": PERMISSIONS,
     "owner": PERMISSIONS,
-    "manager": PERMISSIONS - {"user.manage"},
+    "manager": PERMISSIONS - {"user.manage", "borrower_account.manage"},
     "officer": frozenset(
         {
             "borrower.create",

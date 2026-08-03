@@ -15,6 +15,8 @@ from app.features.borrower_portal.models import (
     BorrowerInvitation,
     BorrowerOTP,
     BorrowerRefreshToken,
+    BorrowerRegistrationAudit,
+    BorrowerRegistrationRequest,
 )
 from app.features.borrowers.models import Borrower
 from app.features.business_settings.models import BusinessSetting
@@ -43,6 +45,8 @@ __all__ = [
     "BorrowerInvitation",
     "BorrowerOTP",
     "BorrowerRefreshToken",
+    "BorrowerRegistrationAudit",
+    "BorrowerRegistrationRequest",
     "BusinessSetting",
     "CollectionTaskState",
     "CollectionSession",

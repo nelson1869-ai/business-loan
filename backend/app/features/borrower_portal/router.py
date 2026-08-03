@@ -4,12 +4,15 @@ import secrets
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser
+from app.core.phone_numbers import normalize_ph_phone_number
+from app.core.rate_limiter import opaque_rate_limit_key
 from app.features.borrower_portal.dashboard_schemas import BorrowerDashboardResponse
 from app.features.borrower_portal.dashboard_service import get_borrower_dashboard
 from app.features.borrower_portal.dependencies import ActiveBorrowerAccount
@@ -64,9 +67,26 @@ DbSession = Annotated[AsyncSession, Depends(get_db)]
 @client_router.post("/auth/request-otp", response_model=OTPRequestResponse)
 async def request_borrower_otp(
     payload: OTPRequest,
+    request: Request,
     db: DbSession,
 ) -> OTPRequestResponse:
     """Public endpoint to request an SMS OTP code without account enumeration."""
+    settings = get_settings()
+    try:
+        identity = normalize_ph_phone_number(payload.phone_number)
+    except ValueError:
+        identity = "invalid"
+    client_ip = request.client.host if request.client else "unknown"
+    limiter_key = opaque_rate_limit_key(
+        "borrower-request-otp", client_ip, identity, secret=settings.jwt_secret_key
+    )
+    if not await request.app.state.rate_limiter.allow(
+        limiter_key, settings.login_rate_limit_per_minute
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many requests. Please try again later.",
+        )
     _, cooldown = await request_otp(db, payload.phone_number, payload.invitation_code)
     await db.commit()
     return OTPRequestResponse(

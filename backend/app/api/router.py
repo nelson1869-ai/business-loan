@@ -8,6 +8,7 @@ from app.features.admin_assistant import router as admin_assistant
 from app.features.approvals import router as approvals
 from app.features.auth import router as auth
 from app.features.automation import router as automation
+from app.features.borrower_portal import registration_router
 from app.features.borrower_portal import router as borrower_portal
 from app.features.borrowers import router as borrowers
 from app.features.business_settings import router as business_settings
@@ -36,6 +37,8 @@ def register_routers(application: FastAPI) -> None:
         borrowers.router,
         borrower_portal.client_router,
         borrower_portal.officer_router,
+        registration_router.public_router,
+        registration_router.staff_router,
         business_settings.router,
         loans.router,
         loan_policies.router,
