@@ -1,55 +1,93 @@
-# 100% Free Cloud Hosting Deployment Guide (₱0 / $0 Cost)
+# 100% Free Cloud Production Deployment Guide (₱0 / $0 Cost)
 
-This guide walks you through deploying Lending Nelson online for **100% free (₱0 cost)** using free cloud hosting tiers.
-
----
-
-## 1. Free PostgreSQL Database (Neon.tech or Supabase)
-
-1. Sign up for a free account at [Neon.tech](https://neon.tech) or [Supabase.com](https://supabase.com).
-2. Create a new project named `lending-nelson-db`.
-3. Copy your connection string:
-   ```text
-   postgresql+asyncpg://user:password@ep-xyz.neon.tech/neondb?sslmode=require
-   ```
+This guide documents the production deployment architecture for Lending Nelson using Render Free, Supabase Free, and wireless mobile testing.
 
 ---
 
-## 2. Free Backend Web Service (Render.com)
+## 1. Cloud Architecture Overview
 
-1. Sign up for a free account at [Render.com](https://render.com).
-2. Click **New +** ➔ **Web Service**.
-3. Connect your GitHub repository (`business-loan`).
-4. Configure settings:
-   - **Name**: `lending-nelson-backend`
-   - **Environment**: `Python 3` (or Docker)
-   - **Root Directory**: `backend`
-   - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 10000`
-5. Under **Environment Variables**, add:
-   - `DATABASE_URL`: *(Your connection string from Step 1)*
-   - `APP_ENV`: `production`
-   - `JWT_SECRET_KEY`: *(Generate a 32+ character random string)*
-   - `CORS_ORIGINS`: `["*"]`
-6. Click **Create Web Service**. Render will deploy your backend at:
-   `https://lending-nelson-backend.onrender.com`
+- **Backend**: Render Free (FastAPI in Docker runtime)
+- **Database**: Supabase Free (PostgreSQL via SQLAlchemy 2 Async & Alembic)
+- **Live Backend API**: `https://lending-nelson-api.onrender.com`
+- **Mobile Apps**: Flutter Officer App (`lib/`) & Borrower Mobile App (`apps/borrower_mobile`)
 
 ---
 
-## 3. Build Production Mobile Apps (Android APK)
+## 2. Live Cloud Environment Variables (Render Web Service)
 
-1. Open `lib/core/network/api_client.dart` and `apps/borrower_mobile/lib/core/network/api_client.dart`.
-2. Update `baseUrl` to point to your Render backend:
-   ```dart
-   static const String baseUrl = 'https://lending-nelson-backend.onrender.com';
-   ```
-3. Build release APKs on your computer:
-   ```powershell
-   # Officer App APK
-   flutter build apk --release
+```bash
+APP_ENV=production
+DATABASE_URL=postgresql+asyncpg://postgres:[PASSWORD]@db.[REF].supabase.co:5432/postgres?ssl=require
+JWT_SECRET_KEY=<64_CHARACTER_RANDOM_HEX>
+CORS_ORIGINS=["https://lending-nelson-api.onrender.com"]
+LOCAL_BORROWER_OTP_ENABLED=false
+N8N_WEBHOOK_SECRET=<YOUR_WEBHOOK_SECRET>
+```
 
-   # Borrower Mobile App APK
-   cd apps/borrower_mobile
-   flutter build apk --release
-   ```
-4. Install the generated APKs on your staff and borrower Android phones!
+---
+
+## 3. First Administrator Bootstrap
+
+Run the native CLI bootstrap script against your production database:
+
+```powershell
+Set-Location backend
+
+$env:APP_ENV="production"
+$env:DATABASE_URL="postgresql+asyncpg://postgres:[PASSWORD]@db.[REF].supabase.co:5432/postgres?ssl=require"
+$env:JWT_SECRET_KEY="<YOUR_SECRET_KEY>"
+$env:CORS_ORIGINS="https://lending-nelson-api.onrender.com"
+$env:LOCAL_BORROWER_OTP_ENABLED="false"
+$env:N8N_WEBHOOK_SECRET="<YOUR_WEBHOOK_SECRET>"
+
+.\.venv\Scripts\python.exe -m app.bootstrap nelson --role admin
+```
+
+---
+
+## 4. Launching Mobile Apps on Personal Phone (Wireless ADB)
+
+### Option A: Connect Phone Wirelessly to Live Render Cloud
+```powershell
+.\start-phone.ps1 -UseRender
+```
+- Automatically connects over Wi-Fi via ADB wireless debugging.
+- Configures apps to communicate directly with `https://lending-nelson-api.onrender.com`.
+- **Works 24/7 even after you turn off your PC!**
+
+### Option B: Connect Phone Wirelessly to Local PC Backend
+```powershell
+.\start-phone.ps1
+```
+
+---
+
+## 5. Standalone APK Release Builds
+
+```powershell
+# Officer App Production Release APK
+flutter build apk --release `
+  --flavor production `
+  --target lib/main.dart `
+  --dart-define=APP_ENV=production `
+  --dart-define=API_BASE_URL=https://lending-nelson-api.onrender.com `
+  --dart-define=LOCAL_BORROWER_OTP_ENABLED=false
+
+# Borrower Mobile App Production Release APK
+Set-Location apps\borrower_mobile
+flutter build apk --release `
+  --flavor production `
+  --target lib/main.dart `
+  --dart-define=APP_ENV=production `
+  --dart-define=API_BASE_URL=https://lending-nelson-api.onrender.com `
+  --dart-define=LOCAL_BORROWER_OTP_ENABLED=false
+```
+
+---
+
+## 6. Cold-Start Behavior & Uptime Monitoring
+
+Render Free instances enter sleep mode after 15 minutes of zero traffic.  
+- **Initial Cold-Start Request**: Takes ~20–30 seconds to wake the service.
+- **Subsequent Requests**: Respond in ~100–200ms.
+- **Continuous 24/7 Uptime**: Ping `https://lending-nelson-api.onrender.com/health` every 10 minutes via [UptimeRobot](https://uptimerobot.com) to prevent sleeping.

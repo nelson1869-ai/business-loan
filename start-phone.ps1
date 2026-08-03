@@ -6,13 +6,20 @@
 #>
 [CmdletBinding()]
 param (
-    [Parameter(Mandatory = $true)]
-    [ValidatePattern('^\d{1,3}(\.\d{1,3}){3}:\d{1,5}$')]
-    [string]$PhoneAddress,
+    [Parameter()]
+    [string]$PhoneAddress = "192.168.254.112:39833",
 
-    [Parameter(Mandatory = $true)]
-    [ValidateScript({ $parsedAddress = $null; [ipaddress]::TryParse($_, [ref]$parsedAddress) })]
-    [string]$ServerIp,
+    [Parameter()]
+    [string]$PairingCode = "064574",
+
+    [Parameter()]
+    [string]$ServerIp = "192.168.254.110",
+
+    [Parameter()]
+    [switch]$UseRender,
+
+    [Parameter()]
+    [string]$RenderUrl = "https://lending-nelson-api.onrender.com",
 
     [Parameter()]
     [ValidateSet("officer", "borrower", "all")]
@@ -51,17 +58,39 @@ if (-not $AdbExe) {
 if (-not $AdbExe) {
     throw "adb was not found. Install Android platform-tools or set sdk.dir in android/local.properties."
 }
-$ApiUrl = "http://${ServerIp}:${Port}"
 
-Write-Host "[DEV ONLY] Trusted local Wi-Fi launcher" -ForegroundColor Yellow
-Write-Host "Phone: $PhoneAddress" -ForegroundColor Cyan
-Write-Host "Backend: $ApiUrl" -ForegroundColor Yellow
-
-& $AdbExe connect $PhoneAddress
-if ($LASTEXITCODE -ne 0) {
-    throw "ADB could not connect to $PhoneAddress"
+if ($UseRender) {
+    $ApiUrl = $RenderUrl.TrimEnd('/')
+    $Flavor = "production"
+    $EnvName = "production"
+    $OtpEnabled = "false"
+    Write-Host "[RENDER LIVE] Connecting wireless phone to Render backend: $ApiUrl" -ForegroundColor Green
+} else {
+    $ApiUrl = "http://${ServerIp}:${Port}"
+    $Flavor = "development"
+    $EnvName = "development"
+    $OtpEnabled = "true"
+    Write-Host "[DEV ONLY] Trusted local Wi-Fi launcher" -ForegroundColor Yellow
 }
-Write-Host "[STOP] Closing the previous Lending Nelson app instance on the phone..." -ForegroundColor Yellow
+
+Write-Host "Phone: $PhoneAddress" -ForegroundColor Cyan
+Write-Host "Backend API: $ApiUrl" -ForegroundColor Yellow
+
+$connectedDevices = & $AdbExe devices
+$activeWirelessDevice = ($connectedDevices | Where-Object { $_ -match '_adb-tls-connect|\:\d+' -and $_ -match 'device$' }) -replace '\s+device$', '' | Select-Object -First 1
+
+if ($activeWirelessDevice) {
+    Write-Host "[OK] Detected active wireless Android device: $activeWirelessDevice" -ForegroundColor Green
+    $PhoneAddress = $activeWirelessDevice
+} else {
+    if ($PairingCode) {
+        Write-Host "[PAIR] Pairing ADB with $PhoneAddress using code $PairingCode..." -ForegroundColor Cyan
+        & $AdbExe pair $PhoneAddress $PairingCode
+    }
+    & $AdbExe connect $PhoneAddress
+}
+
+Write-Host "[STOP] Closing previous Lending Nelson app instances on the phone..." -ForegroundColor Yellow
 & $AdbExe -s $PhoneAddress shell am force-stop com.nelson.lending
 if ($LASTEXITCODE -ne 0) {
     throw "ADB could not stop the previous Lending Nelson app instance on $PhoneAddress"
@@ -73,7 +102,7 @@ function Test-BackendHealth {
         [string]$HealthUrl
     )
     try {
-        $response = Invoke-RestMethod -Uri "${HealthUrl}/health" -TimeoutSec 2
+        $response = Invoke-RestMethod -Uri "${HealthUrl}/health" -TimeoutSec 5
         return $response.status -eq "ok"
     } catch {
         return $false
@@ -133,35 +162,44 @@ function Stop-PreviousFlutterRun {
     }
 }
 
-Write-Host "[CLEAN] Stopping previous Lending Nelson development processes..." -ForegroundColor Yellow
-Stop-PreviousFlutterRun
-Stop-OwnedBackendOnPort -PortNumber $Port
+if (-not $UseRender) {
+    Write-Host "[CLEAN] Stopping previous Lending Nelson development processes..." -ForegroundColor Yellow
+    Stop-PreviousFlutterRun
+    Stop-OwnedBackendOnPort -PortNumber $Port
 
-if (-not (Test-Path -LiteralPath $VenvPython -PathType Leaf)) {
-    throw "Backend virtual-environment Python was not found at $VenvPython"
-}
+    if (-not (Test-Path -LiteralPath $VenvPython -PathType Leaf)) {
+        throw "Backend virtual-environment Python was not found at $VenvPython"
+    }
 
-$backendArguments = @("-NoProfile", "-Command", "`$env:APP_ENV='development'; `$env:LOCAL_BORROWER_OTP_ENABLED='true'; Set-Location '$BackendDir'; & '$VenvPython' -m uvicorn app.main:app --host 0.0.0.0 --port $Port")
-$backendProcess = Start-Process powershell -ArgumentList $backendArguments -WindowStyle Hidden -PassThru
+    $backendArguments = @("-NoProfile", "-Command", "`$env:APP_ENV='development'; `$env:LOCAL_BORROWER_OTP_ENABLED='true'; Set-Location '$BackendDir'; & '$VenvPython' -m uvicorn app.main:app --host 0.0.0.0 --port $Port")
+    $backendProcess = Start-Process powershell -ArgumentList $backendArguments -WindowStyle Hidden -PassThru
 
-$healthy = $false
-for ($attempt = 1; $attempt -le 15; $attempt++) {
-    Start-Sleep -Milliseconds 800
-    if (Test-BackendHealth -HealthUrl "http://127.0.0.1:${Port}") {
-        $healthy = $true
-        break
+    $healthy = $false
+    for ($attempt = 1; $attempt -le 15; $attempt++) {
+        Start-Sleep -Milliseconds 800
+        if (Test-BackendHealth -HealthUrl "http://127.0.0.1:${Port}") {
+            $healthy = $true
+            break
+        }
+    }
+    if (-not $healthy) {
+        if ($backendProcess -and -not $backendProcess.HasExited) {
+            Stop-Process -Id $backendProcess.Id -Force -ErrorAction SilentlyContinue
+        }
+        throw "Backend health check failed; Flutter was not started."
+    }
+    if (-not (Test-BackendHealth -HealthUrl $ApiUrl)) {
+        throw "Backend is healthy locally but $ApiUrl is unreachable. Allow inbound TCP port $Port through Windows Defender Firewall for the trusted Private network, then retry."
+    }
+    Write-Host "[OK] Backend restarted and is reachable from the LAN address." -ForegroundColor Green
+} else {
+    Write-Host "[CHECK] Verifying live Render backend health at $ApiUrl..." -ForegroundColor Cyan
+    if (Test-BackendHealth -HealthUrl $ApiUrl) {
+        Write-Host "[OK] Live Render backend is ONLINE and HEALTHY!" -ForegroundColor Green
+    } else {
+        Write-Host "[WARNING] Live Render backend at $ApiUrl did not respond within 5s (may be waking up from sleep)." -ForegroundColor Yellow
     }
 }
-if (-not $healthy) {
-    if ($backendProcess -and -not $backendProcess.HasExited) {
-        Stop-Process -Id $backendProcess.Id -Force -ErrorAction SilentlyContinue
-    }
-    throw "Backend health check failed; Flutter was not started."
-}
-if (-not (Test-BackendHealth -HealthUrl $ApiUrl)) {
-    throw "Backend is healthy locally but $ApiUrl is unreachable. Allow inbound TCP port $Port through Windows Defender Firewall for the trusted Private network, then retry."
-}
-Write-Host "[OK] Backend restarted and is reachable from the LAN address." -ForegroundColor Green
 
 Set-Location -LiteralPath $ProjectRoot
 $flutterCommand = Get-Command flutter -ErrorAction Stop
@@ -178,10 +216,10 @@ $flutterArguments = @(
     "run",
     "-d",
     $PhoneAddress,
-    "--flavor=development",
+    "--flavor=$Flavor",
     "--dart-define=API_BASE_URL=$ApiUrl",
-    "--dart-define=APP_ENV=development",
-    "--dart-define=LOCAL_BORROWER_OTP_ENABLED=true"
+    "--dart-define=APP_ENV=$EnvName",
+    "--dart-define=LOCAL_BORROWER_OTP_ENABLED=$OtpEnabled"
 )
 
 if ($App -eq "borrower") {
@@ -190,7 +228,7 @@ if ($App -eq "borrower") {
     & flutter @flutterArguments
 } elseif ($App -eq "all") {
     Write-Host "[START] Launching Borrower App on $PhoneAddress in background..." -ForegroundColor Cyan
-    Start-Process powershell -ArgumentList @("-NoExit", "-Command", "Set-Location '$BorrowerDir'; flutter run -d $PhoneAddress --flavor=development --dart-define=API_BASE_URL=$ApiUrl --dart-define=APP_ENV=development --dart-define=LOCAL_BORROWER_OTP_ENABLED=true")
+    Start-Process powershell -ArgumentList @("-NoExit", "-Command", "Set-Location '$BorrowerDir'; flutter run -d $PhoneAddress --flavor=$Flavor --dart-define=API_BASE_URL=$ApiUrl --dart-define=APP_ENV=$EnvName --dart-define=LOCAL_BORROWER_OTP_ENABLED=$OtpEnabled")
     Set-Location -LiteralPath $ProjectRoot
     Write-Host "[START] Launching Officer App on $PhoneAddress..." -ForegroundColor Cyan
     & flutter @flutterArguments
