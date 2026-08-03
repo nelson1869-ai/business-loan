@@ -60,9 +60,9 @@ String formatInterestRate(String rate) {
   return '$percent%';
 }
 
-/// Formats a decimal string to a currency string with `$` prefix and
-/// thousand-separator commas (e.g. `"1000.00"` → `"$1,000.00"`).
-/// Returns `$amount` as-is if parsing fails.
+/// Formats a decimal string to a currency string with `₱` prefix and
+/// thousand-separator commas (e.g. `"1000.00"` → `"₱1,000.00"`).
+/// Returns `₱$amount` as-is if parsing fails.
 String formatCurrency(String amount) {
   final match = RegExp(r'^(-?)(\d+)(?:\.(\d+))?$').firstMatch(amount.trim());
   if (match == null) return '₱$amount';

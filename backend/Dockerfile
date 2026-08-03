@@ -1,4 +1,4 @@
-FROM python:3.14-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
@@ -14,8 +14,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy backend application code
 COPY . .
 
-# Expose server port
+# Expose default port
 EXPOSE 10000
 
-# Run database migrations and start server
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 10000"]
+# Run database migrations and start server with dynamic port binding
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-10000}"]

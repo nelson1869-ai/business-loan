@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from app.core.authorization import require_permission
 from app.core.config import get_settings
 from app.core.dependencies import CurrentUser, DbSession
+from app.core.masking import mask_national_id, mask_phone
 from app.core.rate_limiter import opaque_rate_limit_key
 from app.features.borrower_portal import registration_service as service
 from app.features.borrower_portal.models import BorrowerRegistrationRequest
@@ -79,9 +80,9 @@ def _item(row) -> RegistrationListItem:
         middle_name=row.middle_name,
         last_name=row.last_name,
         suffix=row.suffix,
-        masked_national_id=service.mask_national_id(row.national_id),
+        masked_national_id=mask_national_id(row.national_id),
         has_national_id=row.national_id is not None,
-        masked_phone=service.mask_phone(row.phone_number_normalized),
+        masked_phone=mask_phone(row.phone_number_normalized),
         date_of_birth=row.date_of_birth,
         email=row.email,
         status=row.status,

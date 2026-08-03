@@ -8,6 +8,8 @@ from uuid import uuid4
 from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.masking import mask_national_id as mask_national_id
+from app.core.masking import mask_phone as mask_phone
 from app.features.borrower_portal.models import (
     BorrowerAccount,
     BorrowerInvitation,
@@ -30,31 +32,21 @@ class RegistrationConflict(Exception):
 def _audit(
     db: AsyncSession,
     action: str,
-    target_type: str,
-    target_id: str,
+    entity_type: str,
+    entity_id: str,
     actor: User | None = None,
-    metadata: dict[str, str] | None = None,
-) -> None:
+    metadata: dict | None = None,
+):
     db.add(
         BorrowerRegistrationAudit(
             id=str(uuid4()),
-            actor_user_id=actor.id if actor else None,
             action=action,
-            target_type=target_type,
-            target_id=target_id,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            actor_user_id=actor.id if actor else None,
             metadata_json=json.dumps(metadata or {}, sort_keys=True),
         )
     )
-
-
-def mask_phone(phone: str) -> str:
-    return f"{phone[:3]}•••••{phone[-3:]}" if len(phone) >= 7 else "••••"
-
-
-def mask_national_id(national_id: str | None) -> str:
-    if not national_id:
-        return "Not provided"
-    return f"{'•' * max(4, len(national_id) - 4)}{national_id[-4:]}"
 
 
 async def submit(db: AsyncSession, payload) -> tuple[BorrowerRegistrationRequest, str]:
@@ -251,6 +243,14 @@ async def create_and_approve(
     if item.status != "pending":
         raise RegistrationConflict("Registration request has already been reviewed")
 
+    if (
+        item.national_id
+        and national_id
+        and item.national_id.strip() != national_id.strip()
+    ):
+        raise RegistrationConflict(
+            "National ID in registration request does not match review payload"
+        )
     normalized_national_id = (item.national_id or national_id or "").strip()
     if len(normalized_national_id) < 4:
         raise RegistrationConflict(
