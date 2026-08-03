@@ -29,6 +29,7 @@ class RegistrationCreate(StrictSchema):
     middle_name: str | None = Field(default=None, max_length=100)
     last_name: str = Field(min_length=1, max_length=100)
     suffix: str | None = Field(default=None, max_length=30)
+    national_id: str = Field(min_length=4, max_length=100)
     phone_number: str = Field(min_length=7, max_length=32)
     date_of_birth: date
     email: str | None = Field(
@@ -41,6 +42,14 @@ class RegistrationCreate(StrictSchema):
     @classmethod
     def normalize_phone(cls, value: str) -> str:
         return normalize_ph_phone_number(value)
+
+    @field_validator("national_id")
+    @classmethod
+    def normalize_national_id(cls, value: str) -> str:
+        normalized = value.strip()
+        if len(normalized) < 4:
+            raise ValueError("National ID must be at least 4 characters")
+        return normalized
 
     @model_validator(mode="after")
     def validate_consent_and_birth_date(self) -> "RegistrationCreate":
@@ -78,6 +87,8 @@ class RegistrationListItem(StrictSchema):
     middle_name: str | None
     last_name: str
     suffix: str | None
+    masked_national_id: str
+    has_national_id: bool
     masked_phone: str
     date_of_birth: date
     email: str | None
@@ -89,6 +100,21 @@ class RegistrationListItem(StrictSchema):
 class RegistrationApproval(StrictSchema):
     borrower_id: str
     review_notes: str | None = Field(default=None, max_length=1000)
+
+
+class RegistrationCreateAndApproval(StrictSchema):
+    national_id: str | None = Field(default=None, min_length=4, max_length=100)
+    review_notes: str | None = Field(default=None, max_length=1000)
+
+    @field_validator("national_id")
+    @classmethod
+    def normalize_national_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if len(normalized) < 4:
+            raise ValueError("National ID must be at least 4 characters")
+        return normalized
 
 
 class RegistrationRejection(StrictSchema):

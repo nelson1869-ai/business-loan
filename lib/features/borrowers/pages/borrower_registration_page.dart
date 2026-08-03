@@ -59,6 +59,7 @@ class _BorrowerRegistrationPageState
   }
 
   Future<void> _submitForm({bool confirmRestore = false}) async {
+    FocusManager.instance.primaryFocus?.unfocus();
     if (!(_formKey.currentState?.validate() ?? false)) return;
     if (_selectedDateOfBirth == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -133,7 +134,7 @@ class _BorrowerRegistrationPageState
                 : result.savedOffline
                 ? 'Saved locally — identity verification is pending. '
                       'Loans and invitations remain blocked until sync succeeds.'
-                : 'Borrower registered successfully',
+                : 'Borrower record added successfully',
           ),
         ),
       );
@@ -142,6 +143,7 @@ class _BorrowerRegistrationPageState
   }
 
   Future<void> _selectDateOfBirth() async {
+    FocusManager.instance.primaryFocus?.unfocus();
     final picked = await showDatePicker(
       context: context,
       initialDate: DateTime.now().subtract(const Duration(days: 365 * 18)),
@@ -168,7 +170,7 @@ class _BorrowerRegistrationPageState
           },
         ),
         title: Text(
-          widget.borrower != null ? 'Edit Borrower' : 'Register Borrower',
+          widget.borrower != null ? 'Edit Borrower' : 'Add Borrower Record',
         ),
       ),
       body: SingleChildScrollView(

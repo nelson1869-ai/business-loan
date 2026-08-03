@@ -5,7 +5,7 @@ import secrets
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.features.borrower_portal.models import (
@@ -18,6 +18,8 @@ from app.features.borrower_portal.models import (
 )
 from app.features.borrower_portal.service import hash_secret
 from app.features.borrowers.models import Borrower
+from app.features.borrowers.schemas import BorrowerCreate
+from app.features.borrowers.service import create_borrower
 from app.features.users.models import User
 
 
@@ -49,6 +51,12 @@ def mask_phone(phone: str) -> str:
     return f"{phone[:3]}•••••{phone[-3:]}" if len(phone) >= 7 else "••••"
 
 
+def mask_national_id(national_id: str | None) -> str:
+    if not national_id:
+        return "Not provided"
+    return f"{'•' * max(4, len(national_id) - 4)}{national_id[-4:]}"
+
+
 async def submit(db: AsyncSession, payload) -> tuple[BorrowerRegistrationRequest, str]:
     now = datetime.now(UTC)
     existing = await db.scalar(
@@ -73,6 +81,7 @@ async def submit(db: AsyncSession, payload) -> tuple[BorrowerRegistrationRequest
         middle_name=payload.middle_name.strip() if payload.middle_name else None,
         last_name=payload.last_name.strip(),
         suffix=payload.suffix.strip() if payload.suffix else None,
+        national_id=payload.national_id,
         phone_number=payload.phone_number,
         phone_number_normalized=payload.phone_number,
         date_of_birth=payload.date_of_birth,
@@ -226,6 +235,66 @@ async def approve(
     )
     await db.flush()
     return account
+
+
+async def create_and_approve(
+    db: AsyncSession,
+    request_id: str,
+    national_id: str,
+    reviewer: User,
+    notes: str | None,
+):
+    """Create a borrower from a locked request and approve it atomically."""
+    item = await get_locked(db, request_id)
+    if item is None:
+        return None
+    if item.status != "pending":
+        raise RegistrationConflict("Registration request has already been reviewed")
+
+    normalized_national_id = (item.national_id or national_id or "").strip()
+    if len(normalized_national_id) < 4:
+        raise RegistrationConflict(
+            "National ID is required to create a borrower record"
+        )
+    conflict = await db.scalar(
+        select(Borrower)
+        .where(
+            or_(
+                Borrower.phone_normalized == item.phone_number_normalized,
+                Borrower.national_id == normalized_national_id,
+            )
+        )
+        .with_for_update()
+    )
+    if conflict is not None:
+        raise RegistrationConflict(
+            "Phone number or national ID already belongs to a borrower; link the existing record instead"
+        )
+
+    now = datetime.now(UTC)
+    borrower = await create_borrower(
+        db,
+        BorrowerCreate(
+            id=str(uuid4()),
+            first_name=item.first_name,
+            last_name=item.last_name,
+            national_id=normalized_national_id,
+            phone=item.phone_number_normalized,
+            date_of_birth=item.date_of_birth,
+            status="Active",
+            created_at=now,
+        ),
+        reviewer,
+    )
+    _audit(
+        db,
+        "BORROWER_CREATED_FROM_REGISTRATION",
+        "registration_request",
+        item.id,
+        reviewer,
+        {"borrower_id": borrower.id},
+    )
+    return await approve(db, request_id, borrower.id, reviewer, notes)
 
 
 async def reject(db: AsyncSession, request_id: str, reason: str, reviewer: User):

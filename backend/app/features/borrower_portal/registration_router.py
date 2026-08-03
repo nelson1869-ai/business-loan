@@ -17,6 +17,7 @@ from app.features.borrower_portal.registration_schemas import (
     AccountRelink,
     RegistrationApproval,
     RegistrationCreate,
+    RegistrationCreateAndApproval,
     RegistrationListItem,
     RegistrationRejection,
     RegistrationStatusRequest,
@@ -78,6 +79,8 @@ def _item(row) -> RegistrationListItem:
         middle_name=row.middle_name,
         last_name=row.last_name,
         suffix=row.suffix,
+        masked_national_id=service.mask_national_id(row.national_id),
+        has_national_id=row.national_id is not None,
         masked_phone=service.mask_phone(row.phone_number_normalized),
         date_of_birth=row.date_of_birth,
         email=row.email,
@@ -145,6 +148,47 @@ async def approve_registration(
     except (service.RegistrationConflict, IntegrityError) as error:
         await db.rollback()
         raise HTTPException(status_code=409, detail=str(error)) from error
+    return AccountActionResponse(
+        account_id=account.id,
+        account_status=account.account_status,
+        borrower_id=account.borrower_id,
+    )
+
+
+@staff_router.post(
+    "/borrower-registration-requests/{request_id}/create-and-approve",
+    response_model=AccountActionResponse,
+    status_code=201,
+)
+async def create_and_approve_registration(
+    request_id: str,
+    payload: RegistrationCreateAndApproval,
+    db: DbSession,
+    current_user: CurrentUser,
+):
+    require_permission(current_user, "borrower_registration.review")
+    require_permission(current_user, "borrower.create")
+    try:
+        account = await service.create_and_approve(
+            db,
+            request_id,
+            payload.national_id,
+            current_user,
+            payload.review_notes,
+        )
+        if account is None:
+            raise HTTPException(
+                status_code=404, detail="Registration request not found"
+            )
+        await db.commit()
+    except (service.RegistrationConflict, IntegrityError) as error:
+        await db.rollback()
+        detail = (
+            str(error)
+            if isinstance(error, service.RegistrationConflict)
+            else "Borrower identity is already registered"
+        )
+        raise HTTPException(status_code=409, detail=detail) from error
     return AccountActionResponse(
         account_id=account.id,
         account_status=account.account_status,

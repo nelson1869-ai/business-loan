@@ -32,12 +32,12 @@ class RolesPermissionsSheet extends StatelessWidget {
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.check_circle_outline),
-                title: Text('Manage user accounts and roles'),
+                title: Text('Full access: loan approval/disbursement, registration review, user management, suspension, and reporting.'),
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.check_circle_outline),
-                title: Text('Manage business presentation settings'),
+                leading: Icon(Icons.info_outline),
+                title: Text('Dual-Control Rule: Cannot approve own loan applications or registration requests.'),
               ),
             ],
           ),
@@ -49,12 +49,24 @@ class RolesPermissionsSheet extends StatelessWidget {
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.check_circle_outline),
-                title: Text('Operate lending and collection workflows'),
+                title: Text('Creates/manages borrowers, loan applications, payment collections, and reconciliations.'),
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.block_outlined),
-                title: Text('Cannot administer users or system settings'),
+                title: Text('Cannot approve loans, approve borrower registrations, or manage staff user accounts.'),
+              ),
+            ],
+          ),
+          SizedBox(height: 12),
+          AppSectionCard(
+            title: 'Emergency Owner (Super-Admin)',
+            icon: Icons.security_outlined,
+            children: [
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.lock_outline),
+                title: Text('Internal recovery & super-admin role. Preserved for system recovery and omitted from user creation options.'),
               ),
             ],
           ),

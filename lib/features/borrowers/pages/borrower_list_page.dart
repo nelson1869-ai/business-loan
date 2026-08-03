@@ -53,7 +53,7 @@ class _BorrowerListPageState extends ConsumerState<BorrowerListPage> {
             onPressed: () {
               context.push('/borrowers/register');
             },
-            tooltip: 'Register Borrower',
+            tooltip: 'Add Borrower Record',
           ),
         ],
       ),

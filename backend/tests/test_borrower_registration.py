@@ -9,9 +9,13 @@ from pydantic import ValidationError
 from app.core.authorization import has_permission
 from app.features.borrower_portal.registration_schemas import (
     RegistrationCreate,
+    RegistrationCreateAndApproval,
     RegistrationStatusRequest,
 )
-from app.features.borrower_portal.registration_service import mask_phone
+from app.features.borrower_portal.registration_service import (
+    mask_national_id,
+    mask_phone,
+)
 from app.features.borrower_portal.service import hash_secret
 
 
@@ -20,6 +24,7 @@ class TestRegistrationPublicSchema(unittest.TestCase):
         return {
             "firstName": "Maria",
             "lastName": "Santos",
+            "nationalId": "TEST-2026-0001",
             "phoneNumber": "09171234567",
             "dateOfBirth": "1990-04-12",
             "email": "maria@example.com",
@@ -31,6 +36,7 @@ class TestRegistrationPublicSchema(unittest.TestCase):
         value = RegistrationCreate.model_validate(self.payload())
         self.assertEqual(value.phone_number, "+639171234567")
         self.assertEqual(value.date_of_birth, date(1990, 4, 12))
+        self.assertEqual(value.national_id, "TEST-2026-0001")
 
     def test_rejects_malformed_mobile_number(self) -> None:
         payload = self.payload() | {"phoneNumber": "123"}
@@ -63,6 +69,19 @@ class TestRegistrationPublicSchema(unittest.TestCase):
         with self.assertRaises(ValidationError):
             RegistrationStatusRequest.model_validate({"registrationToken": "short"})
 
+    def test_create_and_approve_accepts_only_staff_supplied_national_id(self) -> None:
+        value = RegistrationCreateAndApproval.model_validate(
+            {"nationalId": "TEST-2026-0001"}
+        )
+        self.assertEqual(value.national_id, "TEST-2026-0001")
+        with self.assertRaises(ValidationError):
+            RegistrationCreateAndApproval.model_validate(
+                {
+                    "nationalId": "TEST-2026-0001",
+                    "borrowerId": "attacker-controlled",
+                }
+            )
+
 
 class TestRegistrationSecurityHelpers(unittest.TestCase):
     def test_token_hash_does_not_persist_raw_token(self) -> None:
@@ -74,6 +93,11 @@ class TestRegistrationSecurityHelpers(unittest.TestCase):
         masked = mask_phone("+639171234567")
         self.assertNotIn("9171234567", masked)
         self.assertTrue(masked.endswith("567"))
+
+    def test_national_id_masking(self) -> None:
+        masked = mask_national_id("TEST-2026-0001")
+        self.assertNotIn("TEST-2026", masked)
+        self.assertTrue(masked.endswith("0001"))
 
     def test_review_permission_excludes_officer(self) -> None:
         self.assertFalse(

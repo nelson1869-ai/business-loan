@@ -1,12 +1,19 @@
 <#
 .SYNOPSIS
-    Starts the Lending Nelson backend and Flutter client for local development only.
+    Starts the backend, officer app, and borrower app for local development.
 .DESCRIPTION
-    Uses HTTP only for trusted local testing. This script is not a production server launcher.
+    With no arguments, starts the local backend and both Android applications
+    against the Android emulator API address. Uses HTTP only for trusted local
+    testing. This script is not a production server launcher.
 .EXAMPLE
-    .\start.ps1 -Target android
+    .\start.ps1
+    Starts the backend and both Flutter applications on the default emulator.
 .EXAMPLE
-    .\start.ps1 -Target 192.168.254.110
+    .\start.ps1 -Target android -App borrower
+    Starts only the borrower application and the local backend.
+.EXAMPLE
+    .\start.ps1 -Target 192.168.254.110 -App all
+    Starts both applications using the computer's LAN API address.
 .EXAMPLE
     .\start.ps1 -Target https://api.example.com
 #>
@@ -18,7 +25,7 @@ param (
 
     [Parameter()]
     [ValidateSet("officer", "borrower", "all")]
-    [string]$App = "officer",
+    [string]$App = "all",
 
     [Parameter()]
     [ValidateRange(1, 65535)]
@@ -81,6 +88,7 @@ if (-not (Test-Path -LiteralPath $VenvPython -PathType Leaf)) {
 
 Write-Host "[INIT] Lending Nelson local development launcher" -ForegroundColor Cyan
 Write-Host "API URL: $ApiUrl" -ForegroundColor Yellow
+Write-Host "Applications: $App" -ForegroundColor Yellow
 
 # Clean up any previously running backend or Flutter client instances
 Stop-ExistingProjectProcesses -PortNumber $Port -Path $ProjectRoot

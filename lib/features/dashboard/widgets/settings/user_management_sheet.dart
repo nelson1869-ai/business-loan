@@ -157,8 +157,8 @@ class _UserManagementSheetState extends ConsumerState<UserManagementSheet> {
   }
 
   Future<void> _createUser(BuildContext context) async {
-    final username = TextEditingController();
-    final password = TextEditingController();
+    var username = '';
+    var password = '';
     var role = 'officer';
     final accepted = await showDialog<bool>(
       context: context,
@@ -170,11 +170,11 @@ class _UserManagementSheetState extends ConsumerState<UserManagementSheet> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
-                  controller: username,
+                  onChanged: (value) => username = value,
                   decoration: const InputDecoration(labelText: 'Username'),
                 ),
                 TextField(
-                  controller: password,
+                  onChanged: (value) => password = value,
                   obscureText: true,
                   decoration: const InputDecoration(
                     labelText: 'Temporary password',
@@ -214,29 +214,20 @@ class _UserManagementSheetState extends ConsumerState<UserManagementSheet> {
       ),
     );
     if (accepted != true || !mounted) return;
-    if (username.text.trim().length < 3 || password.text.length < 12) {
+    if (username.trim().length < 3 || password.length < 12) {
       _message(
         'Enter a valid username and a password of at least 12 characters.',
       );
-      username.dispose();
-      password.dispose();
       return;
     }
     try {
       await ref
           .read(userRepositoryProvider)
-          .create(
-            username: username.text.trim(),
-            password: password.text,
-            role: role,
-          );
+          .create(username: username.trim(), password: password, role: role);
       ref.invalidate(usersProvider);
       _message('User account created.');
     } catch (_) {
       _message('Could not create user. Check the entered values.');
-    } finally {
-      username.dispose();
-      password.dispose();
     }
   }
 

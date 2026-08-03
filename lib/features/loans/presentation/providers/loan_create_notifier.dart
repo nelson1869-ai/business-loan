@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/network/api_error_mapper.dart';
 import '../../data/models/loan_create_request.dart';
 import '../../data/models/loan_quote.dart';
 import '../../data/repositories/remote_loan_repository.dart';
@@ -57,7 +58,7 @@ class LoanCreateNotifier extends StateNotifier<LoanCreateState> {
       state = LoanCreateState(quote: quote);
       return quote;
     } catch (error) {
-      state = LoanCreateState(error: error.toString());
+      state = LoanCreateState(error: ApiErrorMapper.message(error));
       return null;
     }
   }
@@ -126,7 +127,7 @@ class LoanCreateNotifier extends StateNotifier<LoanCreateState> {
       state = LoanCreateState(createdLoan: loan);
       return loan;
     } catch (error) {
-      state = LoanCreateState(error: error.toString());
+      state = LoanCreateState(error: ApiErrorMapper.message(error));
       return null;
     }
   }

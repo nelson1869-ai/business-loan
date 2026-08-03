@@ -1,6 +1,6 @@
 # Borrower self-registration and approval
 
-Borrower self-registration creates an isolated `pending` registration request. It never creates or links a borrower account and never grants access to financial data. An authenticated manager, admin, or owner must explicitly select an eligible existing borrower and approve the link. Officers do not have review permission under the current policy.
+Borrower self-registration creates an isolated `pending` registration request. It never creates or links a borrower account and never grants access to financial data. An authenticated manager, admin, or owner must either explicitly select an eligible existing borrower, or explicitly choose **Create borrower and approve** and supply the internal National ID. Officers do not have review permission under the current policy.
 
 ```mermaid
 sequenceDiagram
@@ -14,7 +14,12 @@ sequenceDiagram
     API->>RR: Store pending request + hashed status token
     API-->>BA: Opaque token and pending status
     AA->>API: List and review pending requests
-    AA->>API: Approve with explicitly selected borrowerId
+    alt Existing borrower
+        AA->>API: Approve with explicitly selected borrowerId
+    else New borrower
+        AA->>API: Create borrower and approve with National ID
+        API->>AC: Create internal borrower record after conflict checks
+    end
     API->>RR: Lock and validate pending request
     API->>AC: Create one approved linked account
     API->>RR: Mark approved and audit
@@ -37,7 +42,9 @@ Registration states are `pending`, `approved`, `rejected`, `cancelled`, and `exp
 - `POST /api/v1/borrower-registration-requests/{request_id}/approve|reject` — transactional decision.
 - `POST /api/v1/borrower-accounts/{account_id}/suspend|reactivate|disable|relink` — admin account lifecycle.
 
-Public request schemas forbid extra fields, so borrower, loan, account, reviewer, role, and status identifiers cannot be injected. Approval locks the request, validates borrower/account/phone uniqueness, revokes stale invitations and OTPs, writes audit events, and commits once. Duplicate or stale decisions return `409 Conflict`. Status and OTP request responses are enumeration-resistant. Raw registration tokens, OTPs, refresh tokens, and device identifiers are never persisted.
+- `POST /api/v1/borrower-registration-requests/{request_id}/create-and-approve` — atomically create the internal borrower record, link the account, approve, and audit.
+
+Public request schemas forbid extra fields, so borrower, loan, account, reviewer, role, and status identifiers cannot be injected. Approval locks the request, validates borrower/account/phone uniqueness, revokes stale invitations and OTPs, writes audit events, and commits once. The create-and-approve action takes the name, phone, and date of birth only from the locked request; staff supplies only the required National ID and optional review notes. Existing phone or National ID conflicts return `409 Conflict` and direct staff to link the existing record instead. Duplicate or stale decisions also return `409 Conflict`. Status and OTP request responses are enumeration-resistant. Raw registration tokens, OTPs, refresh tokens, and device identifiers are never persisted.
 
 ## Deployment and testing
 

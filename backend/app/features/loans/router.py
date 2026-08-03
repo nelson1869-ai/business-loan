@@ -14,7 +14,7 @@ from app.features.admin_assistant.explanation_service import (
     AIExplanationUnavailable,
     explain_loan,
 )
-from app.features.automation.outbox import process_outbox_batch, publish_outbox_event
+from app.features.automation.outbox import publish_outbox_event
 from app.features.automation.schemas import DomainEventEnvelope, EventActor, EventEntity
 from app.features.borrowers import service as borrower_service
 from app.features.loans import service as loan_service
@@ -101,7 +101,6 @@ async def create_draft_loan(
     )
     await publish_outbox_event(db, envelope)
     await db.commit()
-    await process_outbox_batch(db, limit=5)
     reloaded = await loan_service.get_loan(db, loan.id)
     return _detail(reloaded)
 
@@ -304,7 +303,6 @@ async def transition_one_loan(
         )
         await publish_outbox_event(db, envelope)
         await db.commit()
-        await process_outbox_batch(db, limit=5)
     except ValueError as error:
         await db.rollback()
         raise HTTPException(

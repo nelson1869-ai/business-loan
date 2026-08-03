@@ -87,6 +87,7 @@ class BorrowerRegistrationRequest(Base):
     middle_name: Mapped[str | None] = mapped_column(String(100))
     last_name: Mapped[str] = mapped_column(String(100), nullable=False)
     suffix: Mapped[str | None] = mapped_column(String(30))
+    national_id: Mapped[str | None] = mapped_column(String(100))
     phone_number: Mapped[str] = mapped_column(String(32), nullable=False)
     phone_number_normalized: Mapped[str] = mapped_column(
         String(32), nullable=False, index=True

@@ -63,8 +63,9 @@ class BorrowerRegistrationForm extends ConsumerWidget {
               controller: nationalIdCtrl,
               label: 'National ID *',
               icon: Icons.badge_outlined,
-              keyboardType: TextInputType.number,
+              keyboardType: TextInputType.text,
               validator: validateNationalId,
+              textCapitalization: TextCapitalization.characters,
             ),
             FormFieldRow(
               controller: phoneCtrl,
@@ -74,6 +75,7 @@ class BorrowerRegistrationForm extends ConsumerWidget {
               keyboardType: TextInputType.phone,
               validator: validatePhone,
               autofillHints: const [AutofillHints.telephoneNumber],
+              textInputAction: TextInputAction.done,
             ),
             Padding(
               padding: const EdgeInsets.only(bottom: 16),
@@ -111,7 +113,7 @@ class BorrowerRegistrationForm extends ConsumerWidget {
                       height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : Text(isEditMode ? 'Save Changes' : 'Register Borrower'),
+                  : Text(isEditMode ? 'Save Changes' : 'Add Borrower Record'),
             ),
           ],
         ),

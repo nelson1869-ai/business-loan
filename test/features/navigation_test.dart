@@ -225,12 +225,12 @@ void main() {
         expect(
           find.descendant(
             of: find.byType(AppBar),
-            matching: find.text('Register Borrower'),
+            matching: find.text('Add Borrower Record'),
           ),
           findsOneWidget,
         );
         expect(
-          find.widgetWithText(ElevatedButton, 'Register Borrower'),
+          find.widgetWithText(ElevatedButton, 'Add Borrower Record'),
           findsOneWidget,
         );
         expect(

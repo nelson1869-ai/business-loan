@@ -50,6 +50,11 @@ async def create_user(
     payload: UserCreate, db: DbSession, current_user: CurrentUser
 ) -> User:
     _require_admin(current_user)
+    if payload.role not in {"admin", "officer"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only Administrator or Officer roles can be created.",
+        )
     user = User(
         id=str(uuid4()),
         username=payload.username.lower(),
@@ -80,6 +85,16 @@ async def update_user_role(
     user = await db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
+    if user.role == "owner":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The emergency owner account cannot be reassigned via standard user management.",
+        )
+    if payload.role not in {"admin", "officer"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only Administrator or Officer roles can be assigned.",
+        )
     if user.id == current_user.id and payload.role != "admin":
         raise HTTPException(
             status_code=409, detail="You cannot remove your own administrator role"

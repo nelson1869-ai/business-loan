@@ -15,13 +15,23 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       _middle = TextEditingController(),
       _last = TextEditingController(),
       _suffix = TextEditingController(),
+      _nationalId = TextEditingController(),
       _phone = TextEditingController(),
       _email = TextEditingController();
   DateTime? _birthDate;
   bool _privacy = false, _terms = false;
+  bool _submittedOnce = false;
   @override
   void dispose() {
-    for (final c in [_first, _middle, _last, _suffix, _phone, _email]) {
+    for (final c in [
+      _first,
+      _middle,
+      _last,
+      _suffix,
+      _nationalId,
+      _phone,
+      _email,
+    ]) {
       c.dispose();
     }
     super.dispose();
@@ -37,11 +47,18 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   }
 
   Future<void> _submit() async {
-    if (!_key.currentState!.validate() ||
-        _birthDate == null ||
-        !_privacy ||
-        !_terms) {
-      setState(() {});
+    FocusScope.of(context).unfocus();
+    setState(() => _submittedOnce = true);
+    final formIsValid = _key.currentState!.validate();
+    final consentIsValid = _birthDate != null && _privacy && _terms;
+    if (!formIsValid || !consentIsValid) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Please complete all required fields.'),
+          ),
+        );
       return;
     }
     final ok = await ref.read(registrationProvider.notifier).submit({
@@ -49,20 +66,41 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       'middleName': _middle.text.trim().isEmpty ? null : _middle.text.trim(),
       'lastName': _last.text.trim(),
       'suffix': _suffix.text.trim().isEmpty ? null : _suffix.text.trim(),
+      'nationalId': _nationalId.text.trim(),
       'phoneNumber': _phone.text.trim(),
       'dateOfBirth': _birthDate!.toIso8601String().split('T').first,
       'email': _email.text.trim().isEmpty ? null : _email.text.trim(),
       'privacyAccepted': _privacy,
       'termsAccepted': _terms
     });
-    if (ok && mounted) context.go('/registration-status');
+    if (!mounted) return;
+    if (ok) {
+      context.go('/registration-status');
+      return;
+    }
+    final error = ref.read(registrationProvider).error;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(error ?? 'Submission failed. Please try again.'),
+          action: SnackBarAction(label: 'Retry', onPressed: _submit),
+        ),
+      );
   }
 
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(registrationProvider);
     return Scaffold(
-        appBar: AppBar(title: const Text('Create account')),
+        appBar: AppBar(
+          leading: IconButton(
+            tooltip: 'Back to login',
+            onPressed: () => context.go('/login'),
+            icon: const Icon(Icons.arrow_back),
+          ),
+          title: const Text('Create account'),
+        ),
         body: Form(
             key: _key,
             child: ListView(padding: const EdgeInsets.all(24), children: [
@@ -77,6 +115,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                 _field(_middle, 'Middle name (optional)'),
                 _field(_last, 'Last name', required: true),
                 _field(_suffix, 'Suffix (optional)'),
+                _field(_nationalId, 'National ID', required: true),
                 _field(_phone, 'Mobile number', required: true, phone: true),
                 _field(_email, 'Email (optional)', email: true)
               ],
@@ -87,7 +126,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                       : _birthDate!.toIso8601String().split('T').first),
                   trailing: const Icon(Icons.calendar_month),
                   onTap: _pickDate),
-              if (_birthDate == null)
+              if (_submittedOnce && _birthDate == null)
                 const Text('Date of birth is required',
                     style: TextStyle(color: Colors.red)),
               CheckboxListTile(
@@ -102,7 +141,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                   title: const Text('I accept the terms'),
                   controlAffinity: ListTileControlAffinity.leading,
                   contentPadding: EdgeInsets.zero),
-              if ((!_privacy || !_terms))
+              if (_submittedOnce && (!_privacy || !_terms))
                 const Text('Both acknowledgements are required',
                     style: TextStyle(color: Colors.red)),
               if (state.error != null)
@@ -138,6 +177,12 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                 final x = v?.trim() ?? '';
                 if (required && x.isEmpty) {
                   return '$label is required';
+                }
+                if (phone &&
+                    x.isNotEmpty &&
+                    !RegExp(r'^(?:\+?63|0)?9\d{9}$')
+                        .hasMatch(x.replaceAll(RegExp(r'[\s()-]'), ''))) {
+                  return 'Enter a valid Philippine mobile number';
                 }
                 if (email &&
                     x.isNotEmpty &&

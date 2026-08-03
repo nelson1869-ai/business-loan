@@ -91,74 +91,97 @@ class ApprovalInboxPage extends ConsumerWidget {
     bool selfApproval,
   ) async {
     final online = ref.read(backendOnlineProvider);
-    final reason = TextEditingController();
+    var reason = '';
+    var submitting = false;
     await showDialog<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(request.action),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Entity: ${request.entityType} / ${request.entityId}'),
-              const SizedBox(height: 8),
-              Text('Maker reason: ${request.requestReason}'),
-              const SizedBox(height: 12),
-              if (selfApproval)
-                const Text(
-                  'You created this request and cannot approve or reject it.',
-                )
-              else if (request.status == 'pending')
-                TextField(
-                  controller: reason,
-                  minLines: 2,
-                  maxLines: 4,
-                  decoration: const InputDecoration(
-                    labelText: 'Decision reason',
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: Text(request.action),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Entity: ${request.entityType} / ${request.entityId}'),
+                const SizedBox(height: 8),
+                Text('Maker reason: ${request.requestReason}'),
+                const SizedBox(height: 12),
+                if (selfApproval)
+                  const Text(
+                    'You created this request and cannot approve or reject it.',
+                  )
+                else if (request.status == 'pending')
+                  TextField(
+                    minLines: 2,
+                    maxLines: 4,
+                    enabled: !submitting,
+                    onChanged: (value) => reason = value,
+                    decoration: const InputDecoration(
+                      labelText: 'Decision reason',
+                    ),
                   ),
-                ),
-            ],
+                if (submitting) ...[
+                  const SizedBox(height: 12),
+                  const LinearProgressIndicator(),
+                ],
+              ],
+            ),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Close'),
-          ),
-          if (!selfApproval && request.status == 'pending') ...[
+          actions: [
             TextButton(
-              onPressed: online
-                  ? () => _decide(
-                      dialogContext,
-                      ref,
-                      request.id,
-                      'rejected',
-                      reason.text,
-                    )
-                  : null,
-              child: const Text('Reject'),
+              onPressed: submitting ? null : () => Navigator.pop(dialogContext),
+              child: const Text('Close'),
             ),
-            FilledButton(
-              onPressed: online
-                  ? () => _decide(
-                      dialogContext,
-                      ref,
-                      request.id,
-                      'approved',
-                      reason.text,
-                    )
-                  : null,
-              child: const Text('Approve'),
-            ),
+            if (!selfApproval && request.status == 'pending') ...[
+              TextButton(
+                onPressed: online && !submitting
+                    ? () async {
+                        setDialogState(() => submitting = true);
+                        final success = await _decide(
+                          dialogContext,
+                          ref,
+                          request.id,
+                          'rejected',
+                          reason,
+                        );
+                        if (success && dialogContext.mounted) {
+                          Navigator.pop(dialogContext);
+                        } else if (dialogContext.mounted) {
+                          setDialogState(() => submitting = false);
+                        }
+                      }
+                    : null,
+                child: const Text('Reject'),
+              ),
+              FilledButton(
+                onPressed: online && !submitting
+                    ? () async {
+                        setDialogState(() => submitting = true);
+                        final success = await _decide(
+                          dialogContext,
+                          ref,
+                          request.id,
+                          'approved',
+                          reason,
+                        );
+                        if (success && dialogContext.mounted) {
+                          Navigator.pop(dialogContext);
+                        } else if (dialogContext.mounted) {
+                          setDialogState(() => submitting = false);
+                        }
+                      }
+                    : null,
+                child: const Text('Approve'),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
-    reason.dispose();
   }
 
-  Future<void> _decide(
+  Future<bool> _decide(
     BuildContext context,
     WidgetRef ref,
     String id,
@@ -169,7 +192,7 @@ class ApprovalInboxPage extends ConsumerWidget {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Enter a decision reason.')));
-      return;
+      return false;
     }
     try {
       final request = await ref
@@ -181,12 +204,13 @@ class ApprovalInboxPage extends ConsumerWidget {
             .transition(request.entityId, 'approve');
       }
       ref.invalidate(approvalsProvider);
-      if (context.mounted) Navigator.pop(context);
+      return true;
     } catch (error) {
-      if (!context.mounted) return;
+      if (!context.mounted) return false;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(ApiErrorMapper.message(error))));
+      return false;
     }
   }
 }

@@ -32,7 +32,7 @@ void main() {
   testWidgets('new borrower form uses registration labels', (tester) async {
     await showForm(tester);
 
-    expect(find.text('Register Borrower'), findsNWidgets(2));
+    expect(find.text('Add Borrower Record'), findsNWidgets(2));
     expect(find.text('Save Changes'), findsNothing);
   });
 
@@ -41,7 +41,7 @@ void main() {
 
     expect(find.text('Edit Borrower'), findsOneWidget);
     expect(find.text('Save Changes'), findsOneWidget);
-    expect(find.text('Register Borrower'), findsNothing);
+    expect(find.text('Add Borrower Record'), findsNothing);
     await tester.pump();
     expect(find.text('Loans'), findsOneWidget);
   });
