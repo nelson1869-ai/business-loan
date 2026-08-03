@@ -232,7 +232,7 @@ async def approve(
 async def create_and_approve(
     db: AsyncSession,
     request_id: str,
-    national_id: str,
+    national_id: str | None,
     reviewer: User,
     notes: str | None,
 ):

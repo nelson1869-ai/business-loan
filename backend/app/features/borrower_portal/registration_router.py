@@ -1,6 +1,6 @@
 """Public self-registration and authorized staff review endpoints."""
 
-from typing import Annotated
+from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from sqlalchemy.exc import IntegrityError
@@ -40,22 +40,27 @@ async def _rate_limit(request: Request, namespace: str, identity: str) -> None:
         key, settings.login_rate_limit_per_minute
     ):
         raise HTTPException(
-            status_code=429, detail="Too many requests. Please try again later."
+            status_code=429,
+            detail="Too many registration requests. Please wait a minute and try again.",
         )
 
 
-@public_router.post("/register", response_model=RegistrationSubmitted, status_code=202)
-async def register(
+@public_router.post("/register", response_model=RegistrationSubmitted, status_code=201)
+async def register_borrower(
     payload: RegistrationCreate, request: Request, db: DbSession
 ) -> RegistrationSubmitted:
-    await _rate_limit(request, "borrower-register", payload.phone_number)
-    item, token = await service.submit(db, payload)
+    await _rate_limit(request, "borrower-registration", payload.phone_number)
     try:
+        item, token = await service.submit(db, payload)
         await db.commit()
+    except service.RegistrationConflict as error:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail=str(error)) from error
     except IntegrityError as error:
         await db.rollback()
         raise HTTPException(
-            status_code=409, detail="Registration could not be submitted safely"
+            status_code=409,
+            detail="A registration request with this phone number or identity already exists.",
         ) from error
     return RegistrationSubmitted(request_id=item.id, registration_token=token)
 
@@ -70,10 +75,10 @@ async def registration_status(
     current_status, message = await service.status_for_token(
         db, payload.registration_token
     )
-    return RegistrationStatusResponse(status=current_status, message=message)
+    return RegistrationStatusResponse(status=cast(Any, current_status), message=message)
 
 
-def _item(row) -> RegistrationListItem:
+def _item(row: BorrowerRegistrationRequest) -> RegistrationListItem:
     return RegistrationListItem(
         id=row.id,
         first_name=row.first_name,
@@ -105,7 +110,7 @@ async def list_registrations(
     ] = "pending",
     offset: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
-):
+) -> list[RegistrationListItem]:
     require_permission(current_user, "borrower_registration.review")
     return [
         _item(row)
@@ -118,7 +123,7 @@ async def list_registrations(
 )
 async def registration_detail(
     request_id: str, db: DbSession, current_user: CurrentUser
-):
+) -> RegistrationListItem:
     require_permission(current_user, "borrower_registration.review")
     row = await db.get(BorrowerRegistrationRequest, request_id)
     if row is None:
@@ -135,7 +140,7 @@ async def approve_registration(
     payload: RegistrationApproval,
     db: DbSession,
     current_user: CurrentUser,
-):
+) -> AccountActionResponse:
     require_permission(current_user, "borrower_registration.review")
     try:
         account = await service.approve(
@@ -166,7 +171,7 @@ async def create_and_approve_registration(
     payload: RegistrationCreateAndApproval,
     db: DbSession,
     current_user: CurrentUser,
-):
+) -> AccountActionResponse:
     require_permission(current_user, "borrower_registration.review")
     require_permission(current_user, "borrower.create")
     try:
@@ -223,10 +228,10 @@ async def _account_action(
     account_id: str,
     action: str,
     payload: AccountAction,
-    db,
-    user,
+    db: DbSession,
+    user: CurrentUser,
     borrower_id: str | None = None,
-):
+) -> AccountActionResponse:
     require_permission(user, "borrower_account.manage")
     try:
         account = await service.account_action(
@@ -250,7 +255,7 @@ async def _account_action(
 )
 async def suspend(
     account_id: str, payload: AccountAction, db: DbSession, current_user: CurrentUser
-):
+) -> AccountActionResponse:
     return await _account_action(account_id, "suspend", payload, db, current_user)
 
 
@@ -259,7 +264,7 @@ async def suspend(
 )
 async def reactivate(
     account_id: str, payload: AccountAction, db: DbSession, current_user: CurrentUser
-):
+) -> AccountActionResponse:
     return await _account_action(account_id, "reactivate", payload, db, current_user)
 
 
@@ -268,7 +273,7 @@ async def reactivate(
 )
 async def disable(
     account_id: str, payload: AccountAction, db: DbSession, current_user: CurrentUser
-):
+) -> AccountActionResponse:
     return await _account_action(account_id, "disable", payload, db, current_user)
 
 
@@ -277,7 +282,7 @@ async def disable(
 )
 async def relink(
     account_id: str, payload: AccountRelink, db: DbSession, current_user: CurrentUser
-):
+) -> AccountActionResponse:
     return await _account_action(
         account_id, "relink", payload, db, current_user, payload.borrower_id
     )
