@@ -220,37 +220,64 @@ class TestAndroidSmsGatewayProvider(unittest.IsolatedAsyncioTestCase):
         settings = Settings(
             app_env="development",
             database_url="postgresql+asyncpg://user:pass@localhost:5432/db",
-            jwt_secret_key="WwBCqC5ekfSL75WprnI2uqV6zEiBsUwaNrF5oloeUB165dGkZUPbS1HpbgsRuMoN",
+            jwt_secret_key=(
+                "WwBCqC5ekfSL75WprnI2uqV6zEiBsUwa"
+                "NrF5oloeUB165dGkZUPbS1HpbgsRuMoN"
+            ),
             cors_origins="http://localhost:3000",
             sms_gateway_provider="android_gateway",
-            android_sms_gateway_url="http://192.168.1.50:8080/message",
-            android_sms_gateway_key="test-api-key",
+            android_sms_gateway_url=(
+                "https://api.sms-gate.app/3rdparty/v1/messages"
+            ),
+            android_sms_gateway_user="test-user",
+            android_sms_gateway_key="test-password",
         )
-        provider = get_otp_provider(settings)
-        self.assertIsInstance(provider, AndroidSmsGatewayOTPProvider)
 
-    @patch("httpx.AsyncClient.post")
-    async def test_android_sms_gateway_sends_payload(self, mock_post: MagicMock) -> None:
-        from app.features.borrower_portal.otp_provider import AndroidSmsGatewayOTPProvider
+        provider = get_otp_provider(settings)
+
+        self.assertIsInstance(provider, AndroidSmsGatewayOTPProvider)
+        self.assertEqual(provider.gateway_url, "https://api.sms-gate.app/3rdparty/v1/messages")
+        self.assertEqual(provider.username, "test-user")
+        self.assertEqual(provider.password, "test-password")
+
+    @patch("httpx.AsyncClient.post", new_callable=AsyncMock)
+    async def test_android_sms_gateway_sends_payload(
+        self,
+        mock_post: AsyncMock,
+    ) -> None:
+        from app.features.borrower_portal.otp_provider import (
+            AndroidSmsGatewayOTPProvider,
+        )
 
         mock_response = MagicMock()
-        mock_response.status_code = 200
+        mock_response.status_code = 202
         mock_post.return_value = mock_response
 
         provider = AndroidSmsGatewayOTPProvider(
-            gateway_url="http://192.168.1.50:8080/message",
-            api_key="test-key-123",
+            gateway_url="https://api.sms-gate.app/3rdparty/v1/messages",
+            username="test-user",
+            password="test-password",
         )
 
         success = await provider.send_otp("+639916084400", "849201")
+
         self.assertTrue(success)
         mock_post.assert_awaited_once()
+
         call_kwargs = mock_post.call_args.kwargs
-        self.assertEqual(call_kwargs["json"]["phone"], "+639916084400")
-        self.assertIn("849201", call_kwargs["json"]["message"])
-        self.assertEqual(call_kwargs["headers"]["Authorization"], "Bearer test-key-123")
+        self.assertEqual(
+            call_kwargs["json"],
+            {
+                "textMessage": {
+                    "text": "Your Lending Nelson verification code is: 849201",
+                },
+                "phoneNumbers": ["+639916084400"],
+            },
+        )
+        self.assertIsInstance(call_kwargs["auth"], __import__("httpx").BasicAuth)
+        self.assertEqual(call_kwargs["headers"]["Accept"], "application/json")
+        self.assertEqual(call_kwargs["headers"]["Content-Type"], "application/json")
 
 
 if __name__ == "__main__":
     unittest.main()
-

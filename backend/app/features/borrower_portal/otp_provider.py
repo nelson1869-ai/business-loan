@@ -10,6 +10,13 @@ from app.core.config import Settings, get_settings
 logger = logging.getLogger(__name__)
 
 
+def _mask_phone(phone_number: str) -> str:
+    """Return a safely masked phone number for logs."""
+    if len(phone_number) <= 6:
+        return "***"
+    return f"{phone_number[:6]}..."
+
+
 class BaseOTPProvider(ABC):
     """Abstract interface for OTP delivery providers."""
 
@@ -19,87 +26,200 @@ class BaseOTPProvider(ABC):
 
 
 class DevelopmentOTPProvider(BaseOTPProvider):
-    """Development OTP provider that logs OTP internally without exposing it to client responses."""
+    """Development OTP provider for local testing only."""
 
     def __init__(self, is_development: bool = True) -> None:
         self.is_development = is_development
         self.last_delivered_otp: dict[str, str] = {}
 
     async def send_otp(self, phone_number_normalized: str, otp: str) -> bool:
-        """Store OTP for dev test inspection; never log sensitive data in production."""
+        """Store OTP for development test inspection."""
         if self.is_development:
             self.last_delivered_otp[phone_number_normalized] = otp
             logger.info(
-                "Dev OTP generated for %s (redacted in prod)",
-                phone_number_normalized[:6] + "...",
+                "Development OTP generated for %s",
+                _mask_phone(phone_number_normalized),
             )
+
         return True
 
 
 class AndroidSmsGatewayOTPProvider(BaseOTPProvider):
-    """Dispatches OTP via Android Phone SMS Gateway API (₱0 SMS cost)."""
+    """Dispatch OTP through the SMSGate public cloud API."""
 
-    def __init__(self, gateway_url: str, api_key: str | None = None) -> None:
+    def __init__(
+        self,
+        gateway_url: str,
+        username: str | None = None,
+        password: str | None = None,
+    ) -> None:
         self.gateway_url = gateway_url.rstrip("/")
-        self.api_key = api_key
+        self.username = username.strip() if username else None
+        self.password = password.strip() if password else None
 
     async def send_otp(self, phone_number_normalized: str, otp: str) -> bool:
-        """Send HTTP request to Android Gateway app on mobile device to trigger real SMS."""
+        """Send an OTP through SMSGate using HTTP Basic Authentication."""
+        masked_phone = _mask_phone(phone_number_normalized)
+
+        if not self.username or not self.password:
+            logger.error(
+                "SMSGate credentials are missing for recipient %s",
+                masked_phone,
+            )
+            return False
+
         message_text = f"Your Lending Nelson verification code is: {otp}"
+
         payload = {
-            "phoneNumbers": [phone_number_normalized],
-            "phone": phone_number_normalized,
-            "to": phone_number_normalized,
-            "message": message_text,
+            "textMessage": {
+                "text": message_text,
+            },
+            "phoneNumbers": [
+                phone_number_normalized,
+            ],
         }
-        headers = {"Content-Type": "application/json"}
-        if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
-            headers["X-API-Key"] = self.api_key
+
+        timeout = httpx.Timeout(
+            connect=10.0,
+            read=20.0,
+            write=10.0,
+            pool=10.0,
+        )
+
+        auth = httpx.BasicAuth(
+            username=self.username,
+            password=self.password,
+        )
 
         try:
-            async with httpx.AsyncClient(timeout=4.0) as client:
-                response = await client.post(self.gateway_url, json=payload, headers=headers)
-                if response.status_code in (200, 201, 202):
-                    logger.info(
-                        "Dispatched Android SMS Gateway OTP to %s",
-                        phone_number_normalized[:6] + "...",
-                    )
-                    return True
-                logger.warning(
-                    "Android SMS Gateway returned HTTP %s for %s",
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.post(
+                    self.gateway_url,
+                    json=payload,
+                    auth=auth,
+                    headers={
+                        "Accept": "application/json",
+                        "Content-Type": "application/json",
+                    },
+                )
+
+            if response.status_code in (200, 201, 202):
+                logger.info(
+                    "SMSGate accepted OTP message for %s with HTTP %s",
+                    masked_phone,
                     response.status_code,
-                    phone_number_normalized[:6] + "...",
+                )
+                return True
+
+            if response.status_code in (401, 403):
+                logger.error(
+                    "SMSGate authentication failed with HTTP %s for %s",
+                    response.status_code,
+                    masked_phone,
                 )
                 return False
+
+            if response.status_code == 404:
+                logger.error(
+                    "SMSGate endpoint was not found for %s",
+                    masked_phone,
+                )
+                return False
+
+            if response.status_code == 422:
+                logger.error(
+                    "SMSGate rejected the request payload for %s",
+                    masked_phone,
+                )
+                return False
+
+            logger.warning(
+                "SMSGate returned HTTP %s for %s",
+                response.status_code,
+                masked_phone,
+            )
+            return False
+
+        except httpx.ConnectTimeout:
+            logger.error(
+                "Timed out connecting to SMSGate for %s",
+                masked_phone,
+            )
+            return False
+
+        except httpx.ReadTimeout:
+            logger.error(
+                "Timed out waiting for SMSGate response for %s",
+                masked_phone,
+            )
+            return False
+
+        except httpx.ConnectError as exc:
+            logger.error(
+                "Could not connect to SMSGate for %s: %s",
+                masked_phone,
+                type(exc).__name__,
+            )
+            return False
+
+        except httpx.HTTPError as exc:
+            logger.error(
+                "SMSGate HTTP error for %s: %s",
+                masked_phone,
+                type(exc).__name__,
+            )
+            return False
+
         except Exception as exc:
-            logger.error("Failed to connect to Android SMS Gateway: %s", exc)
+            logger.exception(
+                "Unexpected SMSGate error for %s: %s",
+                masked_phone,
+                type(exc).__name__,
+            )
             return False
 
 
 class SmsGatewayOTPProvider(BaseOTPProvider):
-    """Production SMS Gateway placeholder (e.g. Semaphore / Twilio integration)."""
+    """Placeholder for another production SMS provider."""
 
     async def send_otp(self, phone_number_normalized: str, otp: str) -> bool:
-        """Dispatch OTP via production SMS API credentials."""
-        logger.info(
-            "Dispatched production SMS OTP to %s", phone_number_normalized[:6] + "..."
+        """Dispatch OTP using another configured production provider."""
+        logger.warning(
+            "Generic production SMS provider is not implemented for %s",
+            _mask_phone(phone_number_normalized),
         )
-        return True
+        return False
 
 
 dev_otp_provider = DevelopmentOTPProvider(is_development=True)
 
 
 def get_otp_provider(settings: Settings | None = None) -> BaseOTPProvider:
-    """Factory function returning configured OTP provider."""
+    """Return the OTP provider configured through environment variables."""
     cfg = settings or get_settings()
     provider_type = (cfg.sms_gateway_provider or "dev").lower().strip()
-    if provider_type == "android_gateway" and cfg.android_sms_gateway_url:
+
+    if provider_type == "android_gateway":
+        if not cfg.android_sms_gateway_url:
+            logger.error("ANDROID_SMS_GATEWAY_URL is not configured")
+            return SmsGatewayOTPProvider()
+
+        if not cfg.android_sms_gateway_user:
+            logger.error("ANDROID_SMS_GATEWAY_USER is not configured")
+            return SmsGatewayOTPProvider()
+
+        if not cfg.android_sms_gateway_key:
+            logger.error("ANDROID_SMS_GATEWAY_KEY is not configured")
+            return SmsGatewayOTPProvider()
+
         return AndroidSmsGatewayOTPProvider(
             gateway_url=cfg.android_sms_gateway_url,
-            api_key=cfg.android_sms_gateway_key,
+            username=cfg.android_sms_gateway_user,
+            password=cfg.android_sms_gateway_key,
         )
-    return dev_otp_provider
 
+    if provider_type == "dev":
+        return dev_otp_provider
 
+    logger.error("Unsupported SMS gateway provider: %s", provider_type)
+    return SmsGatewayOTPProvider()
