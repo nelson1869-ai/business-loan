@@ -88,6 +88,7 @@ class TestLocalDevelopmentOTP(unittest.IsolatedAsyncioTestCase):
             jwt_secret_key="strong-random-value-0123456789-ABCDEFGHIJ",
             cors_origins="*",
             local_borrower_otp_enabled=True,
+            sms_gateway_provider="dev",
         )
 
         phone = "+639171234567"
@@ -207,5 +208,49 @@ class TestBorrowerPortalRouter(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(res.status_code, 401)
 
 
+class TestAndroidSmsGatewayProvider(unittest.IsolatedAsyncioTestCase):
+    """Tests for Android SMS Gateway OTP provider integration."""
+
+    def test_factory_resolves_android_gateway_when_configured(self) -> None:
+        from app.features.borrower_portal.otp_provider import (
+            AndroidSmsGatewayOTPProvider,
+            get_otp_provider,
+        )
+
+        settings = Settings(
+            app_env="development",
+            database_url="postgresql+asyncpg://user:pass@localhost:5432/db",
+            jwt_secret_key="WwBCqC5ekfSL75WprnI2uqV6zEiBsUwaNrF5oloeUB165dGkZUPbS1HpbgsRuMoN",
+            cors_origins="http://localhost:3000",
+            sms_gateway_provider="android_gateway",
+            android_sms_gateway_url="http://192.168.1.50:8080/message",
+            android_sms_gateway_key="test-api-key",
+        )
+        provider = get_otp_provider(settings)
+        self.assertIsInstance(provider, AndroidSmsGatewayOTPProvider)
+
+    @patch("httpx.AsyncClient.post")
+    async def test_android_sms_gateway_sends_payload(self, mock_post: MagicMock) -> None:
+        from app.features.borrower_portal.otp_provider import AndroidSmsGatewayOTPProvider
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        provider = AndroidSmsGatewayOTPProvider(
+            gateway_url="http://192.168.1.50:8080/message",
+            api_key="test-key-123",
+        )
+
+        success = await provider.send_otp("+639916084400", "849201")
+        self.assertTrue(success)
+        mock_post.assert_awaited_once()
+        call_kwargs = mock_post.call_args.kwargs
+        self.assertEqual(call_kwargs["json"]["phone"], "+639916084400")
+        self.assertIn("849201", call_kwargs["json"]["message"])
+        self.assertEqual(call_kwargs["headers"]["Authorization"], "Bearer test-key-123")
+
+
 if __name__ == "__main__":
     unittest.main()
+

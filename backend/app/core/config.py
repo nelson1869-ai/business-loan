@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     business_timezone: str = "Asia/Manila"
     currency_code: str = Field(default="PHP", min_length=3, max_length=3)
     local_borrower_otp_enabled: bool = False
+    sms_gateway_provider: str = Field(default="dev")
+    android_sms_gateway_url: str | None = None
+    android_sms_gateway_key: str | None = None
 
     model_config = SettingsConfigDict(
         env_file=".env",

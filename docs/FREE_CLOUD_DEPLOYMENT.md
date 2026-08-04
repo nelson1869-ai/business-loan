@@ -48,14 +48,17 @@ $env:N8N_WEBHOOK_SECRET="<YOUR_WEBHOOK_SECRET>"
 ## 4. Launching Mobile Apps on Personal Phone (Wireless ADB)
 
 ### Option A: Connect Phone Wirelessly to Live Render Cloud
+
 ```powershell
 .\start-phone.ps1 -UseRender
 ```
+
 - Automatically connects over Wi-Fi via ADB wireless debugging.
 - Configures apps to communicate directly with `https://lending-nelson-api.onrender.com`.
 - **Works 24/7 even after you turn off your PC!**
 
 ### Option B: Connect Phone Wirelessly to Local PC Backend
+
 ```powershell
 .\start-phone.ps1
 ```
@@ -87,7 +90,24 @@ flutter build apk --release `
 
 ## 6. Cold-Start Behavior & Uptime Monitoring
 
-Render Free instances enter sleep mode after 15 minutes of zero traffic.  
+Render Free instances enter sleep mode after 15 minutes of zero traffic.
+
 - **Initial Cold-Start Request**: Takes ~20–30 seconds to wake the service.
 - **Subsequent Requests**: Respond in ~100–200ms.
 - **Continuous 24/7 Uptime**: Ping `https://lending-nelson-api.onrender.com/health` every 10 minutes via [UptimeRobot](https://uptimerobot.com) to prevent sleeping.
+
+---
+
+## 7. Optional ₱0 Real SMS Gateway (Android Phone Integration)
+
+To send real SMS OTPs to borrowers for **₱0 cost** using an Android phone's unlimited text SIM promo:
+
+1. **Install Android SMS Gateway**: Download [Android SMS Gateway](https://github.com/capcom6/android-sms-gateway) on an Android phone.
+2. **Add Environment Variables to Render**:
+   ```bash
+   SMS_GATEWAY_PROVIDER=android_gateway
+   ANDROID_SMS_GATEWAY_URL=http://<PHONE_IP_OR_TUNNEL_URL>/v1/message
+   ANDROID_SMS_GATEWAY_KEY=<YOUR_GATEWAY_API_KEY>
+   ```
+3. **Dispatch**: Whenever a borrower requests an OTP, the backend will automatically forward the OTP payload to the Android phone, which dispatches a real SMS text message to the borrower.
+

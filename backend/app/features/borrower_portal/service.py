@@ -22,13 +22,16 @@ from app.features.borrower_portal.models import (
     BorrowerOTP,
     BorrowerRefreshToken,
 )
-from app.features.borrower_portal.otp_provider import DevelopmentOTPProvider
+from app.features.borrower_portal.otp_provider import (
+    DevelopmentOTPProvider,
+    dev_otp_provider,
+    get_otp_provider,
+)
 from app.features.borrower_portal.schemas import BorrowerProfileResponse
 from app.features.borrowers import service as borrower_service
 from app.features.borrowers.models import Borrower
 from app.features.users.models import User
 
-dev_otp_provider = DevelopmentOTPProvider(is_development=True)
 LOCAL_DEVELOPMENT_OTP = "123456"
 
 
@@ -141,8 +144,9 @@ async def request_otp(
     db.add(new_otp)
     await db.flush()
 
-    # Dispatch via dev provider
-    await dev_otp_provider.send_otp(normalized_phone, otp_code)
+    # Dispatch via configured OTP provider (dev or Android SMS gateway)
+    otp_provider = get_otp_provider(current_settings)
+    await otp_provider.send_otp(normalized_phone, otp_code)
     return True, 60
 
 

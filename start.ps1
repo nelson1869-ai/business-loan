@@ -47,6 +47,7 @@ $ApiUrl = switch -Regex ($Target) {
 
 $LocalBackendRequired = $ApiUrl -match "^http://(localhost|127\.0\.0\.1|10\.0\.2\.2|\[?::1\]?)(:|/)" -or ($ApiUrl -eq "http://${Target}:$Port")
 $BindHost = if ($Target -match "(?i)^(android|ios|localhost)$") { "127.0.0.1" } else { "0.0.0.0" }
+$OtpEnabled = if ($LocalBackendRequired) { "true" } else { "false" }
 
 function Stop-ExistingProjectProcesses {
     param (
@@ -143,7 +144,7 @@ $flutterArguments = @(
     "--flavor=development",
     "--dart-define=API_BASE_URL=$ApiUrl",
     "--dart-define=APP_ENV=development",
-    "--dart-define=LOCAL_BORROWER_OTP_ENABLED=true"
+    "--dart-define=LOCAL_BORROWER_OTP_ENABLED=$OtpEnabled"
 )
 
 if ($App -eq "borrower") {
@@ -152,7 +153,7 @@ if ($App -eq "borrower") {
     & flutter @flutterArguments
 } elseif ($App -eq "all") {
     Write-Host "[START] Launching Borrower App in background..." -ForegroundColor Cyan
-    Start-Process powershell -ArgumentList @("-NoExit", "-Command", "Set-Location '$BorrowerDir'; flutter run --flavor=development --dart-define=API_BASE_URL=$ApiUrl --dart-define=APP_ENV=development --dart-define=LOCAL_BORROWER_OTP_ENABLED=true")
+    Start-Process powershell -ArgumentList @("-NoExit", "-Command", "Set-Location '$BorrowerDir'; flutter run --flavor=development --dart-define=API_BASE_URL=$ApiUrl --dart-define=APP_ENV=development --dart-define=LOCAL_BORROWER_OTP_ENABLED=$OtpEnabled")
     Set-Location -LiteralPath $ProjectRoot
     Write-Host "[START] Officer Flutter client ($($flutterArguments -join ' '))" -ForegroundColor Cyan
     & flutter @flutterArguments
