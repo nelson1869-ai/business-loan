@@ -58,6 +58,7 @@ class Settings(BaseSettings):
     sms_gateway_provider: str = Field(default="dev")
     android_sms_gateway_url: str | None = None
     android_sms_gateway_key: str | None = None
+    android_sms_gateway_user: str | None = None
 
     model_config = SettingsConfigDict(
         env_file=".env",
