@@ -4,6 +4,9 @@ import asyncio
 import hashlib
 import hmac
 import secrets
+import logging
+
+logger = logging.getLogger(__name__)
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -147,7 +150,15 @@ async def request_otp(
 
     # Dispatch via configured OTP provider (dev or Android SMS gateway)
     otp_provider = get_otp_provider(current_settings)
-    await otp_provider.send_otp(normalized_phone, otp_code)
+    delivered = await otp_provider.send_otp(normalized_phone, otp_code)
+
+    if not delivered:
+        logger.error(
+            "OTP provider failed to deliver message to %s",
+            normalized_phone[:6] + "...",
+        )
+        return False, 60
+
     return True, 60
 
 
