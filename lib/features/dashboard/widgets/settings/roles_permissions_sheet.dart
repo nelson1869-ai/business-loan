@@ -32,12 +32,16 @@ class RolesPermissionsSheet extends StatelessWidget {
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.check_circle_outline),
-                title: Text('Full access: loan approval/disbursement, registration review, user management, suspension, and reporting.'),
+                title: Text(
+                  'Full access: loan approval/disbursement, registration review, user management, suspension, and reporting.',
+                ),
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.info_outline),
-                title: Text('Dual-Control Rule: Cannot approve own loan applications or registration requests.'),
+                title: Text(
+                  'Dual-Control Rule: Cannot approve own loan applications or registration requests.',
+                ),
               ),
             ],
           ),
@@ -49,12 +53,16 @@ class RolesPermissionsSheet extends StatelessWidget {
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.check_circle_outline),
-                title: Text('Creates/manages borrowers, loan applications, payment collections, and reconciliations.'),
+                title: Text(
+                  'Creates/manages borrowers, loan applications, payment collections, and reconciliations.',
+                ),
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.block_outlined),
-                title: Text('Cannot approve loans, approve borrower registrations, or manage staff user accounts.'),
+                title: Text(
+                  'Cannot approve loans, approve borrower registrations, or manage staff user accounts.',
+                ),
               ),
             ],
           ),
@@ -66,7 +74,9 @@ class RolesPermissionsSheet extends StatelessWidget {
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.lock_outline),
-                title: Text('Internal recovery & super-admin role. Preserved for system recovery and omitted from user creation options.'),
+                title: Text(
+                  'Internal recovery & super-admin role. Preserved for system recovery and omitted from user creation options.',
+                ),
               ),
             ],
           ),

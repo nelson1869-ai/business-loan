@@ -1,12 +1,9 @@
 """Borrower portal business logic and security service."""
 
-import asyncio
 import hashlib
 import hmac
-import secrets
 import logging
-
-logger = logging.getLogger(__name__)
+import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -27,16 +24,13 @@ from app.features.borrower_portal.models import (
     BorrowerRefreshToken,
     BorrowerRegistrationRequest,
 )
-from app.features.borrowers.models import Borrower
-from app.features.borrower_portal.otp_provider import (
-    DevelopmentOTPProvider,
-    dev_otp_provider,
-    get_otp_provider,
-)
+from app.features.borrower_portal.otp_provider import get_otp_provider
 from app.features.borrower_portal.schemas import BorrowerProfileResponse
 from app.features.borrowers import service as borrower_service
 from app.features.borrowers.models import Borrower
 from app.features.users.models import User
+
+logger = logging.getLogger(__name__)
 
 LOCAL_DEVELOPMENT_OTP = "123456"
 
@@ -123,7 +117,6 @@ async def request_otp(
         )
         reg_exists = reg_result.scalar_one_or_none() is not None
 
-
     invitation_is_valid = False
     if invitation_code:
         invitation_result = await db.execute(
@@ -145,8 +138,6 @@ async def request_otp(
     )
     if not is_eligible:
         return False, 60
-
-
 
     # Check resend cooldown
     stmt = (
@@ -295,7 +286,9 @@ async def verify_otp_and_login(
             # Verify matching borrower
             borrower = await db.get(Borrower, invitation.borrower_id)
             if borrower is None or borrower.status != "Active":
-                raise ValueError("Associated borrower is not eligible for portal access")
+                raise ValueError(
+                    "Associated borrower is not eligible for portal access"
+                )
 
             account = BorrowerAccount(
                 id=secrets.token_hex(18),

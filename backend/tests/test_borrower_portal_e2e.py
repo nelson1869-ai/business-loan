@@ -159,7 +159,10 @@ class TestBorrowerPortalMockedApiLifecycle(unittest.IsolatedAsyncioTestCase):
         app.dependency_overrides[get_db] = _mock_db_gen
 
         try:
-            with patch("app.features.borrower_portal.service.get_otp_provider", return_value=dev_otp_provider):
+            with patch(
+                "app.features.borrower_portal.service.get_otp_provider",
+                return_value=dev_otp_provider,
+            ):
                 async with AsyncClient(
                     transport=ASGITransport(app=app), base_url="http://test"
                 ) as client:

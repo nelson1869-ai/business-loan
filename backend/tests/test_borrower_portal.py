@@ -221,14 +221,11 @@ class TestAndroidSmsGatewayProvider(unittest.IsolatedAsyncioTestCase):
             app_env="development",
             database_url="postgresql+asyncpg://user:pass@localhost:5432/db",
             jwt_secret_key=(
-                "WwBCqC5ekfSL75WprnI2uqV6zEiBsUwa"
-                "NrF5oloeUB165dGkZUPbS1HpbgsRuMoN"
+                "WwBCqC5ekfSL75WprnI2uqV6zEiBsUwaNrF5oloeUB165dGkZUPbS1HpbgsRuMoN"
             ),
             cors_origins="http://localhost:3000",
             sms_gateway_provider="android_gateway",
-            android_sms_gateway_url=(
-                "https://api.sms-gate.app/3rdparty/v1/messages"
-            ),
+            android_sms_gateway_url=("https://api.sms-gate.app/3rdparty/v1/messages"),
             android_sms_gateway_user="test-user",
             android_sms_gateway_key="test-password",
         )
@@ -236,7 +233,9 @@ class TestAndroidSmsGatewayProvider(unittest.IsolatedAsyncioTestCase):
         provider = get_otp_provider(settings)
 
         self.assertIsInstance(provider, AndroidSmsGatewayOTPProvider)
-        self.assertEqual(provider.gateway_url, "https://api.sms-gate.app/3rdparty/v1/messages")
+        self.assertEqual(
+            provider.gateway_url, "https://api.sms-gate.app/3rdparty/v1/messages"
+        )
         self.assertEqual(provider.username, "test-user")
         self.assertEqual(provider.password, "test-password")
 
