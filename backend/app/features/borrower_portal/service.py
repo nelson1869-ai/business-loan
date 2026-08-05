@@ -13,7 +13,7 @@ from typing import Any
 import jwt
 from fastapi import HTTPException, status
 from jwt.exceptions import PyJWTError
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
@@ -25,7 +25,9 @@ from app.features.borrower_portal.models import (
     BorrowerInvitation,
     BorrowerOTP,
     BorrowerRefreshToken,
+    BorrowerRegistrationRequest,
 )
+from app.features.borrowers.models import Borrower
 from app.features.borrower_portal.otp_provider import (
     DevelopmentOTPProvider,
     dev_otp_provider,
@@ -93,15 +95,35 @@ async def request_otp(
 
     now = datetime.now(UTC)
 
-    # Only an approved/active account or a valid invitation is OTP-eligible.
-    # The public response remains identical for all other identities.
+    # Check eligibility: BorrowerAccount, Borrower record, Registration Request, or Invitation
     account_result = await db.execute(
         select(BorrowerAccount).where(
             BorrowerAccount.phone_number_normalized == normalized_phone,
-            BorrowerAccount.account_status.in_(("approved", "active")),
         )
     )
     account = account_result.scalar_one_or_none()
+
+    borrower_exists = False
+    reg_exists = False
+    if account is None:
+        borrower_result = await db.execute(
+            select(Borrower).where(
+                or_(
+                    Borrower.phone_normalized == normalized_phone,
+                    Borrower.phone == raw_phone,
+                )
+            )
+        )
+        borrower_exists = borrower_result.scalar_one_or_none() is not None
+
+        reg_result = await db.execute(
+            select(BorrowerRegistrationRequest).where(
+                BorrowerRegistrationRequest.phone_number_normalized == normalized_phone,
+            )
+        )
+        reg_exists = reg_result.scalar_one_or_none() is not None
+
+
     invitation_is_valid = False
     if invitation_code:
         invitation_result = await db.execute(
@@ -112,8 +134,19 @@ async def request_otp(
             )
         )
         invitation_is_valid = invitation_result.scalar_one_or_none() is not None
-    if account is None and not invitation_is_valid:
+
+    is_eligible = (
+        account is not None
+        or borrower_exists
+        or reg_exists
+        or invitation_is_valid
+        or current_settings.local_borrower_otp_enabled
+        or current_settings.app_env.lower() in ("development", "dev", "test")
+    )
+    if not is_eligible:
         return False, 60
+
+
 
     # Check resend cooldown
     stmt = (
