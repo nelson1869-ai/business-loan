@@ -1,6 +1,15 @@
 # Verified false positives: synthetic JWT-strength test values.
 2d9f2ad6d9a4cf01c99dab46b9d1b6882b458e0a:backend/tests/test_config_safety.py:generic-api-key:20
 2d9f2ad6d9a4cf01c99dab46b9d1b6882b458e0a:backend/tests/test_config_safety.py:generic-api-key:32
+6798365e287e2969af8a9e142a32ecfb10c0a721:backend/tests/test_borrower_portal.py:generic-api-key:223
 
 # Verified false positive: historical Postman workspace UUID, not a credential.
 0df6470b4f72ced586a10b655d5823b389f92fca:.postman/resources.yaml:generic-api-key:7
+
+# Verified false positives: documentation curl example placeholders and .env.example defaults
+b1e92169d4b6d0dfb485e8fb60cd3bd7ed4f58dc:docs/runbooks/N8N_OPERATIONS.md:curl-auth-header:59
+b1e92169d4b6d0dfb485e8fb60cd3bd7ed4f58dc:docs/runbooks/N8N_OPERATIONS.md:curl-auth-header:78
+b1e92169d4b6d0dfb485e8fb60cd3bd7ed4f58dc:docs/runbooks/N8N_OPERATIONS.md:curl-auth-header:83
+f940fb076b3562958f5eec5d6e4a950f0240fc34:backend/.env.example:generic-api-key:4
+f940fb076b3562958f5eec5d6e4a950f0240fc34:backend/.env.example:generic-api-key:11
+f940fb076b3562958f5eec5d6e4a950f0240fc34:backend/.env.example:generic-api-key:13

@@ -46,17 +46,17 @@ android {
             dimension = "environment"
             applicationIdSuffix = ".dev"
             versionNameSuffix = "-dev"
-            manifestPlaceholders["appName"] = "Lending Nelson Dev"
+            manifestPlaceholders["appName"] = "Nelson Admin Dev"
         }
         create("staging") {
             dimension = "environment"
             applicationIdSuffix = ".staging"
             versionNameSuffix = "-staging"
-            manifestPlaceholders["appName"] = "Lending Nelson Staging"
+            manifestPlaceholders["appName"] = "Nelson Admin Staging"
         }
         create("production") {
             dimension = "environment"
-            manifestPlaceholders["appName"] = "Lending Nelson"
+            manifestPlaceholders["appName"] = "Nelson Admin"
         }
     }
 

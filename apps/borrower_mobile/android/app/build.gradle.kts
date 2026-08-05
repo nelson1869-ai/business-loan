@@ -49,17 +49,17 @@ android {
             dimension = "environment"
             applicationIdSuffix = ".dev"
             versionNameSuffix = "-dev"
-            manifestPlaceholders["appName"] = "Lending Borrower Dev"
+            manifestPlaceholders["appName"] = "Nelson Loan Dev"
         }
         create("staging") {
             dimension = "environment"
             applicationIdSuffix = ".staging"
             versionNameSuffix = "-staging"
-            manifestPlaceholders["appName"] = "Lending Borrower Staging"
+            manifestPlaceholders["appName"] = "Nelson Loan Staging"
         }
         create("production") {
             dimension = "environment"
-            manifestPlaceholders["appName"] = "Lending Borrower"
+            manifestPlaceholders["appName"] = "Nelson Loan"
         }
     }
 
