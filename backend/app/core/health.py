@@ -1,6 +1,6 @@
 """Process and database health endpoints."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
@@ -21,8 +21,8 @@ async def liveness_check() -> dict[str, str]:
     return {"status": "ok", "service": "lending-nelson-api"}
 
 
-@router.get("/health/ready")
-async def readiness_check():
+@router.get("/health/ready", response_model=None)
+async def readiness_check() -> dict[str, str] | Response:
     """Verify database connectivity without exposing exception details."""
     try:
         async with AsyncSessionFactory() as session:

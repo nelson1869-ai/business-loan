@@ -3,6 +3,7 @@
 import json
 import secrets
 from datetime import UTC, datetime
+from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import or_, select, update
@@ -35,8 +36,8 @@ def _audit(
     entity_type: str,
     entity_id: str,
     actor: User | None = None,
-    metadata: dict | None = None,
-):
+    metadata: dict[str, Any] | None = None,
+) -> None:
     db.add(
         BorrowerRegistrationAudit(
             id=str(uuid4()),
@@ -49,7 +50,9 @@ def _audit(
     )
 
 
-async def submit(db: AsyncSession, payload) -> tuple[BorrowerRegistrationRequest, str]:
+async def submit(
+    db: AsyncSession, payload: Any
+) -> tuple[BorrowerRegistrationRequest, str]:
     now = datetime.now(UTC)
     existing = await db.scalar(
         select(BorrowerRegistrationRequest)
@@ -123,7 +126,7 @@ async def status_for_token(db: AsyncSession, raw_token: str) -> tuple[str, str]:
 
 async def list_requests(
     db: AsyncSession, requested_status: str, offset: int, limit: int
-):
+) -> list[BorrowerRegistrationRequest]:
     result = await db.execute(
         select(BorrowerRegistrationRequest)
         .where(BorrowerRegistrationRequest.status == requested_status)
@@ -134,7 +137,9 @@ async def list_requests(
     return list(result.scalars())
 
 
-async def get_locked(db: AsyncSession, request_id: str):
+async def get_locked(
+    db: AsyncSession, request_id: str
+) -> BorrowerRegistrationRequest | None:
     return await db.scalar(
         select(BorrowerRegistrationRequest)
         .where(BorrowerRegistrationRequest.id == request_id)
@@ -148,7 +153,7 @@ async def approve(
     borrower_id: str,
     reviewer: User,
     notes: str | None,
-):
+) -> BorrowerAccount | None:
     item = await get_locked(db, request_id)
     if item is None:
         return None
@@ -235,7 +240,7 @@ async def create_and_approve(
     national_id: str | None,
     reviewer: User,
     notes: str | None,
-):
+) -> BorrowerAccount | None:
     """Create a borrower from a locked request and approve it atomically."""
     item = await get_locked(db, request_id)
     if item is None:
@@ -297,7 +302,9 @@ async def create_and_approve(
     return await approve(db, request_id, borrower.id, reviewer, notes)
 
 
-async def reject(db: AsyncSession, request_id: str, reason: str, reviewer: User):
+async def reject(
+    db: AsyncSession, request_id: str, reason: str, reviewer: User
+) -> BorrowerRegistrationRequest | None:
     item = await get_locked(db, request_id)
     if item is None:
         return None
@@ -321,7 +328,7 @@ async def account_action(
     reviewer: User,
     reason: str,
     borrower_id: str | None = None,
-):
+) -> BorrowerAccount | None:
     account = await db.scalar(
         select(BorrowerAccount)
         .where(BorrowerAccount.id == account_id)

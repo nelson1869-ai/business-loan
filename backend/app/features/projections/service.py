@@ -135,7 +135,7 @@ def _is_loaded(instance: object, attr_name: str) -> bool:
     """Return True if relationship or attribute is loaded in memory without triggering lazy-load."""
     try:
         ins = inspect(instance)
-        return attr_name in ins.dict
+        return ins is not None and hasattr(ins, "dict") and attr_name in ins.dict
     except Exception:
         return False
 
@@ -218,8 +218,9 @@ async def build_loan_last_activity_timestamp(db: AsyncSession, loan: Loan) -> da
     """Return latest financial activity timestamp querying DB when relationships are unloaded."""
     candidates: list[datetime] = []
 
-    if getattr(loan, "updated_at", None):
-        candidates.append(loan.updated_at)
+    updated_at = getattr(loan, "updated_at", None)
+    if isinstance(updated_at, datetime):
+        candidates.append(updated_at)
     if getattr(loan, "created_at", None):
         candidates.append(loan.created_at)
 
@@ -235,8 +236,9 @@ async def build_loan_last_activity_timestamp(db: AsyncSession, loan: Loan) -> da
 
     insts = await fetch_loan_installments(db, loan)
     for inst in insts:
-        if getattr(inst, "updated_at", None):
-            candidates.append(inst.updated_at)
+        inst_updated_at = getattr(inst, "updated_at", None)
+        if isinstance(inst_updated_at, datetime):
+            candidates.append(inst_updated_at)
 
     if not candidates:
         return datetime.now(UTC)
@@ -248,8 +250,9 @@ def get_loan_last_activity_timestamp(loan: Loan) -> datetime:
     """Return latest financial activity timestamp for eager-loaded loan objects."""
     candidates: list[datetime] = []
 
-    if getattr(loan, "updated_at", None):
-        candidates.append(loan.updated_at)
+    updated_at = getattr(loan, "updated_at", None)
+    if isinstance(updated_at, datetime):
+        candidates.append(updated_at)
     if getattr(loan, "created_at", None):
         candidates.append(loan.created_at)
 
@@ -265,8 +268,9 @@ def get_loan_last_activity_timestamp(loan: Loan) -> datetime:
 
     if _is_loaded(loan, "installments") and loan.installments:
         for inst in loan.installments:
-            if getattr(inst, "updated_at", None):
-                candidates.append(inst.updated_at)
+            inst_updated_at = getattr(inst, "updated_at", None)
+            if isinstance(inst_updated_at, datetime):
+                candidates.append(inst_updated_at)
 
     if not candidates:
         return datetime.now(UTC)

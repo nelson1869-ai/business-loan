@@ -69,7 +69,7 @@ class PaymentCreate(PaymentPreviewRequest):
         return normalized
 
     @model_validator(mode="after")
-    def require_cash_controls(self):
+    def require_cash_controls(self) -> "PaymentCreate":
         if self.payment_method == "cash" and (
             self.collection_session_id is None or self.receipt_number is None
         ):

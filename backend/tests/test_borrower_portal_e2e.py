@@ -21,7 +21,7 @@ from app.features.borrower_portal.models import (
     BorrowerOTP,
     BorrowerRefreshToken,
 )
-from app.features.borrower_portal.service import (
+from app.features.borrower_portal.otp_provider import (
     dev_otp_provider,
 )
 from app.features.borrowers.models import Borrower

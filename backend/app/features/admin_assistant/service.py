@@ -566,8 +566,8 @@ async def _resolve_borrower(
     partial: list[Borrower] = []
     scored: list[tuple[float, Borrower]] = []
     for borrower in borrowers:
-        full_name = f"{borrower.first_name} {borrower.last_name}".strip().lower()
-        normalized_name = re.sub(r"[^a-z0-9 ]", " ", full_name)
+        b_full_name = f"{borrower.first_name} {borrower.last_name}".strip().lower()
+        normalized_name = re.sub(r"[^a-z0-9 ]", " ", b_full_name)
         if normalized_name and normalized_name in normalized_message:
             exact.append(borrower)
         elif any(len(token) >= 3 and token in normalized_name for token in name_tokens):

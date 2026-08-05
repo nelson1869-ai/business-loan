@@ -21,7 +21,7 @@ async def portfolio_risk_report(
     db: DbSession,
     current_user: CurrentUser,
     as_of: date = Query(alias="asOf"),
-):
+) -> PortfolioRiskReport:
     require_permission(current_user, "report.view")
     return await service.portfolio_risk(db, as_of)
 
@@ -32,7 +32,7 @@ async def collector_reconciliation_report(
     current_user: CurrentUser,
     date_from: date = Query(alias="dateFrom"),
     date_to: date = Query(alias="dateTo"),
-):
+) -> CollectorReconciliationReport:
     require_permission(current_user, "report.view")
     if date_to < date_from:
         raise HTTPException(status_code=422, detail="dateTo must not precede dateFrom")
@@ -45,7 +45,7 @@ async def write_offs_report(
     current_user: CurrentUser,
     date_from: date = Query(alias="dateFrom"),
     date_to: date = Query(alias="dateTo"),
-):
+) -> WriteOffReport:
     require_permission(current_user, "report.view")
     if date_to < date_from:
         raise HTTPException(status_code=422, detail="dateTo must not precede dateFrom")

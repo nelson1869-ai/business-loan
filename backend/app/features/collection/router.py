@@ -104,7 +104,9 @@ async def open_session(
 
 
 @session_router.get("", response_model=list[CollectionSessionResponse])
-async def list_sessions(db: DbSession, current_user: CurrentUser):
+async def list_sessions(
+    db: DbSession, current_user: CurrentUser
+) -> list[CollectionSession]:
     query = select(CollectionSession).order_by(CollectionSession.created_at.desc())
     if not has_permission(current_user, "reconciliation.approve"):
         query = query.where(CollectionSession.collector_user_id == current_user.id)

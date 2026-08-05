@@ -63,7 +63,9 @@ class InMemoryAssistantRateLimiter:
             self._last_seen.pop(user_id, None)
         overflow = len(self._requests) - self.max_users
         if overflow > 0:
-            oldest = sorted(self._last_seen, key=self._last_seen.get)[:overflow]
+            oldest = sorted(self._last_seen, key=lambda k: self._last_seen[k])[
+                :overflow
+            ]
             for user_id in oldest:
                 self._requests.pop(user_id, None)
                 self._last_seen.pop(user_id, None)
@@ -99,9 +101,15 @@ return 1
 
     @classmethod
     def from_url(cls, url: str) -> RedisAssistantRateLimiter:
+        from typing import cast
+
         from redis.asyncio import Redis
 
-        return cls(Redis.from_url(url, encoding="utf-8", decode_responses=True))
+        client = cast(
+            RedisEvalClient,
+            Redis.from_url(url, encoding="utf-8", decode_responses=True),
+        )
+        return cls(client)
 
     async def allow(self, user_id: str, limit: int) -> bool:
         import secrets

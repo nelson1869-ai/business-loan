@@ -25,7 +25,7 @@ def _require_accounting_view(user: CurrentUser) -> None:
 
 
 @router.get("/accounts", response_model=list[AccountResponse])
-async def list_accounts(db: DbSession, current_user: CurrentUser):
+async def list_accounts(db: DbSession, current_user: CurrentUser) -> list[Account]:
     _require_accounting_view(current_user)
     result = await db.execute(select(Account).order_by(Account.code))
     return list(result.scalars())
@@ -37,7 +37,7 @@ async def list_journals(
     current_user: CurrentUser,
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=200),
-):
+) -> list[JournalEntry]:
     _require_accounting_view(current_user)
     result = await db.execute(
         select(JournalEntry)
@@ -55,7 +55,7 @@ async def trial_balance(
     db: DbSession,
     current_user: CurrentUser,
     currency: str = Query(default="PHP", min_length=3, max_length=3),
-):
+) -> TrialBalanceResponse:
     _require_accounting_view(current_user)
     normalized_currency = currency.upper()
     result = await db.execute(

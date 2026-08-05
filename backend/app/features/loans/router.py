@@ -102,7 +102,7 @@ async def create_draft_loan(
     await publish_outbox_event(db, envelope)
     await db.commit()
     reloaded = await loan_service.get_loan(db, loan.id)
-    return _detail(reloaded)
+    return _detail(reloaded or loan)
 
 
 @router.post("", response_model=LoanDetailResponse, status_code=status.HTTP_201_CREATED)

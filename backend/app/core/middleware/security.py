@@ -1,13 +1,17 @@
 """Defensive HTTP response headers."""
 
-from fastapi import FastAPI, Request
+from collections.abc import Awaitable, Callable
+
+from fastapi import FastAPI, Request, Response
 
 
 def install_security_headers(application: FastAPI, *, production: bool) -> None:
     """Install cache, framing, content, and transport protections."""
 
     @application.middleware("http")
-    async def security_headers(request: Request, call_next):
+    async def security_headers(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         response = await call_next(request)
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Content-Type-Options"] = "nosniff"

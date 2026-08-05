@@ -2,7 +2,7 @@
 
 from functools import lru_cache
 
-from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic import Field, SecretStr, ValidationInfo, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ALLOWED_ENVIRONMENTS = {"development", "dev", "test", "staging", "production", "prod"}
@@ -80,7 +80,7 @@ class Settings(BaseSettings):
 
     @field_validator("jwt_secret_key")
     @classmethod
-    def validate_jwt_secret_key(cls, value: str, info) -> str:
+    def validate_jwt_secret_key(cls, value: str, info: ValidationInfo) -> str:
         """Reject obvious placeholder or low-quality JWT secrets."""
         val_lower = value.lower().strip()
         if (
@@ -95,7 +95,7 @@ class Settings(BaseSettings):
 
     @field_validator("cors_origins")
     @classmethod
-    def validate_cors_origins(cls, value: str, info) -> str:
+    def validate_cors_origins(cls, value: str, info: ValidationInfo) -> str:
         """Reject wildcard CORS in production environments."""
         env = info.data.get("app_env", "").lower().strip()
         if env in ("production", "prod") and value.strip() == "*":
@@ -107,7 +107,9 @@ class Settings(BaseSettings):
 
     @field_validator("n8n_webhook_secret")
     @classmethod
-    def validate_n8n_webhook_secret(cls, value: str | None, info) -> str | None:
+    def validate_n8n_webhook_secret(
+        cls, value: str | None, info: ValidationInfo
+    ) -> str | None:
         """Enforce that n8n webhook authentication fails closed in production and staging."""
         env = info.data.get("app_env", "").lower().strip()
         webhook_url = info.data.get("n8n_webhook_url")

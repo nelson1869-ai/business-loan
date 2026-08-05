@@ -1,6 +1,8 @@
 """Request-size middleware configuration."""
 
-from fastapi import FastAPI, Request, status
+from collections.abc import Awaitable, Callable
+
+from fastapi import FastAPI, Request, Response, status
 from fastapi.responses import JSONResponse
 
 MAX_REQUEST_BYTES = 1_048_576
@@ -10,7 +12,9 @@ def install_request_limits(application: FastAPI) -> None:
     """Reject oversized or invalid declared request bodies."""
 
     @application.middleware("http")
-    async def request_size_limit(request: Request, call_next):
+    async def request_size_limit(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         content_length = request.headers.get("content-length")
         if content_length is not None:
             try:

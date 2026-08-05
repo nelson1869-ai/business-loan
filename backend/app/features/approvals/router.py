@@ -41,7 +41,7 @@ async def create_approval_request(
     payload: ApprovalRequestCreate,
     db: DbSession,
     current_user: CurrentUser,
-):
+) -> ApprovalRequest:
     require_permission(current_user, REQUEST_PERMISSION[payload.action])
     try:
         request = await service.create_request(
@@ -64,7 +64,9 @@ async def create_approval_request(
 
 
 @router.get("", response_model=list[ApprovalRequestResponse])
-async def list_approval_requests(db: DbSession, current_user: CurrentUser):
+async def list_approval_requests(
+    db: DbSession, current_user: CurrentUser
+) -> list[ApprovalRequest]:
     query = select(ApprovalRequest).order_by(ApprovalRequest.created_at.desc())
     if not has_permission(current_user, "audit.view"):
         query = query.where(
@@ -82,7 +84,7 @@ async def decide_approval_request(
     payload: ApprovalDecisionCreate,
     db: DbSession,
     current_user: CurrentUser,
-):
+) -> ApprovalRequest:
     pending = await db.get(ApprovalRequest, request_id)
     if pending is None:
         raise HTTPException(status_code=404, detail="Approval request not found")

@@ -8,7 +8,7 @@ from sqlalchemy.orm import selectinload
 from app.core.authorization import require_permission
 from app.core.dependencies import CurrentUser, DbSession
 from app.features.write_offs import service
-from app.features.write_offs.models import LoanWriteOff
+from app.features.write_offs.models import LoanWriteOff, WriteOffRecovery
 from app.features.write_offs.schemas import (
     RecoveryCreate,
     RecoveryResponse,
@@ -22,7 +22,7 @@ router = APIRouter(prefix="/api/v1/loans/{loan_id}", tags=["Write-offs"])
 @router.post("/write-off", response_model=WriteOffResponse, status_code=201)
 async def execute_write_off(
     loan_id: str, payload: WriteOffCreate, db: DbSession, current_user: CurrentUser
-):
+) -> LoanWriteOff | None:
     require_permission(current_user, "loan.write_off")
     try:
         write_off = await service.write_off_loan(db, loan_id, payload, current_user)
@@ -52,7 +52,7 @@ async def execute_write_off(
 @router.post("/recoveries", response_model=RecoveryResponse, status_code=201)
 async def create_recovery(
     loan_id: str, payload: RecoveryCreate, db: DbSession, current_user: CurrentUser
-):
+) -> WriteOffRecovery:
     require_permission(current_user, "payment.collect")
     try:
         recovery = await service.record_recovery(db, loan_id, payload, current_user)

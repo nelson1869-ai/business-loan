@@ -10,10 +10,10 @@ from httpx import ASGITransport, AsyncClient
 from app.core.config import Settings
 from app.core.database import get_db
 from app.features.auth.service import create_token
+from app.features.borrower_portal.otp_provider import dev_otp_provider
 from app.features.borrower_portal.service import (
     LOCAL_DEVELOPMENT_OTP,
     create_borrower_access_token,
-    dev_otp_provider,
     hash_secret,
     normalize_ph_phone_number,
     request_otp,

@@ -21,7 +21,9 @@ def _require_admin(user: CurrentUser) -> None:
 
 
 @router.post("", response_model=LoanPolicyResponse, status_code=201)
-async def create(payload: LoanPolicyCreate, db: DbSession, current_user: CurrentUser):
+async def create(
+    payload: LoanPolicyCreate, db: DbSession, current_user: CurrentUser
+) -> LoanPolicyVersion:
     require_permission(current_user, "policy.create")
     try:
         policy = await service.create_policy(db, payload, current_user)
@@ -34,7 +36,9 @@ async def create(payload: LoanPolicyCreate, db: DbSession, current_user: Current
 
 
 @router.get("", response_model=list[LoanPolicyResponse])
-async def list_policies(db: DbSession, current_user: CurrentUser):
+async def list_policies(
+    db: DbSession, current_user: CurrentUser
+) -> list[LoanPolicyVersion]:
     _require_admin(current_user)
     result = await db.execute(
         select(LoanPolicyVersion).order_by(
@@ -47,7 +51,7 @@ async def list_policies(db: DbSession, current_user: CurrentUser):
 @router.post("/{policy_id}/activate", response_model=LoanPolicyResponse)
 async def activate(
     policy_id: str, payload: PolicyDecision, db: DbSession, current_user: CurrentUser
-):
+) -> LoanPolicyVersion:
     require_permission(current_user, "policy.approve")
     try:
         policy = await service.activate_policy(
@@ -67,7 +71,7 @@ async def activate(
 @router.post("/{policy_id}/retire", response_model=LoanPolicyResponse)
 async def retire(
     policy_id: str, payload: PolicyDecision, db: DbSession, current_user: CurrentUser
-):
+) -> LoanPolicyVersion:
     require_permission(current_user, "policy.approve")
     try:
         policy = await service.retire_policy(
