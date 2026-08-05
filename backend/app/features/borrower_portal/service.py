@@ -251,43 +251,65 @@ async def verify_otp_and_login(
     account = acct_res.scalar_one_or_none()
 
     if account is None:
-        # Require invitation code for initial linking if no account exists yet
-        if not invitation_code:
-            raise ValueError("Activation code required for initial account setup")
+        # Check if an active borrower record already exists for this phone number
+        borrower_stmt = select(Borrower).where(
+            Borrower.phone == normalized_phone,
+            Borrower.status == "Active",
+        )
+        borrower_res = await db.execute(borrower_stmt)
+        matched_borrower = borrower_res.scalar_one_or_none()
 
-        inv_hash = hash_secret(invitation_code)
-        inv_stmt = (
-            select(BorrowerInvitation)
-            .where(
-                BorrowerInvitation.invitation_code_hash == inv_hash,
-                BorrowerInvitation.used_at.is_(None),
-                BorrowerInvitation.expires_at > now,
+        if matched_borrower is not None:
+            account = BorrowerAccount(
+                id=secrets.token_hex(18),
+                borrower_id=matched_borrower.id,
+                phone_number=raw_phone,
+                phone_number_normalized=normalized_phone,
+                phone_verified_at=now,
+                account_status="active",
+                created_at=now,
+                updated_at=now,
             )
-            .limit(1)
-        )
-        inv_res = await db.execute(inv_stmt)
-        invitation = inv_res.scalar_one_or_none()
-        if invitation is None:
-            raise ValueError("Invalid or expired activation code")
+            db.add(account)
+            await db.flush()
+        else:
+            # Require invitation code for initial linking if no active borrower exists yet
+            if not invitation_code:
+                raise ValueError("Activation code required for initial account setup")
 
-        # Verify matching borrower
-        borrower = await db.get(Borrower, invitation.borrower_id)
-        if borrower is None or borrower.status != "Active":
-            raise ValueError("Associated borrower is not eligible for portal access")
+            inv_hash = hash_secret(invitation_code)
+            inv_stmt = (
+                select(BorrowerInvitation)
+                .where(
+                    BorrowerInvitation.invitation_code_hash == inv_hash,
+                    BorrowerInvitation.used_at.is_(None),
+                    BorrowerInvitation.expires_at > now,
+                )
+                .limit(1)
+            )
+            inv_res = await db.execute(inv_stmt)
+            invitation = inv_res.scalar_one_or_none()
+            if invitation is None:
+                raise ValueError("Invalid or expired activation code")
 
-        account = BorrowerAccount(
-            id=secrets.token_hex(18),
-            borrower_id=borrower.id,
-            phone_number=raw_phone,
-            phone_number_normalized=normalized_phone,
-            phone_verified_at=now,
-            account_status="active",
-            created_at=now,
-            updated_at=now,
-        )
-        db.add(account)
-        invitation.used_at = now
-        await db.flush()
+            # Verify matching borrower
+            borrower = await db.get(Borrower, invitation.borrower_id)
+            if borrower is None or borrower.status != "Active":
+                raise ValueError("Associated borrower is not eligible for portal access")
+
+            account = BorrowerAccount(
+                id=secrets.token_hex(18),
+                borrower_id=borrower.id,
+                phone_number=raw_phone,
+                phone_number_normalized=normalized_phone,
+                phone_verified_at=now,
+                account_status="active",
+                created_at=now,
+                updated_at=now,
+            )
+            db.add(account)
+            invitation.used_at = now
+            await db.flush()
     else:
         if account.account_status in ("suspended", "disabled"):
             raise ValueError("Borrower account is disabled or suspended")

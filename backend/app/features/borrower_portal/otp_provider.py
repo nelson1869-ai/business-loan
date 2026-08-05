@@ -218,7 +218,7 @@ def get_otp_provider(settings: Settings | None = None) -> BaseOTPProvider:
             password=cfg.android_sms_gateway_key,
         )
 
-    if provider_type == "dev":
+    if provider_type == "dev" or cfg.app_env.lower() in ("test", "testing"):
         return dev_otp_provider
 
     logger.error("Unsupported SMS gateway provider: %s", provider_type)

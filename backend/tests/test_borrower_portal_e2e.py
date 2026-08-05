@@ -8,7 +8,7 @@ test_borrower_portal_db_integration.py.
 
 import unittest
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from httpx import ASGITransport, AsyncClient
 
@@ -159,117 +159,118 @@ class TestBorrowerPortalMockedApiLifecycle(unittest.IsolatedAsyncioTestCase):
         app.dependency_overrides[get_db] = _mock_db_gen
 
         try:
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as client:
-                # 3. Officer creates borrower invitation code
-                officer_token = create_token(officer, "access")
-                inv_res = await client.post(
-                    f"/api/v1/borrowers/{borrower.id}/client-invitation",
-                    headers={"Authorization": f"Bearer {officer_token}"},
-                    json={"expiresInHours": 72},
-                )
-                self.assertEqual(inv_res.status_code, 201)
-                inv_data = inv_res.json()
-                raw_inv_code = inv_data["invitationCode"]
-                self.assertEqual(len(raw_inv_code), 6)
+            with patch("app.features.borrower_portal.service.get_otp_provider", return_value=dev_otp_provider):
+                async with AsyncClient(
+                    transport=ASGITransport(app=app), base_url="http://test"
+                ) as client:
+                    # 3. Officer creates borrower invitation code
+                    officer_token = create_token(officer, "access")
+                    inv_res = await client.post(
+                        f"/api/v1/borrowers/{borrower.id}/client-invitation",
+                        headers={"Authorization": f"Bearer {officer_token}"},
+                        json={"expiresInHours": 72},
+                    )
+                    self.assertEqual(inv_res.status_code, 201)
+                    inv_data = inv_res.json()
+                    raw_inv_code = inv_data["invitationCode"]
+                    self.assertEqual(len(raw_inv_code), 6)
 
-                # 4. Borrower requests OTP
-                phone_num = "09179876543"
-                otp_req_res = await client.post(
-                    "/api/v1/client/auth/request-otp",
-                    json={"phoneNumber": phone_num, "invitationCode": raw_inv_code},
-                )
-                self.assertEqual(otp_req_res.status_code, 200)
+                    # 4. Borrower requests OTP
+                    phone_num = "09179876543"
+                    otp_req_res = await client.post(
+                        "/api/v1/client/auth/request-otp",
+                        json={"phoneNumber": phone_num, "invitationCode": raw_inv_code},
+                    )
+                    self.assertEqual(otp_req_res.status_code, 200)
 
-                # 5. Retrieve dev OTP
-                norm_phone = "+639179876543"
-                dev_otp = dev_otp_provider.last_delivered_otp.get(norm_phone)
-                self.assertIsNotNone(dev_otp)
+                    # 5. Retrieve dev OTP
+                    norm_phone = "+639179876543"
+                    dev_otp = dev_otp_provider.last_delivered_otp.get(norm_phone)
+                    self.assertIsNotNone(dev_otp)
 
-                # 6 & 7. Borrower verifies OTP and receives tokens
-                verify_res = await client.post(
-                    "/api/v1/client/auth/verify-otp",
-                    json={
-                        "phoneNumber": phone_num,
-                        "otp": dev_otp,
-                        "invitationCode": raw_inv_code,
-                        "deviceIdentifier": "device_e2e_uuid_99",
-                        "platform": "android",
-                    },
-                )
-                self.assertEqual(verify_res.status_code, 200)
-                verify_data = verify_res.json()
-                access_token = verify_data["accessToken"]
-                refresh_token = verify_data["refreshToken"]
-                borrower_acct_id = verify_data["borrowerAccountId"]
-                self.assertIsNotNone(access_token)
-                self.assertIsNotNone(refresh_token)
+                    # 6 & 7. Borrower verifies OTP and receives tokens
+                    verify_res = await client.post(
+                        "/api/v1/client/auth/verify-otp",
+                        json={
+                            "phoneNumber": phone_num,
+                            "otp": dev_otp,
+                            "invitationCode": raw_inv_code,
+                            "deviceIdentifier": "device_e2e_uuid_99",
+                            "platform": "android",
+                        },
+                    )
+                    self.assertEqual(verify_res.status_code, 200)
+                    verify_data = verify_res.json()
+                    access_token = verify_data["accessToken"]
+                    refresh_token = verify_data["refreshToken"]
+                    borrower_acct_id = verify_data["borrowerAccountId"]
+                    self.assertIsNotNone(access_token)
+                    self.assertIsNotNone(refresh_token)
 
-                # 8 & 9. Borrower calls GET /api/v1/client/me
-                profile_res = await client.get(
-                    "/api/v1/client/me",
-                    headers={"Authorization": f"Bearer {access_token}"},
-                )
-                self.assertEqual(profile_res.status_code, 200)
-                prof_data = profile_res.json()
-                self.assertEqual(prof_data["borrowerId"], borrower.id)
-                self.assertEqual(prof_data["borrowerAccountId"], borrower_acct_id)
-                self.assertEqual(prof_data["firstName"], "Maria")
+                    # 8 & 9. Borrower calls GET /api/v1/client/me
+                    profile_res = await client.get(
+                        "/api/v1/client/me",
+                        headers={"Authorization": f"Bearer {access_token}"},
+                    )
+                    self.assertEqual(profile_res.status_code, 200)
+                    prof_data = profile_res.json()
+                    self.assertEqual(prof_data["borrowerId"], borrower.id)
+                    self.assertEqual(prof_data["borrowerAccountId"], borrower_acct_id)
+                    self.assertEqual(prof_data["firstName"], "Maria")
 
-                # 10. Borrower registers device
-                dev_res = await client.post(
-                    "/api/v1/client/devices",
-                    headers={"Authorization": f"Bearer {access_token}"},
-                    json={
-                        "deviceIdentifier": "device_e2e_uuid_99",
-                        "platform": "android",
-                        "pushToken": "fcm_token_sample_123",
-                    },
-                )
-                self.assertEqual(dev_res.status_code, 200)
-                dev_data = dev_res.json()
-                self.assertTrue(dev_data["isActive"])
+                    # 10. Borrower registers device
+                    dev_res = await client.post(
+                        "/api/v1/client/devices",
+                        headers={"Authorization": f"Bearer {access_token}"},
+                        json={
+                            "deviceIdentifier": "device_e2e_uuid_99",
+                            "platform": "android",
+                            "pushToken": "fcm_token_sample_123",
+                        },
+                    )
+                    self.assertEqual(dev_res.status_code, 200)
+                    dev_data = dev_res.json()
+                    self.assertTrue(dev_data["isActive"])
 
-                # 11 & 12. Rotate refresh token
-                refresh_res = await client.post(
-                    "/api/v1/client/auth/refresh",
-                    json={"refreshToken": refresh_token},
-                )
-                self.assertEqual(refresh_res.status_code, 200)
-                new_token_data = refresh_res.json()
-                new_access_token = new_token_data["accessToken"]
-                new_refresh_token = new_token_data["refreshToken"]
-                self.assertNotEqual(refresh_token, new_refresh_token)
+                    # 11 & 12. Rotate refresh token
+                    refresh_res = await client.post(
+                        "/api/v1/client/auth/refresh",
+                        json={"refreshToken": refresh_token},
+                    )
+                    self.assertEqual(refresh_res.status_code, 200)
+                    new_token_data = refresh_res.json()
+                    new_access_token = new_token_data["accessToken"]
+                    new_refresh_token = new_token_data["refreshToken"]
+                    self.assertNotEqual(refresh_token, new_refresh_token)
 
-                # 13. Re-use of old refresh token is rejected (401)
-                reuse_res = await client.post(
-                    "/api/v1/client/auth/refresh",
-                    json={"refreshToken": refresh_token},
-                )
-                self.assertEqual(reuse_res.status_code, 401)
+                    # 13. Re-use of old refresh token is rejected (401)
+                    reuse_res = await client.post(
+                        "/api/v1/client/auth/refresh",
+                        json={"refreshToken": refresh_token},
+                    )
+                    self.assertEqual(reuse_res.status_code, 401)
 
-                # 14. Borrower logs out
-                logout_res = await client.post(
-                    "/api/v1/client/auth/logout",
-                    headers={"Authorization": f"Bearer {new_access_token}"},
-                    json={"refreshToken": new_refresh_token},
-                )
-                self.assertEqual(logout_res.status_code, 204)
+                    # 14. Borrower logs out
+                    logout_res = await client.post(
+                        "/api/v1/client/auth/logout",
+                        headers={"Authorization": f"Bearer {new_access_token}"},
+                        json={"refreshToken": new_refresh_token},
+                    )
+                    self.assertEqual(logout_res.status_code, 204)
 
-                # 16. Borrower token cannot access officer endpoints
-                officer_endpoint_res = await client.get(
-                    "/api/v1/loans",
-                    headers={"Authorization": f"Bearer {new_access_token}"},
-                )
-                self.assertEqual(officer_endpoint_res.status_code, 401)
+                    # 16. Borrower token cannot access officer endpoints
+                    officer_endpoint_res = await client.get(
+                        "/api/v1/loans",
+                        headers={"Authorization": f"Bearer {new_access_token}"},
+                    )
+                    self.assertEqual(officer_endpoint_res.status_code, 401)
 
-                # 17. Officer token cannot access borrower profile endpoint
-                borrower_me_res = await client.get(
-                    "/api/v1/client/me",
-                    headers={"Authorization": f"Bearer {officer_token}"},
-                )
-                self.assertEqual(borrower_me_res.status_code, 401)
+                    # 17. Officer token cannot access borrower profile endpoint
+                    borrower_me_res = await client.get(
+                        "/api/v1/client/me",
+                        headers={"Authorization": f"Bearer {officer_token}"},
+                    )
+                    self.assertEqual(borrower_me_res.status_code, 401)
 
         finally:
             app.dependency_overrides.pop(get_db, None)
