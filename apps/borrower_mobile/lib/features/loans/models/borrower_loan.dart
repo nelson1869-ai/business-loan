@@ -123,15 +123,20 @@ class BorrowerLoanListResponse extends Equatable {
   final int total;
   final int offset;
   final int limit;
+  final bool isFromCache;
 
   const BorrowerLoanListResponse({
     required this.items,
     required this.total,
     required this.offset,
     required this.limit,
+    this.isFromCache = false,
   });
 
-  factory BorrowerLoanListResponse.fromJson(Map<String, dynamic> json) {
+  factory BorrowerLoanListResponse.fromJson(
+    Map<String, dynamic> json, {
+    bool isFromCache = false,
+  }) {
     final list = json['items'] as List<dynamic>? ?? [];
     return BorrowerLoanListResponse(
       items: list
@@ -140,6 +145,7 @@ class BorrowerLoanListResponse extends Equatable {
       total: _intFromJson(json['total']),
       offset: _intFromJson(json['offset']),
       limit: _intFromJson(json['limit']),
+      isFromCache: isFromCache,
     );
   }
 
@@ -151,7 +157,7 @@ class BorrowerLoanListResponse extends Equatable {
       };
 
   @override
-  List<Object?> get props => [items, total, offset, limit];
+  List<Object?> get props => [items, total, offset, limit, isFromCache];
 }
 
 class BorrowerLoanFinancialSummary extends Equatable {

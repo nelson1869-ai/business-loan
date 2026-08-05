@@ -57,7 +57,7 @@ class LoanLocalCache {
         return null;
       }
       final map = jsonDecode(rawJson) as Map<String, dynamic>;
-      return BorrowerLoanListResponse.fromJson(map);
+      return BorrowerLoanListResponse.fromJson(map, isFromCache: true);
     } catch (_) {
       await _storage.delete(key: key).catchError((_) {});
       return null;

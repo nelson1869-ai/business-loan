@@ -89,21 +89,14 @@ class LoansListNotifier extends StateNotifier<LoansListState> {
         limit: 20,
       );
 
-      final isCached = response.items.isNotEmpty &&
-          response.items.first.updatedAt.isBefore(
-            DateTime.now().subtract(const Duration(minutes: 1)),
-          );
-
       state = state.copyWith(
         isLoading: false,
         items: response.items,
         total: response.total,
         offset: response.offset,
         limit: response.limit,
-        isFromCache: isCached,
-        lastUpdated: response.items.isNotEmpty
-            ? response.items.first.updatedAt
-            : DateTime.now(),
+        isFromCache: response.isFromCache,
+        lastUpdated: DateTime.now(),
         clearError: true,
       );
     } catch (e) {
