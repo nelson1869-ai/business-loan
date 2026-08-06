@@ -4,6 +4,7 @@ import uuid
 from datetime import UTC, date, datetime, timedelta
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 
 from app.main import app
 from app.core.database import AsyncSessionFactory
@@ -78,8 +79,21 @@ async def test_account_locking_on_repeated_failed_logins():
             created_at=now,
             updated_at=now,
         )
+        device = BorrowerDevice(
+            id=f"bd-lock-{tag}",
+            borrower_account_id=account.id,
+            device_identifier_hash=hash_secret(f"dev-lock-{tag}"),
+            platform="android",
+            first_seen_at=now,
+            last_seen_at=now,
+            is_active=True,
+            is_trusted=True,
+            created_at=now,
+            updated_at=now,
+        )
         db.add(borrower)
         db.add(account)
+        db.add(device)
         await db.commit()
 
     transport = ASGITransport(app=app)
@@ -145,9 +159,22 @@ async def test_owner_unlock_account():
             created_at=now,
             updated_at=now,
         )
+        device = BorrowerDevice(
+            id=f"bd-unlock-{tag}",
+            borrower_account_id=account.id,
+            device_identifier_hash=hash_secret(f"dev-unlock-{tag}"),
+            platform="android",
+            first_seen_at=now,
+            last_seen_at=now,
+            is_active=True,
+            is_trusted=True,
+            created_at=now,
+            updated_at=now,
+        )
         db.add(owner)
         db.add(borrower)
         db.add(account)
+        db.add(device)
         await db.commit()
 
         owner_token = create_token(owner, "access")
@@ -208,9 +235,22 @@ async def test_forgot_pin_and_owner_reset_flow():
             created_at=now,
             updated_at=now,
         )
+        device = BorrowerDevice(
+            id=f"bd-reset-{tag}",
+            borrower_account_id=account.id,
+            device_identifier_hash=hash_secret(f"dev-reset-{tag}"),
+            platform="android",
+            first_seen_at=now,
+            last_seen_at=now,
+            is_active=True,
+            is_trusted=True,
+            created_at=now,
+            updated_at=now,
+        )
         db.add(owner)
         db.add(borrower)
         db.add(account)
+        db.add(device)
         await db.commit()
 
         owner_token = create_token(owner, "access")
@@ -265,3 +305,88 @@ async def test_forgot_pin_and_owner_reset_flow():
             },
         )
         assert login_old.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_untrusted_device_rejection_and_owner_trust_flow():
+    """Test that a new untrusted device cannot log in until trusted by Owner."""
+    tag = uuid.uuid4().hex[:8]
+    phone = f"0917{uuid.uuid4().int % 10000000:07d}"
+    norm_phone = normalize_ph_phone_number(phone)
+    async with AsyncSessionFactory() as db:
+        now = datetime.now(UTC)
+        owner = User(
+            id=f"owner-dev-{tag}",
+            username=f"owner_dev_{tag}",
+            hashed_password=hash_password("OwnerPass123!"),
+            role="owner",
+        )
+        borrower = Borrower(
+            id=f"b-dev-{tag}",
+            first_name="Device",
+            last_name="Test",
+            national_id=f"NAT-DEV-{tag}",
+            phone=phone,
+            phone_normalized=norm_phone,
+            date_of_birth=date(1990, 1, 1),
+            status="Active",
+        )
+        account = BorrowerAccount(
+            id=f"ba-dev-{tag}",
+            borrower_id=borrower.id,
+            phone_number=phone,
+            phone_number_normalized=norm_phone,
+            account_status="activated",
+            password_hash=hash_pin_secure("CorrectPin123!"),
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(owner)
+        db.add(borrower)
+        db.add(account)
+        await db.commit()
+
+        owner_token = create_token(owner, "access")
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        # 1. Login from new untrusted device fails with 401 (untrusted device)
+        untrusted_res = await client.post(
+            "/api/v1/client/auth/login",
+            json={
+                "phoneNumber": phone,
+                "pinOrPassword": "CorrectPin123!",
+                "deviceIdentifier": f"dev-untrusted-{tag}",
+            },
+        )
+        assert untrusted_res.status_code == 401
+        assert "untrusted" in untrusted_res.json()["detail"].lower()
+
+        # 2. Get registered untrusted device ID
+        async with AsyncSessionFactory() as db:
+            device_hash = hash_secret(f"dev-untrusted-{tag}")
+            stmt = select(BorrowerDevice).where(BorrowerDevice.device_identifier_hash == device_hash)
+            dev_rec = (await db.execute(stmt)).scalar_one()
+            assert dev_rec.is_trusted is False
+            device_id = dev_rec.id
+
+        # 3. Owner trusts the device
+        trust_res = await client.post(
+            f"/api/v1/borrowers/devices/{device_id}/trust",
+            headers={"Authorization": f"Bearer {owner_token}"},
+        )
+        assert trust_res.status_code == 200
+        assert trust_res.json()["isTrusted"] is True
+
+        # 4. Borrower can now log in from trusted device
+        login_res = await client.post(
+            "/api/v1/client/auth/login",
+            json={
+                "phoneNumber": phone,
+                "pinOrPassword": "CorrectPin123!",
+                "deviceIdentifier": f"dev-untrusted-{tag}",
+            },
+        )
+        assert login_res.status_code == 200
+        assert "accessToken" in login_res.json()
+

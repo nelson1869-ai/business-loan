@@ -24,7 +24,6 @@ from app.features.borrower_portal.models import (
     BorrowerAccount,
     BorrowerActivationCode,
     BorrowerDevice,
-    BorrowerInvitation,
     BorrowerLoanRequest,
     BorrowerNotification,
     BorrowerPinReset,
@@ -76,29 +75,6 @@ def generate_otp_code() -> str:
 def generate_invitation_code() -> str:
     """Generate an officer-issued 6-digit invitation code."""
     return f"{secrets.randbelow(1000000):06d}"
-
-
-async def issue_client_invitation(
-    db: AsyncSession,
-    borrower_id: str,
-    officer: User,
-    expires_in_hours: int = 72,
-) -> tuple[BorrowerInvitation, str]:
-    """Issue a 6-digit invitation code for borrower account linking."""
-    raw_code = generate_invitation_code()
-    code_hash = hash_secret(raw_code)
-    now = datetime.now(UTC)
-    invitation = BorrowerInvitation(
-        id=secrets.token_hex(18),
-        borrower_id=borrower_id,
-        invitation_code_hash=code_hash,
-        expires_at=now + timedelta(hours=expires_in_hours),
-        created_by_user_id=officer.id,
-        created_at=now,
-    )
-    db.add(invitation)
-    await db.flush()
-    return invitation, raw_code
 
 
 
@@ -511,6 +487,38 @@ async def verify_activation_code_and_activate(
     account.account_status = "activated"
     account.phone_verified_at = now
     account.updated_at = now
+
+    # Register & trust activating device
+    device_hash = hash_secret(payload.device_identifier)
+    dev_stmt = select(BorrowerDevice).where(
+        BorrowerDevice.borrower_account_id == account.id,
+        BorrowerDevice.device_identifier_hash == device_hash,
+    )
+    dev_res = await db.execute(dev_stmt)
+    device = dev_res.scalar_one_or_none()
+    if device is None:
+        device = BorrowerDevice(
+            id=secrets.token_hex(18),
+            borrower_account_id=account.id,
+            device_identifier_hash=device_hash,
+            platform=payload.platform or "android",
+            push_token=payload.push_token,
+            first_seen_at=now,
+            last_seen_at=now,
+            is_active=True,
+            is_trusted=True,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(device)
+    else:
+        device.is_active = True
+        device.is_trusted = True
+        device.revoked_at = None
+        device.last_seen_at = now
+        if payload.push_token:
+            device.push_token = payload.push_token
+            device.push_token_updated_at = now
     await db.flush()
 
     # Issue tokens
@@ -580,7 +588,7 @@ async def login_borrower_with_pin(
     account.updated_at = now
     await db.flush()
 
-    # Device registration/verification
+    # Trusted device verification
     device_hash = hash_secret(payload.device_identifier)
     dev_stmt = select(BorrowerDevice).where(
         BorrowerDevice.borrower_account_id == account.id,
@@ -589,12 +597,6 @@ async def login_borrower_with_pin(
     dev_res = await db.execute(dev_stmt)
     device = dev_res.scalar_one_or_none()
     if device is None:
-        count_res = await db.execute(
-            select(func.count(BorrowerDevice.id)).where(
-                BorrowerDevice.borrower_account_id == account.id
-            )
-        )
-        existing_count = count_res.scalar() or 0
         device = BorrowerDevice(
             id=secrets.token_hex(18),
             borrower_account_id=account.id,
@@ -603,16 +605,21 @@ async def login_borrower_with_pin(
             first_seen_at=now,
             last_seen_at=now,
             is_active=True,
-            is_trusted=(existing_count == 0),
+            is_trusted=False,
             created_at=now,
             updated_at=now,
         )
         db.add(device)
-    else:
-        if device.revoked_at is not None or not device.is_active:
-            raise ValueError("This device registration has been revoked. Contact owner.")
-        device.last_seen_at = now
-        device.is_active = True
+        await db.commit()
+        raise ValueError("Untrusted device. Contact owner for device approval or use a fresh 6-digit activation code.")
+
+    if device.revoked_at is not None or not device.is_active:
+        raise ValueError("This device registration has been revoked. Contact owner.")
+
+    if not device.is_trusted:
+        raise ValueError("Untrusted device. Contact owner for device approval or use a fresh 6-digit activation code.")
+
+    device.last_seen_at = now
     await db.flush()
 
     settings = get_settings()
@@ -989,5 +996,35 @@ async def revoke_borrower_device(
     )
     await db.flush()
     return True
+
+
+async def owner_trust_borrower_device(
+    db: AsyncSession,
+    device_id: str,
+    owner_user: User,
+) -> BorrowerDevice:
+    """Owner endpoint to mark a borrower device as trusted."""
+    now = datetime.now(UTC)
+    device = await db.get(BorrowerDevice, device_id)
+    if device is None:
+        raise ValueError("Device not found")
+
+    device.is_trusted = True
+    device.is_active = True
+    device.revoked_at = None
+    device.updated_at = now
+
+    audit = BorrowerRegistrationAudit(
+        id=secrets.token_hex(18),
+        actor_user_id=owner_user.id,
+        action="device_trusted",
+        target_type="borrower_device",
+        target_id=device.id,
+        created_at=now,
+    )
+    db.add(audit)
+    await db.flush()
+    return device
+
 
 

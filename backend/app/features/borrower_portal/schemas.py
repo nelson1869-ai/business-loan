@@ -99,21 +99,6 @@ class BorrowerProfileResponse(BaseSchema):
     created_at: datetime = Field(..., alias="createdAt")
 
 
-class ClientInvitationRequest(BaseSchema):
-    """Officer request to issue a borrower portal invitation code."""
-
-    expires_in_hours: int = Field(72, alias="expiresInHours", ge=1, le=720)
-
-
-class ClientInvitationResponse(BaseSchema):
-    """Response containing officer-issued client invitation details."""
-
-    id: str
-    borrower_id: str = Field(..., alias="borrowerId")
-    invitation_code: str = Field(..., alias="invitationCode")
-    expires_at: datetime = Field(..., alias="expiresAt")
-    created_at: datetime = Field(..., alias="createdAt")
-
 
 class BorrowerRegistrationSubmitRequest(BaseSchema):
     """Borrower public sign-up registration request payload."""

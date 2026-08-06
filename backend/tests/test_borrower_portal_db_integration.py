@@ -19,7 +19,6 @@ from app.features.borrower_portal.models import (
     BorrowerAccount,
     BorrowerActivationCode,
     BorrowerDevice,
-    BorrowerInvitation,
     BorrowerRefreshToken,
 )
 from app.features.borrower_portal.service import hash_secret
@@ -59,9 +58,11 @@ class TestBorrowerPortalRealDatabaseIntegration(unittest.IsolatedAsyncioTestCase
             await db.execute(delete(Payment))
             await db.execute(delete(Installment))
             await db.execute(delete(Loan))
+            await db.execute(delete(Payment))
+            await db.execute(delete(Installment))
+            await db.execute(delete(Loan))
             await db.execute(delete(BorrowerRefreshToken))
             await db.execute(delete(BorrowerDevice))
-            await db.execute(delete(BorrowerInvitation))
             await db.execute(delete(BorrowerAccount))
             await db.execute(delete(Borrower))
             await db.execute(delete(User))
@@ -78,13 +79,13 @@ class TestBorrowerPortalRealDatabaseIntegration(unittest.IsolatedAsyncioTestCase
         await self.engine.dispose()
 
     async def test_full_real_database_borrower_portal_flow(self) -> None:
-        # 1 & 2. Create an authorized officer user in real database
+        # 1 & 2. Create an authorized owner user in real database
         async with self.session_factory() as db:
             officer = User(
                 id="usr-officer-real-db",
                 username="officer_real_db",
                 hashed_password="hashed_password_123",
-                role="officer",
+                role="owner",
             )
             db.add(officer)
 
@@ -104,43 +105,21 @@ class TestBorrowerPortalRealDatabaseIntegration(unittest.IsolatedAsyncioTestCase
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
-            # 3. Authenticate as officer & test authorization boundaries
+            # 3. Authenticate as owner & test authorization boundaries
             officer_token = create_token(officer, "access")
 
             # Check: No token -> 401
-            no_token_res = await client.post(
-                f"/api/v1/borrowers/{borrower.id}/client-invitation",
-                json={"expiresInHours": 24},
+            no_token_res = await client.get(
+                "/api/v1/borrowers/registrations",
             )
             self.assertEqual(no_token_res.status_code, 401)
 
-            # Check: Non-existent borrower -> 404
+            # Check: Non-existent registration -> 400 or 404
             missing_bor_res = await client.post(
-                "/api/v1/borrowers/non-existent-bor-id/client-invitation",
+                "/api/v1/borrowers/registrations/non-existent-reg-id/approve",
                 headers={"Authorization": f"Bearer {officer_token}"},
-                json={"expiresInHours": 24},
             )
-            self.assertEqual(missing_bor_res.status_code, 404)
-
-            # 5. Create a borrower-client invitation code
-            inv_res = await client.post(
-                f"/api/v1/borrowers/{borrower.id}/client-invitation",
-                headers={"Authorization": f"Bearer {officer_token}"},
-                json={"expiresInHours": 48},
-            )
-            self.assertEqual(inv_res.status_code, 201)
-            raw_inv_code = inv_res.json()["invitationCode"]
-
-            # 6. Verify the invitation code is stored as a hash (not plaintext)
-            async with self.session_factory() as db:
-                stmt = select(BorrowerInvitation).where(
-                    BorrowerInvitation.borrower_id == borrower.id
-                )
-                inv_record = (await db.execute(stmt)).scalar_one()
-                self.assertNotEqual(inv_record.invitation_code_hash, raw_inv_code)
-                self.assertEqual(
-                    inv_record.invitation_code_hash, hash_secret(raw_inv_code)
-                )
+            self.assertEqual(missing_bor_res.status_code, 400)
 
             # 7. Generate Activation Code via Owner API
             phone_num = "09171234567"

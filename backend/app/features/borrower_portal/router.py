@@ -42,10 +42,14 @@ from app.features.borrower_portal.schemas import (
     BorrowerPINLoginRequest,
     BorrowerProfileResponse,
     BorrowerRegistrationItemResponse,
+    BorrowerActivationRequest,
+    BorrowerLoanRequestResponse,
+    BorrowerLoanRequestSubmit,
+    BorrowerPINLoginRequest,
+    BorrowerProfileResponse,
+    BorrowerRegistrationItemResponse,
     BorrowerRegistrationSubmitRequest,
     BorrowerTokenResponse,
-    ClientInvitationRequest,
-    ClientInvitationResponse,
     ConfirmPINRequest,
     DeviceRegisterRequest,
     DeviceResponse,
@@ -63,11 +67,11 @@ from app.features.borrower_portal.service import (
     generate_new_activation_code,
     get_borrower_profile,
     hash_secret,
-    issue_client_invitation,
     issue_pin_reset_code,
     list_borrower_devices,
     list_borrower_loan_requests,
     login_borrower_with_pin,
+    owner_trust_borrower_device,
     redeem_pin_reset_code,
     request_pin_reset,
     review_borrower_loan_request,
@@ -82,7 +86,7 @@ from app.features.borrower_portal.service import (
 from app.features.borrowers import service as borrower_service
 
 client_router = APIRouter(prefix="/api/v1/client", tags=["Borrower Client API"])
-officer_router = APIRouter(prefix="/api/v1/borrowers", tags=["Borrower Invitations"])
+owner_router = APIRouter(prefix="/api/v1/borrowers", tags=["Owner Administration"])
 
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 
@@ -296,45 +300,6 @@ async def remove_borrower_device(
         await db.commit()
 
 
-@officer_router.post(
-    "/{borrower_id}/client-invitation",
-    response_model=ClientInvitationResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def create_client_invitation(
-    borrower_id: str,
-    payload: ClientInvitationRequest,
-    db: DbSession,
-    current_user: CurrentUser,
-) -> ClientInvitationResponse:
-    """Officer endpoint to issue a 6-digit client activation code for a borrower."""
-    if current_user.role not in ("officer", "manager", "admin"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions to issue client invitations",
-        )
-
-    borrower = await borrower_service.get_borrower(db, borrower_id)
-    if borrower is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Borrower not found",
-        )
-
-    invitation, raw_code = await issue_client_invitation(
-        db, borrower_id, current_user, payload.expires_in_hours
-    )
-    await db.commit()
-
-    return ClientInvitationResponse(
-        id=invitation.id,
-        borrower_id=invitation.borrower_id,
-        invitation_code=raw_code,
-        expires_at=invitation.expires_at,
-        created_at=invitation.created_at,
-    )
-
-
 # ── Single-Owner Registration, Activation & Loan Request Routes ───────────────
 
 
@@ -526,13 +491,15 @@ async def revoke_client_device(
     return {"message": "Device revoked successfully"}
 
 
-@officer_router.post("/accounts/{account_id}/unlock", status_code=status.HTTP_200_OK)
+@owner_router.post("/accounts/{account_id}/unlock", status_code=status.HTTP_200_OK)
 async def unlock_account_endpoint(
     account_id: str,
     db: DbSession,
     current_user: CurrentUser,
 ) -> dict[str, str]:
     """Owner endpoint to immediately unlock a locked borrower account."""
+    if current_user.role != "owner":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Owner privilege required")
     try:
         await unlock_borrower_account(db, account_id, current_user)
         await db.commit()
@@ -545,7 +512,7 @@ async def unlock_account_endpoint(
     return {"message": "Borrower account unlocked successfully"}
 
 
-@officer_router.post(
+@owner_router.post(
     "/accounts/{account_id}/reset-code",
     response_model=IssueResetCodeResponse,
     status_code=status.HTTP_201_CREATED,
@@ -556,6 +523,8 @@ async def issue_reset_code_endpoint(
     current_user: CurrentUser,
 ) -> IssueResetCodeResponse:
     """Owner endpoint to issue a 6-digit PIN reset code for a borrower account."""
+    if current_user.role != "owner":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Owner privilege required")
     try:
         reset_rec, raw_code = await issue_pin_reset_code(db, account_id, current_user)
         await db.commit()
@@ -572,13 +541,15 @@ async def issue_reset_code_endpoint(
     )
 
 
-@officer_router.post("/accounts/{account_id}/logout-all", status_code=status.HTTP_200_OK)
+@owner_router.post("/accounts/{account_id}/logout-all", status_code=status.HTTP_200_OK)
 async def force_logout_endpoint(
     account_id: str,
     db: DbSession,
     current_user: CurrentUser,
 ) -> dict[str, Any]:
     """Owner endpoint to force logout all active sessions for a borrower."""
+    if current_user.role != "owner":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Owner privilege required")
     try:
         count = await force_logout_borrower(db, account_id, current_user)
         await db.commit()
@@ -589,6 +560,38 @@ async def force_logout_endpoint(
             detail=str(error),
         ) from error
     return {"message": f"Revoked {count} active sessions", "revokedCount": count}
+
+
+@owner_router.post("/devices/{device_id}/trust", response_model=DeviceResponse)
+async def owner_trust_device_endpoint(
+    device_id: str,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> DeviceResponse:
+    """Owner endpoint to trust a borrower device."""
+    if current_user.role != "owner":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Owner privilege required")
+    try:
+        device = await owner_trust_borrower_device(db, device_id, current_user)
+        await db.commit()
+    except ValueError as error:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(error),
+        ) from error
+    return DeviceResponse(
+        id=device.id,
+        platform=device.platform,
+        device_name=device.device_name,
+        model=device.model,
+        app_version=device.app_version,
+        is_trusted=device.is_trusted,
+        is_active=device.is_active,
+        first_seen_at=device.first_seen_at,
+        last_seen_at=device.last_seen_at,
+        revoked_at=device.revoked_at,
+    )
 
 
 @client_router.post(

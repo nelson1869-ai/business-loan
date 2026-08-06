@@ -13,7 +13,6 @@ from app.core.masking import mask_national_id as mask_national_id
 from app.core.masking import mask_phone as mask_phone
 from app.features.borrower_portal.models import (
     BorrowerAccount,
-    BorrowerInvitation,
     BorrowerRefreshToken,
     BorrowerRegistrationAudit,
     BorrowerRegistrationRequest,
@@ -197,14 +196,6 @@ async def approve(
         item.reviewed_at,
         item.review_notes,
     ) = "approved", borrower.id, reviewer.id, now, notes
-    await db.execute(
-        update(BorrowerInvitation)
-        .where(
-            BorrowerInvitation.borrower_id == borrower.id,
-            BorrowerInvitation.used_at.is_(None),
-        )
-        .values(used_at=now)
-    )
 
     _audit(
         db,

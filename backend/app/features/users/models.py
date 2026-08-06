@@ -18,7 +18,7 @@ class User(Base):
         String(100), nullable=False, unique=True, index=True
     )
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
-    role: Mapped[str] = mapped_column(String(20), nullable=False, default="officer")
+    role: Mapped[str] = mapped_column(String(20), nullable=False, default="owner")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

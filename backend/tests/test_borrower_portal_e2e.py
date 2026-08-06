@@ -18,7 +18,6 @@ from app.features.borrower_portal.models import (
     BorrowerAccount,
     BorrowerActivationCode,
     BorrowerDevice,
-    BorrowerInvitation,
     BorrowerRefreshToken,
     BorrowerRegistrationRequest,
 )
@@ -82,9 +81,7 @@ class TestBorrowerPortalMockedApiLifecycle(unittest.IsolatedAsyncioTestCase):
 
         # Mock DB add
         def mock_add(instance):
-            if isinstance(instance, BorrowerInvitation):
-                db_store["invitations"][instance.id] = instance
-            elif isinstance(instance, BorrowerActivationCode):
+            if isinstance(instance, BorrowerActivationCode):
                 db_store["activation_codes"][instance.id] = instance
             elif isinstance(instance, BorrowerRegistrationRequest):
                 db_store["registrations"][instance.id] = instance

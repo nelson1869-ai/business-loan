@@ -68,29 +68,42 @@ class TestBorrowerPortalRouter(unittest.IsolatedAsyncioTestCase):
     """Router and dependency isolation tests for /api/v1/client endpoints."""
 
     @patch("app.core.database.get_db")
-    async def test_officer_client_invitation_issuance(self, mock_get_db) -> None:
+    async def test_owner_registration_approval_issuance(self, mock_get_db) -> None:
         officer = User(
             id="usr-officer-1",
             username="officer_juan",
             hashed_password="pw",
-            role="officer",
+            role="owner",
         )
-        borrower = Borrower(
-            id="bor-1",
-            first_name="Juan",
-            last_name="Dela Cruz",
-            national_id="PH-123",
-            phone="09171234567",
+        reg_req = SimpleNamespace(
+            id="reg-101",
+            first_name="Maria",
+            last_name="Santos",
+            national_id="PH-999",
+            phone_number="09171234567",
+            phone_number_normalized="+639171234567",
             date_of_birth=datetime(1990, 1, 1).date(),
-            status="Active",
+            address="123 Main St",
+            id_photo_url=None,
+            selfie_url=None,
+            notes=None,
+            pin_hash="hash",
+            status="pending",
         )
+        mock_db = MagicMock()
 
-        mock_db = AsyncMock()
-        mock_db.get.return_value = borrower
+        def _execute_side_effect(stmt, *args, **kwargs):
+            stmt_str = str(stmt).lower()
+            m = MagicMock()
+            if "users" in stmt_str:
+                m.scalar_one_or_none.return_value = officer
+            else:
+                m.scalar_one_or_none.return_value = reg_req
+            return m
 
-        mock_res = MagicMock()
-        mock_res.scalar_one_or_none.return_value = officer
-        mock_db.execute.return_value = mock_res
+        mock_db.execute = AsyncMock(side_effect=_execute_side_effect)
+        mock_db.commit = AsyncMock()
+        mock_db.flush = AsyncMock()
 
         async def _mock_db_gen():
             yield mock_db
@@ -104,14 +117,13 @@ class TestBorrowerPortalRouter(unittest.IsolatedAsyncioTestCase):
                 transport=ASGITransport(app=app), base_url="http://test"
             ) as client:
                 res = await client.post(
-                    "/api/v1/borrowers/bor-1/client-invitation",
+                    "/api/v1/borrowers/registrations/reg-101/approve",
                     headers=headers,
-                    json={"expiresInHours": 24},
                 )
-                self.assertEqual(res.status_code, 201)
+                self.assertEqual(res.status_code, 200)
                 data = res.json()
-                self.assertEqual(data["borrowerId"], "bor-1")
-                self.assertEqual(len(data["invitationCode"]), 6)
+                self.assertEqual(data["registrationId"], "reg-101")
+                self.assertEqual(len(data["activationCode"]), 6)
         finally:
             app.dependency_overrides.pop(get_db, None)
 

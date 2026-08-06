@@ -168,36 +168,6 @@ class BorrowerRegistrationAudit(Base):
     )
 
 
-class BorrowerInvitation(Base):
-    """Officer-issued client invitation code for borrower account activation."""
-
-    __tablename__ = "borrower_invitations"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    borrower_id: Mapped[str] = mapped_column(
-        String(36),
-        ForeignKey("borrowers.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    invitation_code_hash: Mapped[str] = mapped_column(String(128), nullable=False)
-    expires_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, index=True
-    )
-    used_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    created_by_user_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now()
-    )
-
-    borrower: Mapped["Borrower"] = relationship()
-    created_by_user: Mapped["User"] = relationship()
-
-
 class BorrowerActivationCode(Base):
     """Cryptographically random 6-digit owner activation code for single-owner borrower activation."""
 

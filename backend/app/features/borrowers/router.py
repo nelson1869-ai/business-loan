@@ -9,13 +9,10 @@ from app.core.dependencies import CurrentUser, DbSession
 from app.features.borrower_portal.models import BorrowerRegistrationRequest
 from app.features.borrower_portal.schemas import (
     BorrowerRegistrationItemResponse,
-    ClientInvitationRequest,
-    ClientInvitationResponse,
     OwnerApproveRegistrationResponse,
 )
 from app.features.borrower_portal.service import (
     approve_borrower_registration,
-    issue_client_invitation,
 )
 from app.features.borrowers import service as borrower_service
 from app.features.borrowers.schemas import (
@@ -112,10 +109,10 @@ async def list_borrower_registrations(
     search: str | None = Query(None),
 ) -> list[BorrowerRegistrationItemResponse]:
     """Owner endpoint to view pending or past borrower registration applications."""
-    if current_user.role not in ("officer", "manager", "admin", "owner"):
+    if current_user.role != "owner":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions",
+            detail="Owner privilege required",
         )
     stmt = select(BorrowerRegistrationRequest)
     if registration_status is not None:
@@ -159,10 +156,10 @@ async def approve_borrower_registration_endpoint(
     current_user: CurrentUser,
 ) -> OwnerApproveRegistrationResponse:
     """Owner endpoint to approve a borrower registration and generate 6-digit Activation Code."""
-    if current_user.role not in ("admin", "owner", "manager", "officer"):
+    if current_user.role != "owner":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions to approve borrower registrations",
+            detail="Owner privilege required",
         )
     try:
         result = await approve_borrower_registration(db, registration_id, current_user)
@@ -184,10 +181,10 @@ async def reject_borrower_registration_endpoint(
     reason: str = Query("Registration rejected by owner"),
 ) -> dict[str, str]:
     """Owner endpoint to reject a pending borrower registration."""
-    if current_user.role not in ("admin", "owner", "manager", "officer"):
+    if current_user.role != "owner":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions",
+            detail="Owner privilege required",
         )
     res = await db.execute(
         select(BorrowerRegistrationRequest).where(
@@ -197,7 +194,7 @@ async def reject_borrower_registration_endpoint(
     reg = res.scalar_one_or_none()
     if reg is None:
         raise HTTPException(status_code=404, detail="Registration request not found")
-    reg.status = "Rejected"
+    reg.status = "rejected"
     reg.rejection_reason = reason
     reg.reviewed_at = datetime.now(UTC)
     reg.reviewed_by_user_id = current_user.id
@@ -219,45 +216,6 @@ async def get_one_borrower(
             status_code=status.HTTP_404_NOT_FOUND, detail="Borrower not found"
         )
     return BorrowerResponse.model_validate(borrower)
-
-
-@router.post(
-    "/{borrower_id}/client-invitation",
-    response_model=ClientInvitationResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def create_client_invitation(
-    borrower_id: str,
-    payload: ClientInvitationRequest,
-    db: DbSession,
-    current_user: CurrentUser,
-) -> ClientInvitationResponse:
-    """Officer endpoint to issue a 6-digit client activation code for a borrower."""
-    if current_user.role not in ("officer", "manager", "admin", "owner"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions to issue client invitations",
-        )
-
-    borrower = await borrower_service.get_borrower(db, borrower_id)
-    if borrower is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Borrower not found",
-        )
-
-    invitation, raw_code = await issue_client_invitation(
-        db, borrower_id, current_user, payload.expires_in_hours
-    )
-    await db.commit()
-
-    return ClientInvitationResponse(
-        id=invitation.id,
-        borrower_id=invitation.borrower_id,
-        invitation_code=raw_code,
-        expires_at=invitation.expires_at,
-        created_at=invitation.created_at,
-    )
 
 
 @router.put("/{borrower_id}", response_model=BorrowerResponse)
