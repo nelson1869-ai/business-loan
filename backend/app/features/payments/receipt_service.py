@@ -124,9 +124,12 @@ async def create_payment_receipt_snapshot(
     next_date = next_inst.due_date if next_inst else None
 
     overdue_amt = sum(
-        (i.expected_payment - i.paid_amount)
-        for i in loan.installments
-        if i.status in ("Overdue", "PartiallyPaid") and i.due_date < payment.effective_date
+        (
+            (i.expected_payment - i.paid_amount)
+            for i in loan.installments
+            if i.status in ("Overdue", "PartiallyPaid") and i.due_date < payment.effective_date
+        ),
+        ZERO,
     )
     total_outstanding = loan.outstanding_principal + allocation.interest_after
 
@@ -159,7 +162,7 @@ async def create_payment_receipt_snapshot(
         receipt_status="Confirmed",
         borrower_id=borrower.id,
         borrower_name=f"{borrower.first_name} {borrower.last_name}",
-        borrower_account_ref=borrower.phone if hasattr(borrower, "phone") else borrower.id,
+        borrower_account_ref=borrower.phone,
         loan_id=loan.id,
         loan_reference=loan.borrower_id[:8].upper(),
         payment_date=payment.effective_date,
@@ -305,6 +308,11 @@ async def generate_ai_explanation(db: AsyncSession, receipt: PaymentReceipt) -> 
 
     assert settings.nvidia_api_key is not None and settings.nvidia_base_url is not None
 
+    # Extract non-None values into locals so Pyright can narrow them correctly
+    # inside the _call_nvidia closure (assert-narrowing does not propagate into closures).
+    nvidia_base_url: str = settings.nvidia_base_url
+    nvidia_api_key_value: str = settings.nvidia_api_key.get_secret_value()
+
     payload = generate_allowlisted_ai_payload(receipt)
     messages = [
         {"role": "system", "content": _RECEIPT_SYSTEM_PROMPT},
@@ -321,8 +329,8 @@ async def generate_ai_explanation(db: AsyncSession, receipt: PaymentReceipt) -> 
 
     async def _call_nvidia() -> httpx.Response:
         async with httpx.AsyncClient(
-            base_url=settings.nvidia_base_url.rstrip("/") + "/",
-            headers={"Authorization": f"Bearer {settings.nvidia_api_key.get_secret_value()}"},
+            base_url=nvidia_base_url.rstrip("/") + "/",
+            headers={"Authorization": f"Bearer {nvidia_api_key_value}"},
             timeout=httpx.Timeout(settings.ai_timeout_seconds, connect=5.0),
         ) as client:
             return await client.post("chat/completions", json=request_body)
@@ -413,7 +421,7 @@ def generate_receipt_pdf(receipt: PaymentReceipt, verification_url: str) -> byte
         textColor=colors.HexColor("#2D3748"),
     )
 
-    story = []
+    story: list[Any] = []
 
     # 1. Header
     story.append(Paragraph("LENDING NELSON", title_style))
@@ -515,7 +523,7 @@ def generate_receipt_pdf(receipt: PaymentReceipt, verification_url: str) -> byte
     # 6. Verification Code & QR Code
     qr_img = qrcode.make(verification_url)
     qr_buffer = io.BytesIO()
-    qr_img.save(qr_buffer, format="PNG")
+    qr_img.save(qr_buffer)
     qr_buffer.seek(0)
 
     qr_element = Image(qr_buffer, width=70, height=70)

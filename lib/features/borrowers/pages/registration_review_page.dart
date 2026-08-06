@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
@@ -10,51 +9,54 @@ import '../../../core/presentation/design_system/app_state_views.dart';
 class RegistrationItem {
   final String id;
   final String firstName;
+  final String? middleName;
   final String lastName;
-  final String phoneNumber;
-  final String? address;
+  final String? suffix;
+  final String maskedPhone;
+  final String maskedNationalId;
+  final bool hasNationalId;
   final String dateOfBirth;
-  final String? nationalId;
-  final String? idPhotoUrl;
-  final String? selfieUrl;
+  final String? email;
   final String status;
-  final String? rejectionReason;
   final String submittedAt;
+  final String? linkedBorrowerId;
 
   const RegistrationItem({
     required this.id,
     required this.firstName,
+    this.middleName,
     required this.lastName,
-    required this.phoneNumber,
-    this.address,
+    this.suffix,
+    required this.maskedPhone,
+    required this.maskedNationalId,
+    required this.hasNationalId,
     required this.dateOfBirth,
-    this.nationalId,
-    this.idPhotoUrl,
-    this.selfieUrl,
+    this.email,
     required this.status,
-    this.rejectionReason,
     required this.submittedAt,
+    this.linkedBorrowerId,
   });
 
   factory RegistrationItem.fromJson(Map<String, dynamic> json) {
     return RegistrationItem(
       id: json['id'] as String,
       firstName: json['firstName'] as String? ?? '',
+      middleName: json['middleName'] as String?,
       lastName: json['lastName'] as String? ?? '',
-      phoneNumber: json['phoneNumber'] as String? ?? '',
-      address: json['address'] as String?,
+      suffix: json['suffix'] as String?,
+      maskedPhone: json['maskedPhone'] as String? ?? '',
+      maskedNationalId: json['maskedNationalId'] as String? ?? '',
+      hasNationalId: json['hasNationalId'] as bool? ?? false,
       dateOfBirth: json['dateOfBirth'] as String? ?? '',
-      nationalId: json['nationalId'] as String?,
-      idPhotoUrl: json['idPhotoUrl'] as String?,
-      selfieUrl: json['selfieUrl'] as String?,
-      status: json['status'] as String? ?? 'Pending',
-      rejectionReason: json['rejectionReason'] as String?,
+      email: json['email'] as String?,
+      status: json['status'] as String? ?? 'pending',
       submittedAt: json['submittedAt'] as String? ?? '',
+      linkedBorrowerId: json['linkedBorrowerId'] as String?,
     );
   }
 }
 
-final registrationFilterProvider = StateProvider<String>((ref) => 'Pending');
+final registrationFilterProvider = StateProvider<String>((ref) => 'pending');
 final registrationSearchProvider = StateProvider<String>((ref) => '');
 
 final borrowerRegistrationsProvider =
@@ -64,11 +66,11 @@ final borrowerRegistrationsProvider =
   final search = ref.watch(registrationSearchProvider);
 
   final queryParams = <String, dynamic>{};
-  if (filter != 'All') queryParams['status'] = filter;
+  if (filter != 'all') queryParams['status'] = filter.toLowerCase();
   if (search.trim().isNotEmpty) queryParams['search'] = search.trim();
 
   final response = await dio.get<List<dynamic>>(
-    '/api/v1/borrowers/registrations',
+    '/api/v1/borrower-registration-requests',
     queryParameters: queryParams.isEmpty ? null : queryParams,
   );
 
@@ -76,6 +78,7 @@ final borrowerRegistrationsProvider =
       .map((row) => RegistrationItem.fromJson(Map<String, dynamic>.from(row as Map)))
       .toList(growable: false);
 });
+
 
 /// Single-Owner Registration Review Page for Owner App.
 class RegistrationReviewPage extends ConsumerWidget {
@@ -87,15 +90,16 @@ class RegistrationReviewPage extends ConsumerWidget {
     final currentFilter = ref.watch(registrationFilterProvider);
     final theme = Theme.of(context);
 
-    final filters = [
-      'Pending',
-      'Approved',
-      'Activated',
-      'Rejected',
-      'Suspended',
-      'Disabled',
-      'All',
-    ];
+    // value → display label; values must match backend pattern
+    // ^(pending|approved|rejected|cancelled|expired)$
+    const filters = <String, String>{
+      'pending': 'Pending',
+      'approved': 'Approved',
+      'rejected': 'Rejected',
+      'cancelled': 'Cancelled',
+      'expired': 'Expired',
+      'all': 'All',
+    };
 
     return Scaffold(
       appBar: AppBar(
@@ -134,12 +138,12 @@ class RegistrationReviewPage extends ConsumerWidget {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Row(
-                children: filters.map((status) {
-                  final isSelected = currentFilter == status;
+                children: filters.entries.map((entry) {
+                  final isSelected = currentFilter == entry.key;
                   return Padding(
                     padding: const EdgeInsets.only(right: 6),
                     child: ChoiceChip(
-                      label: Text(status),
+                      label: Text(entry.value),
                       selected: isSelected,
                       selectedColor: const Color(0xFF0D9488),
                       labelStyle: TextStyle(
@@ -148,7 +152,7 @@ class RegistrationReviewPage extends ConsumerWidget {
                         fontSize: 12,
                       ),
                       onSelected: (_) {
-                        ref.read(registrationFilterProvider.notifier).state = status;
+                        ref.read(registrationFilterProvider.notifier).state = entry.key;
                       },
                     ),
                   );
@@ -269,33 +273,16 @@ class _RegistrationCard extends ConsumerWidget {
                 children: [
                   const Icon(Icons.phone_outlined, size: 15, color: Colors.grey),
                   const SizedBox(width: 6),
-                  Text(item.phoneNumber, style: theme.textTheme.bodyMedium),
+                  Text(item.maskedPhone, style: theme.textTheme.bodyMedium),
                 ],
               ),
-              if (item.nationalId != null && item.nationalId!.isNotEmpty) ...[
+              if (item.hasNationalId) ...[
                 const SizedBox(height: 3),
                 Row(
                   children: [
                     const Icon(Icons.badge_outlined, size: 15, color: Colors.grey),
                     const SizedBox(width: 6),
-                    Text('Govt ID: ${item.nationalId}', style: theme.textTheme.bodySmall),
-                  ],
-                ),
-              ],
-              if (item.address != null && item.address!.isNotEmpty) ...[
-                const SizedBox(height: 3),
-                Row(
-                  children: [
-                    const Icon(Icons.location_on_outlined, size: 15, color: Colors.grey),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        item.address!,
-                        style: theme.textTheme.bodySmall,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
+                    Text('Govt ID: ${item.maskedNationalId}', style: theme.textTheme.bodySmall),
                   ],
                 ),
               ],
@@ -333,18 +320,17 @@ class __ApplicantReviewModalState extends ConsumerState<_ApplicantReviewModal> {
     final dio = ref.read(apiClientProvider);
     try {
       final response = await dio.post<Map<String, dynamic>>(
-        '/api/v1/borrowers/registrations/${widget.item.id}/approve',
+        '/api/v1/borrower-registration-requests/${widget.item.id}/create-and-approve',
+        data: <String, dynamic>{}, // national_id already captured during registration
       );
       if (!mounted) return;
       Navigator.pop(context);
       ref.invalidate(borrowerRegistrationsProvider);
 
       final data = response.data ?? {};
-      final code = data['activationCode'] as String? ?? '123456';
-      final expiresAt = data['expiresAt'] as String? ?? '';
-
-      // Show Owner Single-Owner Activation Code Dialog
-      _showActivationCodeDialog(code, expiresAt);
+      final accountStatus = data['accountStatus'] as String? ?? '';
+      // Show result
+      _showApprovalResultDialog(accountStatus);
     } catch (error) {
       if (mounted) {
         setState(() => _working = false);
@@ -383,9 +369,9 @@ class __ApplicantReviewModalState extends ConsumerState<_ApplicantReviewModal> {
     setState(() => _working = true);
     final dio = ref.read(apiClientProvider);
     try {
-      await dio.post<Map<String, dynamic>>(
-        '/api/v1/borrowers/registrations/${widget.item.id}/reject',
-        queryParameters: {'reason': reasonCtrl.text.trim()},
+      await dio.post<void>(
+        '/api/v1/borrower-registration-requests/${widget.item.id}/reject',
+        data: {'reason': reasonCtrl.text.trim()},
       );
       if (!mounted) return;
       Navigator.pop(context);
@@ -403,16 +389,16 @@ class __ApplicantReviewModalState extends ConsumerState<_ApplicantReviewModal> {
     }
   }
 
-  void _showActivationCodeDialog(String code, String expiresAt) {
+  void _showApprovalResultDialog(String accountStatus) {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         title: const Row(
           children: [
-            Icon(Icons.vpn_key_outlined, color: Color(0xFF0D9488)),
+            Icon(Icons.check_circle_outline, color: Color(0xFF0D9488)),
             SizedBox(width: 10),
-            Text('Owner Activation Code'),
+            Text('Registration Approved'),
           ],
         ),
         content: Column(
@@ -420,47 +406,17 @@ class __ApplicantReviewModalState extends ConsumerState<_ApplicantReviewModal> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Borrower registration approved! Give this 6-digit one-time activation code to the borrower personally:',
+              'The registration has been approved. The borrower will receive their activation code via the portal.',
               style: TextStyle(fontSize: 13),
             ),
-            const SizedBox(height: 16),
-            Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0D9488).withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF0D9488), width: 2),
-                ),
-                child: Text(
-                  code,
-                  style: const TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 8,
-                    color: Color(0xFF0D9488),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              '• Code expires in 24 hours.\n• One-time use for account activation.\n• Borrower enters this code on the Borrower App.',
-              style: TextStyle(fontSize: 11, color: Colors.grey),
-            ),
+            if (accountStatus.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text('Account status: ${accountStatus.toUpperCase()}',
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+            ],
           ],
         ),
         actions: [
-          TextButton.icon(
-            icon: const Icon(Icons.copy, size: 18),
-            label: const Text('Copy Code'),
-            onPressed: () {
-              Clipboard.setData(ClipboardData(text: code));
-              ScaffoldMessenger.of(ctx).showSnackBar(
-                const SnackBar(content: Text('Activation code copied to clipboard!')),
-              );
-            },
-          ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx),
             style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0D9488)),
@@ -482,33 +438,15 @@ class __ApplicantReviewModalState extends ConsumerState<_ApplicantReviewModal> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _detailRow('Phone Number', item.phoneNumber),
+            _detailRow('Phone', item.maskedPhone),
             _detailRow('Date of Birth', item.dateOfBirth),
-            _detailRow('Government ID', item.nationalId ?? 'N/A'),
-            _detailRow('Address', item.address ?? 'N/A'),
-            _detailRow('Submitted', item.submittedAt),
+            _detailRow('Government ID', item.maskedNationalId),
+            if (item.email != null) _detailRow('Email', item.email!),
+            _detailRow('Submitted', item.submittedAt.split('T').first),
             _detailRow('Status', item.status.toUpperCase()),
-            if (item.rejectionReason != null)
-              _detailRow('Rejection Reason', item.rejectionReason!),
-            const SizedBox(height: 12),
-            if (item.idPhotoUrl != null && item.idPhotoUrl!.isNotEmpty) ...[
-              const Text('Government ID Photo:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-              const SizedBox(height: 6),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  item.idPhotoUrl!,
-                  height: 140,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    height: 80,
-                    color: Colors.grey.shade300,
-                    child: const Center(child: Text('Image preview unavailable')),
-                  ),
-                ),
-              ),
-            ],
+            if (item.linkedBorrowerId != null)
+              _detailRow('Linked Borrower', item.linkedBorrowerId!),
+
           ],
         ),
       ),

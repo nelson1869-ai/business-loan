@@ -11,6 +11,7 @@ import jwt
 from fastapi import HTTPException, status
 from jwt.exceptions import PyJWTError
 from sqlalchemy import func, or_, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
@@ -930,7 +931,7 @@ async def force_logout_borrower(
     if account is None:
         raise ValueError("Borrower account not found")
 
-    result = await db.execute(
+    cursor_result: CursorResult = await db.execute(  # type: ignore[assignment]
         update(BorrowerRefreshToken)
         .where(
             BorrowerRefreshToken.borrower_account_id == account.id,
@@ -938,7 +939,7 @@ async def force_logout_borrower(
         )
         .values(revoked_at=now)
     )
-    revoked_count = result.rowcount
+    revoked_count = cursor_result.rowcount
 
     audit = BorrowerRegistrationAudit(
         id=secrets.token_hex(18),

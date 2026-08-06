@@ -2,6 +2,7 @@
 
 import json
 from datetime import date
+from typing import Literal
 from uuid import uuid4
 
 from sqlalchemy import func, or_, select
@@ -87,7 +88,7 @@ async def check_borrower_identity(
     national_id: str,
     phone: str,
     date_of_birth: date,
-) -> tuple[str, str, str | None]:
+) -> tuple[Literal["available", "restore", "existing", "conflict"], str, str | None]:
     """Classify registration identity without exposing matching borrower PII."""
     normalized_phone = normalize_ph_phone_number(phone)
     result = await db.execute(
