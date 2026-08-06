@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../features/borrowers/data/borrower_repository.dart';
 import '../../../features/borrowers/domain/borrower_model.dart';
+import 'create_action_sheet.dart';
 
 class QuickActionsSection extends ConsumerWidget {
   const QuickActionsSection({super.key});
@@ -16,12 +17,39 @@ class QuickActionsSection extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 4),
-          child: Text(
-            'Quick Actions',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Quick Actions',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              InkWell(
+                onTap: () => CreateActionSheet.show(context),
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.add_circle_outline,
+                          size: 16, color: theme.colorScheme.primary),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Create Menu',
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 12),
