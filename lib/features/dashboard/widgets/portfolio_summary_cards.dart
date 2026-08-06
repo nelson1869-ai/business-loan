@@ -75,12 +75,12 @@ class PortfolioSummaryCards extends StatelessWidget {
   String _formatCurrency(String amount) {
     final value = double.tryParse(amount) ?? 0;
     if (value >= 1000000) {
-      return '\$${(value / 1000000).toStringAsFixed(1)}M';
+      return '₱${(value / 1000000).toStringAsFixed(1)}M';
     }
     if (value >= 1000) {
-      return '\$${(value / 1000).toStringAsFixed(1)}K';
+      return '₱${(value / 1000).toStringAsFixed(1)}K';
     }
-    return '\$${value.toStringAsFixed(0)}';
+    return '₱${value.toStringAsFixed(0)}';
   }
 }
 

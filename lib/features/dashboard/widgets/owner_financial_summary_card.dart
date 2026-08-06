@@ -187,11 +187,11 @@ class OwnerFinancialSummaryCard extends StatelessWidget {
   String _formatCurrency(String amount) {
     final val = double.tryParse(amount) ?? 0.0;
     if (val >= 1000000) {
-      return '\$${(val / 1000000).toStringAsFixed(2)}M';
+      return '₱${(val / 1000000).toStringAsFixed(2)}M';
     }
     if (val >= 1000) {
-      return '\$${(val / 1000).toStringAsFixed(1)}K';
+      return '₱${(val / 1000).toStringAsFixed(1)}K';
     }
-    return '\$${val.toStringAsFixed(2)}';
+    return '₱${val.toStringAsFixed(2)}';
   }
 }

@@ -76,7 +76,7 @@ class _DashboardHeaderState extends ConsumerState<DashboardHeader> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '$greeting, Officer',
+                '$greeting, Business Owner',
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
