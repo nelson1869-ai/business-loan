@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.features.admin_assistant.models import AuditLog
+from app.features.borrower_portal.models import BorrowerNotification
 from app.features.borrowers.models import Borrower
 from app.features.collection.models import CollectionSession
 from app.features.loans.calculator import (
@@ -21,6 +22,10 @@ from app.features.loans.calculator import (
 )
 from app.features.loans.models import Installment, Loan
 from app.features.payments.models import Payment, PaymentAllocation
+from app.features.payments.receipt_service import (
+    create_payment_receipt_snapshot,
+    update_receipt_for_reversal,
+)
 from app.features.payments.schemas import (
     PaymentCreate,
     PaymentPreviewRequest,
@@ -273,6 +278,20 @@ async def reverse_latest_payment(
             ),
         )
     )
+
+    receipt = await update_receipt_for_reversal(db, original.id, reversal, payload.reason)
+    rev_num = receipt.receipt_number if receipt else "N/A"
+    notification = BorrowerNotification(
+        id=str(uuid4()),
+        borrower_id=loan.borrower_id,
+        title="Payment Reversed",
+        message=f"Payment of ₱{original.amount:,.2f} (Receipt {rev_num}) was reversed. Reason: {payload.reason}.",
+        notification_type="payment_reversal",
+        metadata_json=json.dumps({"receipt_id": receipt.id if receipt else None, "payment_id": original.id}),
+        is_read=False,
+    )
+    db.add(notification)
+
     await db.flush()
     return reversal
 
@@ -563,5 +582,21 @@ async def record_payment(
             ),
         )
     )
+
+    # Create immutable receipt snapshot and borrower notification
+    receipt = await create_payment_receipt_snapshot(
+        db, payment, payment.allocation, loan, user, external_ref=payload.receipt_number
+    )
+    notification = BorrowerNotification(
+        id=str(uuid4()),
+        borrower_id=loan.borrower_id,
+        title="Payment Received",
+        message=f"We received your payment of ₱{payment.amount:,.2f}. Receipt {receipt.receipt_number} is now available.",
+        notification_type="payment_receipt",
+        metadata_json=json.dumps({"receipt_id": receipt.id, "payment_id": payment.id}),
+        is_read=False,
+    )
+    db.add(notification)
+
     await db.flush()
     return payment

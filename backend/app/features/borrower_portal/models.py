@@ -378,3 +378,31 @@ class BorrowerDevice(Base):
     )
 
     borrower_account: Mapped["BorrowerAccount"] = relationship(back_populates="devices")
+
+
+class BorrowerNotification(Base):
+    """In-app notifications created for borrower account events (payments, reversals, etc.)."""
+
+    __tablename__ = "borrower_notifications"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    borrower_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("borrowers.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    notification_type: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="payment_receipt", index=True
+    )
+    metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_read: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false", index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), index=True
+    )
+
+    borrower: Mapped["Borrower"] = relationship()

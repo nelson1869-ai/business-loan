@@ -128,6 +128,11 @@ class Payment(Base):
         back_populates="payment",
         uselist=False,
     )
+    receipt: Mapped["PaymentReceipt | None"] = relationship(
+        back_populates="payment",
+        uselist=False,
+        foreign_keys="[PaymentReceipt.payment_id]",
+    )
 
 
 class PaymentAllocation(Base):
@@ -173,6 +178,112 @@ class PaymentAllocation(Base):
     )
 
     payment: Mapped[Payment] = relationship(back_populates="allocation")
+
+
+class PaymentReceipt(Base):
+    """Immutable receipt snapshot created when a payment transaction commits."""
+
+    __tablename__ = "payment_receipts"
+    __table_args__ = (
+        CheckConstraint(
+            "receipt_status IN ('Confirmed', 'Reversed', 'PartiallyReversed', 'Voided')",
+            name="ck_payment_receipts_status",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    payment_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("payments.id", ondelete="RESTRICT"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    receipt_number: Mapped[str] = mapped_column(
+        String(120), nullable=False, unique=True, index=True
+    )
+    receipt_status: Mapped[str] = mapped_column(
+        String(30), nullable=False, server_default="Confirmed", index=True
+    )
+    borrower_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("borrowers.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    borrower_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    borrower_account_ref: Mapped[str] = mapped_column(String(100), nullable=False)
+    loan_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("loans.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    loan_reference: Mapped[str] = mapped_column(String(100), nullable=False)
+    payment_date: Mapped[date] = mapped_column(Date, nullable=False)
+    payment_time: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    effective_date: Mapped[date] = mapped_column(Date, nullable=False)
+    payment_method: Mapped[str] = mapped_column(String(50), nullable=False)
+    external_reference: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    amount_received: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    balance_before_payment: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), nullable=False
+    )
+    principal_applied: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    interest_applied: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    penalty_applied: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), nullable=False, server_default="0.00"
+    )
+    fees_applied: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), nullable=False, server_default="0.00"
+    )
+    unapplied_credit: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    remaining_principal: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), nullable=False
+    )
+    outstanding_interest: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), nullable=False, server_default="0.00"
+    )
+    overdue_amount: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), nullable=False, server_default="0.00"
+    )
+    total_outstanding_amount: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), nullable=False
+    )
+    next_payment_amount: Mapped[Decimal | None] = mapped_column(
+        Numeric(18, 2), nullable=True
+    )
+    next_due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    loan_status_after: Mapped[str] = mapped_column(String(30), nullable=False)
+    recorded_by_user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    recorded_by_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    verification_token: Mapped[str] = mapped_column(
+        String(120), nullable=False, unique=True, index=True
+    )
+    receipt_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="1"
+    )
+    reversal_payment_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("payments.id", ondelete="SET NULL"), nullable=True
+    )
+    reversal_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reversal_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    deterministic_explanation: Mapped[str] = mapped_column(Text, nullable=False)
+    ai_explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ai_explanation_model: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    payment: Mapped["Payment"] = relationship(back_populates="receipt", foreign_keys=[payment_id])
 
 
 from app.features.loans.models import Installment, Loan  # noqa: E402

@@ -18,7 +18,7 @@ from app.features.loan_policies import router as loan_policies
 from app.features.loans import router as loans
 from app.features.notes import router as notes
 from app.features.notifications import router as notifications
-from app.features.payments import router as payments
+from app.features.payments import receipt_router, router as payments
 from app.features.projections import router as projections
 from app.features.reports import router as reports
 from app.features.sync import router as sync
@@ -47,6 +47,9 @@ def register_routers(application: FastAPI) -> None:
         collection_tasks.session_router,
         documents.router,
         payments.router,
+        receipt_router.public_router,
+        receipt_router.client_receipt_router,
+        receipt_router.officer_receipt_router,
         projections.router,
         reports.router,
         sync.router,

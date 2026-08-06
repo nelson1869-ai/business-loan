@@ -23,6 +23,7 @@ import 'widgets/payment_borrower_card.dart';
 import 'widgets/payment_form_card.dart';
 import 'widgets/payment_history_section.dart';
 import 'widgets/payment_preview_card.dart';
+import 'payment_success_dialog.dart';
 import 'widgets/payment_reversal_dialog.dart';
 import 'widgets/payment_summary_cards.dart';
 
@@ -247,12 +248,24 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           .refresh()
           .catchError((_) {}),
     );
+    final savedReceiptNum = _receiptController.text;
+    final savedAmount = preview.paymentAmount;
+    final savedRemaining = preview.principalAfter;
+
     _amountController.clear();
     _noteController.clear();
     _autoGenerateReceiptNumber();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Payment recorded successfully')),
+      showDialog<void>(
+        context: context,
+        builder: (ctx) => PaymentSuccessDialog(
+          receiptNumber: savedReceiptNum,
+          amountReceived: formatCurrency(savedAmount),
+          remainingBalance: formatCurrency(savedRemaining),
+          onViewReceipt: () {
+            // View receipt / navigation if desired
+          },
+        ),
       );
     }
   }

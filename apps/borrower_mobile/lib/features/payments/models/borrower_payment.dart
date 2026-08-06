@@ -116,10 +116,18 @@ class BorrowerReceiptDetail extends Equatable {
   final double principalPaid;
   final double interestPaid;
   final double penaltyPaid;
+  final double feesPaid;
   final double unappliedCredit;
+  final double balanceBeforePayment;
   final double remainingBalance;
+  final double totalOutstandingAmount;
+  final double? nextPaymentAmount;
+  final DateTime? nextDueDate;
   final String entryType;
   final String status;
+  final String? verificationToken;
+  final String? deterministicExplanation;
+  final String? aiExplanation;
   final DateTime recordedAt;
   final bool isFromCache;
 
@@ -133,10 +141,18 @@ class BorrowerReceiptDetail extends Equatable {
     required this.principalPaid,
     required this.interestPaid,
     required this.penaltyPaid,
+    this.feesPaid = 0.0,
     required this.unappliedCredit,
+    this.balanceBeforePayment = 0.0,
     required this.remainingBalance,
+    this.totalOutstandingAmount = 0.0,
+    this.nextPaymentAmount,
+    this.nextDueDate,
     required this.entryType,
     required this.status,
+    this.verificationToken,
+    this.deterministicExplanation,
+    this.aiExplanation,
     required this.recordedAt,
     this.isFromCache = false,
   });
@@ -146,20 +162,32 @@ class BorrowerReceiptDetail extends Equatable {
     bool isFromCache = false,
   }) {
     return BorrowerReceiptDetail(
-      receiptNumber: json['receiptNumber'] as String,
-      paymentId: json['paymentId'] as String,
-      loanId: json['loanId'] as String,
-      loanReference: json['loanReference'] as String,
-      paymentDate: DateTime.parse(json['paymentDate'] as String),
+      receiptNumber: (json['receiptNumber'] as String?) ?? '',
+      paymentId: (json['paymentId'] as String?) ?? '',
+      loanId: (json['loanId'] as String?) ?? '',
+      loanReference: (json['loanReference'] as String?) ?? '',
+      paymentDate: json['paymentDate'] != null ? DateTime.parse(json['paymentDate'] as String) : DateTime.now(),
       amountReceived: _doubleFromJson(json['amountReceived']),
       principalPaid: _doubleFromJson(json['principalPaid']),
       interestPaid: _doubleFromJson(json['interestPaid']),
       penaltyPaid: _doubleFromJson(json['penaltyPaid']),
+      feesPaid: _doubleFromJson(json['feesPaid']),
       unappliedCredit: _doubleFromJson(json['unappliedCredit']),
-      remainingBalance: _doubleFromJson(json['remainingBalance']),
-      entryType: json['entryType'] as String,
-      status: json['status'] as String,
-      recordedAt: DateTime.parse(json['recordedAt'] as String),
+      balanceBeforePayment: _doubleFromJson(json['balanceBeforePayment']),
+      remainingBalance: _doubleFromJson(json['remainingBalance'] ?? json['remainingPrincipal']),
+      totalOutstandingAmount: _doubleFromJson(json['totalOutstandingAmount']),
+      nextPaymentAmount: json['nextPaymentAmount'] != null ? _doubleFromJson(json['nextPaymentAmount']) : null,
+      nextDueDate: json['nextDueDate'] != null ? DateTime.tryParse(json['nextDueDate'] as String) : null,
+      entryType: (json['entryType'] as String?) ?? 'payment',
+      status: (json['receiptStatus'] as String?) ?? (json['status'] as String?) ?? 'Confirmed',
+      verificationToken: json['verificationToken'] as String?,
+      deterministicExplanation: json['deterministicExplanation'] as String?,
+      aiExplanation: json['aiExplanation'] as String?,
+      recordedAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'] as String)
+          : (json['recordedAt'] != null
+              ? DateTime.parse(json['recordedAt'] as String)
+              : DateTime.now()),
       isFromCache: isFromCache,
     );
   }
@@ -174,10 +202,18 @@ class BorrowerReceiptDetail extends Equatable {
         'principalPaid': principalPaid,
         'interestPaid': interestPaid,
         'penaltyPaid': penaltyPaid,
+        'feesPaid': feesPaid,
         'unappliedCredit': unappliedCredit,
+        'balanceBeforePayment': balanceBeforePayment,
         'remainingBalance': remainingBalance,
+        'totalOutstandingAmount': totalOutstandingAmount,
+        'nextPaymentAmount': nextPaymentAmount,
+        'nextDueDate': nextDueDate?.toIso8601String(),
         'entryType': entryType,
         'status': status,
+        'verificationToken': verificationToken,
+        'deterministicExplanation': deterministicExplanation,
+        'aiExplanation': aiExplanation,
         'recordedAt': recordedAt.toIso8601String(),
       };
 
@@ -192,10 +228,18 @@ class BorrowerReceiptDetail extends Equatable {
         principalPaid,
         interestPaid,
         penaltyPaid,
+        feesPaid,
         unappliedCredit,
+        balanceBeforePayment,
         remainingBalance,
+        totalOutstandingAmount,
+        nextPaymentAmount,
+        nextDueDate,
         entryType,
         status,
+        verificationToken,
+        deterministicExplanation,
+        aiExplanation,
         recordedAt,
         isFromCache,
       ];

@@ -7,9 +7,9 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
 from app.main import app
-from app.core.database import Base, engine, get_db
+from app.core.database import Base, engine, AsyncSessionFactory
 from app.features.users.models import User
-from app.features.auth.service import hash_password
+from app.features.auth.service import create_token, hash_password
 from app.features.borrower_portal.models import (
     BorrowerAccount,
     BorrowerActivationCode,
@@ -29,27 +29,15 @@ async def client():
 
 
 @pytest.fixture
-async def owner_token(client: AsyncClient):
-    """Create or fetch single-owner user and obtain access token."""
-    async for db in get_db():
-        res = await db.execute(select(User).where(User.username == "owner_test"))
-        owner = res.scalar_one_or_none()
-        if owner is None:
-            owner = User(
-                id="owner-test-uuid",
-                username="owner_test",
-                hashed_password=hash_password("OwnerSecret123!"),
-                role="owner",
-            )
-            db.add(owner)
-            await db.commit()
-
-    resp = await client.post(
-        "/api/v1/auth/token",
-        json={"username": "owner_test", "password": "OwnerSecret123!"},
+def owner_token():
+    """Create single-owner access token in-memory."""
+    owner = User(
+        id="owner-test-uuid",
+        username="owner_test",
+        hashed_password=hash_password("OwnerSecret123!"),
+        role="owner",
     )
-    assert resp.status_code == 200
-    return resp.json()["access_token"]
+    return create_token(owner, "access")
 
 
 async def test_single_owner_registration_and_activation_flow(
