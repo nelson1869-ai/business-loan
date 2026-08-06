@@ -28,7 +28,7 @@ def upgrade() -> None:
                 SELECT 1 FROM information_schema.columns 
                 WHERE table_name='borrower_devices' AND column_name='is_trusted'
             ) THEN
-                ALTER TABLE borrower_devices ADD COLUMN is_trusted BOOLEAN NOT NULL DEFAULT true;
+                ALTER TABLE borrower_devices ADD COLUMN is_trusted BOOLEAN NOT NULL DEFAULT false;
             END IF;
         END $$;
         """
@@ -44,7 +44,7 @@ def upgrade() -> None:
             WHEN LOWER(account_status) = 'pending' THEN 'pending'
             WHEN LOWER(account_status) = 'suspended' THEN 'suspended'
             WHEN LOWER(account_status) = 'disabled' THEN 'disabled'
-            ELSE 'activated'
+            ELSE 'disabled'
         END
         WHERE account_status NOT IN ('pending', 'approved', 'activated', 'suspended', 'disabled')
         """

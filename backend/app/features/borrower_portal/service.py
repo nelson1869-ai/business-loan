@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 
 def hash_secret(secret_text: str) -> str:
-    """Return a deterministic SHA-256 hex hash of an OTP or token string."""
+    """Return a deterministic SHA-256 hex hash of an activation code, device ID, or token string."""
     return hashlib.sha256(secret_text.encode("utf-8")).hexdigest()
 
 
@@ -65,16 +65,6 @@ def verify_pin_secure(pin: str, stored_hash: str | None) -> tuple[bool, bool]:
     if hmac.compare_digest(stored_hash, legacy_hash):
         return True, True  # Valid and needs upgrade to bcrypt
     return False, False
-
-
-def generate_otp_code() -> str:
-    """Generate a cryptographically secure 6-digit OTP string."""
-    return f"{secrets.randbelow(1000000):06d}"
-
-
-def generate_invitation_code() -> str:
-    """Generate an officer-issued 6-digit invitation code."""
-    return f"{secrets.randbelow(1000000):06d}"
 
 
 
@@ -166,6 +156,20 @@ async def rotate_borrower_refresh_token(
     account = await db.get(BorrowerAccount, token_record.borrower_account_id)
     if account is None or account.account_status in ("suspended", "disabled"):
         raise ValueError("Borrower account is inactive")
+
+    # Enforce device trust and revocation check during refresh-token rotation
+    if token_record.device_id:
+        device = await db.get(BorrowerDevice, token_record.device_id)
+        if device is None:
+            dev_stmt = select(BorrowerDevice).where(
+                BorrowerDevice.borrower_account_id == account.id,
+                BorrowerDevice.device_identifier_hash == hash_secret(token_record.device_id),
+            )
+            dev_res = await db.execute(dev_stmt)
+            device = dev_res.scalar_one_or_none()
+
+        if device is None or not device.is_trusted or not device.is_active or device.revoked_at is not None:
+            raise ValueError("Device is untrusted or revoked. Re-authentication required.")
 
     # Revoke current refresh token
     token_record.revoked_at = now
@@ -529,7 +533,7 @@ async def verify_activation_code_and_activate(
         id=secrets.token_hex(18),
         borrower_account_id=account.id,
         token_hash=hash_secret(raw_refresh),
-        device_id=payload.device_identifier,
+        device_id=device.id,
         expires_at=now + timedelta(days=settings.refresh_token_expire_days),
         created_at=now,
     )

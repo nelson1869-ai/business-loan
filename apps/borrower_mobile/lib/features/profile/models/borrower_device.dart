@@ -32,7 +32,7 @@ class DeviceResponse extends Equatable {
     required this.id,
     required this.platform,
     required this.isActive,
-    this.isTrusted = true,
+    this.isTrusted = false,
     required this.lastSeenAt,
   });
 
@@ -41,7 +41,7 @@ class DeviceResponse extends Equatable {
       id: json['id'] as String,
       platform: json['platform'] as String,
       isActive: json['isActive'] as bool? ?? true,
-      isTrusted: json['isTrusted'] as bool? ?? true,
+      isTrusted: json['isTrusted'] as bool? ?? false,
       lastSeenAt: DateTime.parse(json['lastSeenAt'] as String),
     );
   }
