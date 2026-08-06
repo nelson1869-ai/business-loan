@@ -37,7 +37,13 @@ def _audit(db: DbSession, user_id: str, action: str, target_id: str) -> None:
 async def list_users(db: DbSession, current_user: CurrentUser) -> list[User]:
     _require_admin(current_user)
     return list(
-        (await db.execute(select(User).order_by(User.username.asc()))).scalars()
+        (
+            await db.execute(
+                select(User)
+                .where(User.role != "disabled")
+                .order_by(User.username.asc())
+            )
+        ).scalars()
     )
 
 
@@ -135,6 +141,13 @@ async def delete_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="The emergency owner account cannot be deleted.",
         )
-    await db.delete(user)
-    _audit(db, current_user.id, "delete_user", user.id)
-    await db.commit()
+    try:
+        await db.delete(user)
+        _audit(db, current_user.id, "delete_user", user.id)
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        # Preserve auditability & FK constraints by marking account as disabled
+        user.role = "disabled"
+        _audit(db, current_user.id, "disable_user", user.id)
+        await db.commit()
