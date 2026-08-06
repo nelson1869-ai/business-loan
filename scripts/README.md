@@ -14,7 +14,7 @@ Local development launcher scripts to orchestrate backend and mobile application
 
 ```powershell
 # Using Native PowerShell Launcher (Project Root)
-.\start.ps1 [-Target <target>] [-App <officer|borrower|all>] [-Port <port>]
+.\start.ps1 [-Target <target>] [-App <officer|borrower|all>] [-Port <port>] [-Device <deviceId>]
 
 # Or running Bash script in PowerShell (requires Git Bash)
 bash ./scripts/start.sh [target] [app-type] [port]

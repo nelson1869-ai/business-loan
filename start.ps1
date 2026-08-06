@@ -29,7 +29,10 @@ param (
 
     [Parameter()]
     [ValidateRange(1, 65535)]
-    [int]$Port = 8000
+    [int]$Port = 8000,
+
+    [Parameter()]
+    [string]$Device
 )
 
 $ErrorActionPreference = "Stop"
@@ -41,6 +44,7 @@ $ApiUrl = switch -Regex ($Target) {
     "(?i)^android$" { "http://10.0.2.2:$Port"; break }
     "(?i)^ios$" { "http://localhost:$Port"; break }
     "(?i)^localhost$" { "http://localhost:$Port"; break }
+    "(?i)^render$" { "https://lending-nelson-api.onrender.com"; break }
     "(?i)^https?://" { $Target.TrimEnd("/"); break }
     default { "http://${Target}:$Port" }
 }
@@ -139,6 +143,33 @@ $env:GIT_CONFIG_VALUE_0 = $flutterSdkRoot
 
 $BorrowerDir = Join-Path $ProjectRoot "apps\borrower_mobile"
 
+if (-not $Device) {
+    if ($Target -match "(?i)^android$") {
+        $devicesOutput = & flutter devices 2>&1
+        $emulatorLine = $devicesOutput | Where-Object { $_ -match "emulator-\d+" } | Select-Object -First 1
+        if ($emulatorLine -and $emulatorLine -match "(emulator-\d+)") {
+            $Device = $matches[1]
+        } else {
+            Write-Host "[INIT] Launching Android emulator..." -ForegroundColor Cyan
+            & flutter emulators --launch Small_Phone 2>&1 | Out-Null
+            for ($i = 1; $i -le 10; $i++) {
+                Start-Sleep -Seconds 2
+                $devicesOutput = & flutter devices 2>&1
+                $emulatorLine = $devicesOutput | Where-Object { $_ -match "emulator-\d+" } | Select-Object -First 1
+                if ($emulatorLine -and $emulatorLine -match "(emulator-\d+)") {
+                    $Device = $matches[1]
+                    break
+                }
+            }
+            if (-not $Device) {
+                $Device = "emulator-5554"
+            }
+        }
+    } elseif ($Target -match "(?i)^(ios|localhost)$") {
+        $Device = "windows"
+    }
+}
+
 $flutterArguments = @(
     "run",
     "--flavor=development",
@@ -147,13 +178,19 @@ $flutterArguments = @(
     "--dart-define=LOCAL_BORROWER_OTP_ENABLED=$OtpEnabled"
 )
 
+if ($Device) {
+    $flutterArguments += @("-d", $Device)
+}
+
+$deviceFlag = if ($Device) { "-d $Device " } else { "" }
+
 if ($App -eq "borrower") {
     Set-Location -LiteralPath $BorrowerDir
     Write-Host "[START] Borrower Flutter client ($($flutterArguments -join ' '))" -ForegroundColor Cyan
     & flutter @flutterArguments
 } elseif ($App -eq "all") {
     Write-Host "[START] Launching Borrower App in background..." -ForegroundColor Cyan
-    Start-Process powershell -ArgumentList @("-NoExit", "-Command", "Set-Location '$BorrowerDir'; flutter run --flavor=development --dart-define=API_BASE_URL=$ApiUrl --dart-define=APP_ENV=development --dart-define=LOCAL_BORROWER_OTP_ENABLED=$OtpEnabled")
+    Start-Process powershell -ArgumentList @("-NoExit", "-Command", "Set-Location '$BorrowerDir'; flutter run ${deviceFlag}--flavor=development --dart-define=API_BASE_URL=$ApiUrl --dart-define=APP_ENV=development --dart-define=LOCAL_BORROWER_OTP_ENABLED=$OtpEnabled")
     Set-Location -LiteralPath $ProjectRoot
     Write-Host "[START] Officer Flutter client ($($flutterArguments -join ' '))" -ForegroundColor Cyan
     & flutter @flutterArguments

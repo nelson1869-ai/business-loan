@@ -4,13 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_error_mapper.dart';
 import '../../../core/presentation/design_system/app_state_views.dart';
 import '../../../core/security/officer_session.dart';
+import '../../../core/security/security_confirmation_service.dart';
 import '../../../core/widgets/online_required_banner.dart';
 import '../data/approval_repository.dart';
 import '../domain/approval_request.dart';
 import 'approval_provider.dart';
 import '../../loans/data/repositories/remote_loan_repository.dart';
 
-/// Online-only maker-checker approval inbox.
+/// Single-owner Admin Confirmations & Approval Page.
 class ApprovalInboxPage extends ConsumerWidget {
   const ApprovalInboxPage({super.key});
 
@@ -107,18 +108,15 @@ class ApprovalInboxPage extends ConsumerWidget {
                 const SizedBox(height: 8),
                 Text('Maker reason: ${request.requestReason}'),
                 const SizedBox(height: 12),
-                if (selfApproval)
-                  const Text(
-                    'You created this request and cannot approve or reject it.',
-                  )
-                else if (request.status == 'pending')
+                if (request.status == 'pending')
                   TextField(
                     minLines: 2,
                     maxLines: 4,
                     enabled: !submitting,
                     onChanged: (value) => reason = value,
                     decoration: const InputDecoration(
-                      labelText: 'Decision reason',
+                      labelText: 'Decision reason / Owner note',
+                      hintText: 'Enter reason or note (optional)',
                     ),
                   ),
                 if (submitting) ...[
@@ -133,17 +131,28 @@ class ApprovalInboxPage extends ConsumerWidget {
               onPressed: submitting ? null : () => Navigator.pop(dialogContext),
               child: const Text('Close'),
             ),
-            if (!selfApproval && request.status == 'pending') ...[
+            if (request.status == 'pending') ...[
               TextButton(
                 onPressed: online && !submitting
                     ? () async {
+                        final confirm = await ref
+                            .read(securityConfirmationServiceProvider)
+                            .promptAdminConfirmation(
+                              dialogContext,
+                              title: 'Reject Request',
+                              description:
+                                  'Confirm rejection of ${request.action} (${request.entityType})',
+                              confirmLabel: 'Reject Request',
+                            );
+                        if (!confirm || !dialogContext.mounted) return;
+
                         setDialogState(() => submitting = true);
                         final success = await _decide(
                           dialogContext,
                           ref,
                           request.id,
                           'rejected',
-                          reason,
+                          reason.isEmpty ? 'Owner rejected' : reason,
                         );
                         if (success && dialogContext.mounted) {
                           Navigator.pop(dialogContext);
@@ -157,13 +166,24 @@ class ApprovalInboxPage extends ConsumerWidget {
               FilledButton(
                 onPressed: online && !submitting
                     ? () async {
+                        final confirm = await ref
+                            .read(securityConfirmationServiceProvider)
+                            .promptAdminConfirmation(
+                              dialogContext,
+                              title: 'Approve Request',
+                              description:
+                                  'Confirm approval of ${request.action} (${request.entityType})',
+                              confirmLabel: 'Approve & Execute',
+                            );
+                        if (!confirm || !dialogContext.mounted) return;
+
                         setDialogState(() => submitting = true);
                         final success = await _decide(
                           dialogContext,
                           ref,
                           request.id,
                           'approved',
-                          reason,
+                          reason.isEmpty ? 'Owner approved' : reason,
                         );
                         if (success && dialogContext.mounted) {
                           Navigator.pop(dialogContext);

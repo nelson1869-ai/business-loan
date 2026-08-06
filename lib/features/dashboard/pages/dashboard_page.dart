@@ -7,6 +7,7 @@ import '../../../core/security/officer_session.dart';
 import '../domain/dashboard_data.dart';
 import '../providers/dashboard_state.dart';
 import '../widgets/dashboard_header.dart';
+import '../widgets/dual_mode_action_header.dart';
 import '../widgets/portfolio_summary_cards.dart';
 import '../widgets/quick_actions_section.dart';
 import '../widgets/todays_collections_section.dart';
@@ -143,6 +144,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        const DualModeActionHeader(),
+        const SizedBox(height: 16),
         const DashboardHeader(),
         const SizedBox(height: 16),
         OwnerFinancialSummaryCard(

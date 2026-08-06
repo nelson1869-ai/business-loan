@@ -194,10 +194,12 @@ class _MainShellState extends ConsumerState<MainShell> {
   Widget build(BuildContext context) {
     final location = GoRouterState.of(context).uri.path;
     int selectedIndex = 0;
-    if (location.startsWith('/borrowers')) {
+    if (location.startsWith('/loans')) {
       selectedIndex = 1;
-    } else if (location.startsWith('/settings')) {
+    } else if (location.startsWith('/borrowers')) {
       selectedIndex = 2;
+    } else if (location.startsWith('/settings')) {
+      selectedIndex = 3;
     }
 
     final serverStatus = ref.watch(serverStatusNotifierProvider);
@@ -263,30 +265,42 @@ class _MainShellState extends ConsumerState<MainShell> {
         ),
         bottomNavigationBar: BottomNavigationBar(
           currentIndex: selectedIndex,
+          type: BottomNavigationBarType.fixed,
           onTap: (index) {
             switch (index) {
               case 0:
                 context.go('/dashboard');
                 break;
               case 1:
-                context.go('/borrowers');
+                context.go('/loans');
                 break;
               case 2:
+                context.go('/borrowers');
+                break;
+              case 3:
                 context.go('/settings');
                 break;
             }
           },
           items: const [
             BottomNavigationBarItem(
-              icon: Icon(Icons.dashboard),
+              icon: Icon(Icons.space_dashboard_outlined),
+              activeIcon: Icon(Icons.space_dashboard),
               label: 'Dashboard',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.people),
+              icon: Icon(Icons.receipt_long_outlined),
+              activeIcon: Icon(Icons.receipt_long),
+              label: 'Loans',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.people_outline),
+              activeIcon: Icon(Icons.people),
               label: 'Borrowers',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.settings),
+              icon: Icon(Icons.settings_outlined),
+              activeIcon: Icon(Icons.settings),
               label: 'Settings',
             ),
           ],

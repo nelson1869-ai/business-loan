@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/network/api_error_mapper.dart';
 import '../../../../core/security/officer_session.dart';
+import '../../../../core/security/security_confirmation_service.dart';
 import '../../../../core/widgets/online_required_banner.dart';
 import '../../../approvals/data/approval_repository.dart';
 import '../../../approvals/presentation/approval_provider.dart';
@@ -93,6 +94,18 @@ class LoanWorkflowActions extends ConsumerWidget {
     WidgetRef ref,
     String action,
   ) async {
+    final title = action == 'disburse' ? 'Release Loan Funds' : 'Activate Loan';
+    final confirm = await ref
+        .read(securityConfirmationServiceProvider)
+        .promptAdminConfirmation(
+          context,
+          title: title,
+          description:
+              'Confirm critical action: $action for Loan #${loan.id.substring(0, 8)} (₱${loan.originalPrincipal})',
+          confirmLabel: 'Confirm & Release',
+        );
+    if (!confirm || !context.mounted) return;
+
     try {
       await ref.read(remoteLoanRepositoryProvider).transition(loan.id, action);
       ref.invalidate(loanDetailProvider(loan.id));
