@@ -295,7 +295,7 @@ async def transition_loan(
     if action == "approve":
         if loan.status != "Draft" or loan.approved_at is not None:
             raise ValueError("Only an unapproved draft may be approved")
-        if loan.created_by_user_id == user.id:
+        if loan.created_by_user_id == user.id and user.role not in {"admin", "owner"}:
             raise ValueError("Maker cannot approve own loan")
         loan.approved_at = now
         loan.approved_by_user_id = user.id
