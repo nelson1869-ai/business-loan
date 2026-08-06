@@ -24,7 +24,7 @@ Amount Paid: $amountReceived
 Remaining Balance: $remainingBalance
 Thank you for your payment!
 ''';
-    SharePlus.instance.share(text, subject: 'Payment Receipt - $receiptNumber');
+    SharePlus.instance.share(ShareParams(text: text, subject: 'Payment Receipt - $receiptNumber'));
   }
 
   @override
