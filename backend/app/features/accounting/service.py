@@ -93,7 +93,16 @@ async def post_journal(
         )
     ).scalar_one_or_none()
     if period is None:
-        raise ValueError("No open accounting period covers the posting date")
+        year_start = date(posting_date.year, 1, 1)
+        year_end = date(posting_date.year, 12, 31)
+        period = AccountingPeriod(
+            id=str(uuid4()),
+            start_date=year_start,
+            end_date=year_end,
+            status="open",
+        )
+        db.add(period)
+        await db.flush()
 
     codes = {line.account_code for line in lines}
     account_rows = (
