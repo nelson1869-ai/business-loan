@@ -141,13 +141,25 @@ async def delete_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="The emergency owner account cannot be deleted.",
         )
+
+    # Check if user has activity history in audit logs
+    audit_count = await db.scalar(
+        select(func.count()).select_from(AuditLog).where(AuditLog.user_id == user.id)
+    )
+    if (audit_count or 0) > 0:
+        user.role = "disabled"
+        _audit(db, current_user.id, "disable_user", user.id)
+        await db.commit()
+        return
+
     try:
         await db.delete(user)
         _audit(db, current_user.id, "delete_user", user.id)
         await db.commit()
     except IntegrityError:
         await db.rollback()
-        # Preserve auditability & FK constraints by marking account as disabled
-        user.role = "disabled"
-        _audit(db, current_user.id, "disable_user", user.id)
-        await db.commit()
+        target_user = await db.get(User, user_id)
+        if target_user is not None:
+            target_user.role = "disabled"
+            _audit(db, current_user.id, "disable_user", target_user.id)
+            await db.commit()
