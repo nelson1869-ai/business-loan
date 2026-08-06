@@ -51,7 +51,6 @@ $ApiUrl = switch -Regex ($Target) {
 
 $LocalBackendRequired = $ApiUrl -match "^http://(localhost|127\.0\.0\.1|10\.0\.2\.2|\[?::1\]?)(:|/)" -or ($ApiUrl -eq "http://${Target}:$Port")
 $BindHost = if ($Target -match "(?i)^(android|ios|localhost)$") { "127.0.0.1" } else { "0.0.0.0" }
-$OtpEnabled = if ($LocalBackendRequired) { "true" } else { "false" }
 
 function Stop-ExistingProjectProcesses {
     param (
@@ -101,7 +100,7 @@ Stop-ExistingProjectProcesses -PortNumber $Port -Path $ProjectRoot
 $backendProcess = $null
 if ($LocalBackendRequired) {
     Write-Host "[START] Launching backend server..." -ForegroundColor Cyan
-    $backendArguments = @("-NoExit", "-Command", "`$env:APP_ENV='development'; `$env:LOCAL_BORROWER_OTP_ENABLED='true'; Set-Location '$BackendDir'; & '$VenvPython' -m uvicorn app.main:app --host $BindHost --port $Port")
+    $backendArguments = @("-NoExit", "-Command", "`$env:APP_ENV='development'; Set-Location '$BackendDir'; & '$VenvPython' -m uvicorn app.main:app --host $BindHost --port $Port")
     $backendProcess = Start-Process powershell -ArgumentList $backendArguments -PassThru
 
     $healthy = $false
@@ -174,8 +173,7 @@ $flutterArguments = @(
     "run",
     "--flavor=development",
     "--dart-define=API_BASE_URL=$ApiUrl",
-    "--dart-define=APP_ENV=development",
-    "--dart-define=LOCAL_BORROWER_OTP_ENABLED=$OtpEnabled"
+    "--dart-define=APP_ENV=development"
 )
 
 if ($Device) {
@@ -190,7 +188,7 @@ if ($App -eq "borrower") {
     & flutter @flutterArguments
 } elseif ($App -eq "all") {
     Write-Host "[START] Launching Borrower App in background..." -ForegroundColor Cyan
-    Start-Process powershell -ArgumentList @("-NoExit", "-Command", "Set-Location '$BorrowerDir'; flutter run ${deviceFlag}--flavor=development --dart-define=API_BASE_URL=$ApiUrl --dart-define=APP_ENV=development --dart-define=LOCAL_BORROWER_OTP_ENABLED=$OtpEnabled")
+    Start-Process powershell -ArgumentList @("-NoExit", "-Command", "Set-Location '$BorrowerDir'; flutter run ${deviceFlag}--flavor=development --dart-define=API_BASE_URL=$ApiUrl --dart-define=APP_ENV=development")
     Set-Location -LiteralPath $ProjectRoot
     Write-Host "[START] Officer Flutter client ($($flutterArguments -join ' '))" -ForegroundColor Cyan
     & flutter @flutterArguments
