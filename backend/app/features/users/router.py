@@ -113,3 +113,28 @@ async def update_user_role(
     await db.commit()
     await db.refresh(user)
     return user
+
+
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(
+    user_id: str,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> None:
+    _require_admin(current_user)
+    if user_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="You cannot delete your active admin account.",
+        )
+    user = await db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.role == "owner":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The emergency owner account cannot be deleted.",
+        )
+    await db.delete(user)
+    _audit(db, current_user.id, "delete_user", user.id)
+    await db.commit()

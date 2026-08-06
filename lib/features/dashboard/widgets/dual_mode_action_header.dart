@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../approvals/presentation/approval_provider.dart';
 import 'create_action_sheet.dart';
 
-/// Senior FinTech Dual-Mode Action Header (+ CREATE & ADMIN APPROVALS).
+/// Compact Dual-Mode Action Header (+ CREATE & ADMIN APPROVALS).
 class DualModeActionHeader extends ConsumerWidget {
   const DualModeActionHeader({super.key});
 
@@ -20,9 +20,9 @@ class DualModeActionHeader extends ConsumerWidget {
     );
 
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(16),
         gradient: LinearGradient(
           colors: isDark
               ? [const Color(0xFF1E293B), const Color(0xFF0F172A)]
@@ -32,9 +32,9 @@ class DualModeActionHeader extends ConsumerWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
+            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
         border: Border.all(
@@ -48,29 +48,29 @@ class DualModeActionHeader extends ConsumerWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.primary.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
-                      width: 6,
-                      height: 6,
+                      width: 5,
+                      height: 5,
                       decoration: const BoxDecoration(
                         color: Color(0xFF10B981),
                         shape: BoxShape.circle,
                       ),
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 5),
                     Text(
                       'SINGLE-OWNER WORKFLOW',
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: 9,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: 1.1,
+                        letterSpacing: 0.8,
                         color: theme.colorScheme.primary,
                       ),
                     ),
@@ -82,13 +82,14 @@ class DualModeActionHeader extends ConsumerWidget {
                 children: [
                   Icon(
                     Icons.admin_panel_settings_rounded,
-                    size: 16,
+                    size: 14,
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 3),
                   Text(
                     'Sole Owner',
                     style: theme.textTheme.labelSmall?.copyWith(
+                      fontSize: 10,
                       fontWeight: FontWeight.w600,
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
@@ -97,42 +98,42 @@ class DualModeActionHeader extends ConsumerWidget {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           Row(
             children: [
-              // 1. CREATE Button
+              // 1. CREATE Button (Compact)
               Expanded(
                 child: SizedBox(
-                  height: 54,
+                  height: 42,
                   child: FilledButton.icon(
                     onPressed: () => CreateActionSheet.show(context),
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFF0D9488),
                       foregroundColor: Colors.white,
-                      elevation: 4,
-                      shadowColor: const Color(0xFF0D9488).withValues(alpha: 0.4),
+                      elevation: 2,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    icon: const Icon(Icons.add_rounded, size: 22),
+                    icon: const Icon(Icons.add_rounded, size: 18),
                     label: const Text(
                       'CREATE',
                       style: TextStyle(
-                        fontSize: 15,
+                        fontSize: 13,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: 1.0,
+                        letterSpacing: 0.8,
                       ),
                     ),
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
 
-              // 2. ADMIN APPROVALS Button
+              // 2. ADMIN APPROVALS Button (Compact)
               Expanded(
                 child: SizedBox(
-                  height: 54,
+                  height: 42,
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: [
@@ -150,57 +151,49 @@ class DualModeActionHeader extends ConsumerWidget {
                                 : (isDark
                                     ? Colors.white
                                     : const Color(0xFF1E293B)),
-                            elevation: pendingApprovalsCount > 0 ? 4 : 0,
-                            shadowColor: pendingApprovalsCount > 0
-                                ? const Color(0xFFD97706).withValues(alpha: 0.4)
-                                : Colors.transparent,
+                            elevation: pendingApprovalsCount > 0 ? 2 : 0,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          icon: const Icon(Icons.shield_rounded, size: 20),
+                          icon: const Icon(Icons.shield_rounded, size: 17),
                           label: const Text(
                             'ADMIN',
                             style: TextStyle(
-                              fontSize: 15,
+                              fontSize: 13,
                               fontWeight: FontWeight.w800,
-                              letterSpacing: 1.0,
+                              letterSpacing: 0.8,
                             ),
                           ),
                         ),
                       ),
                       if (pendingApprovalsCount > 0)
                         Positioned(
-                          top: -6,
-                          right: -4,
+                          top: -5,
+                          right: -3,
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3,
+                              horizontal: 6,
+                              vertical: 2,
                             ),
                             decoration: BoxDecoration(
                               color: const Color(0xFFEF4444),
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(10),
                               border: Border.all(
                                 color: isDark
                                     ? const Color(0xFF0F172A)
                                     : Colors.white,
-                                width: 2,
+                                width: 1.5,
                               ),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Colors.black26,
-                                  blurRadius: 4,
-                                ),
-                              ],
                             ),
                             child: Text(
                               '$pendingApprovalsCount PENDING',
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 9,
+                                fontSize: 8,
                                 fontWeight: FontWeight.w900,
-                                letterSpacing: 0.5,
+                                letterSpacing: 0.4,
                               ),
                             ),
                           ),

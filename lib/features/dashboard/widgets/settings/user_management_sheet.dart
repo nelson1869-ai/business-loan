@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lending_nelson/core/presentation/design_system/design_system.dart';
 
+import '../../../../core/network/api_error_mapper.dart';
 import '../../../users/data/user_repository.dart';
 import '../../../users/providers/user_provider.dart';
 
@@ -99,20 +100,33 @@ class _UserManagementSheetState extends ConsumerState<UserManagementSheet> {
                                 'Created ${user.createdAt.month}/${user.createdAt.day}/${user.createdAt.year}',
                               ),
                               trailing: PopupMenuButton<String>(
-                                tooltip: 'Change role',
-                                onSelected: (role) => _confirmRoleChange(
-                                  user.id,
-                                  user.username,
-                                  role,
-                                ),
-                                itemBuilder: (_) => const [
-                                  PopupMenuItem(
+                                tooltip: 'Manage user',
+                                onSelected: (action) {
+                                  if (action == 'delete') {
+                                    _confirmUserDelete(user.id, user.username);
+                                  } else {
+                                    _confirmRoleChange(user.id, user.username, action);
+                                  }
+                                },
+                                itemBuilder: (_) => [
+                                  const PopupMenuItem(
                                     value: 'officer',
                                     child: Text('Set as Officer'),
                                   ),
-                                  PopupMenuItem(
+                                  const PopupMenuItem(
                                     value: 'admin',
                                     child: Text('Set as Administrator'),
+                                  ),
+                                  const PopupMenuDivider(),
+                                  PopupMenuItem(
+                                    value: 'delete',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.delete_outline, color: Colors.red.shade700, size: 18),
+                                        const SizedBox(width: 8),
+                                        Text('Delete Account', style: TextStyle(color: Colors.red.shade700)),
+                                      ],
+                                    ),
                                   ),
                                 ],
                                 child: AppStatusChip(status: user.role),
@@ -153,6 +167,24 @@ class _UserManagementSheetState extends ConsumerState<UserManagementSheet> {
     );
     if (confirmed == true && mounted) {
       await _updateRole(userId, role);
+    }
+  }
+
+  Future<void> _confirmUserDelete(String userId, String username) async {
+    final confirmed = await AppConfirmationDialog.show(
+      context,
+      title: 'Delete user account?',
+      content: 'Permanently delete user "$username"? This operation cannot be undone.',
+      confirmLabel: 'Delete Account',
+    );
+    if (confirmed == true && mounted) {
+      try {
+        await ref.read(userRepositoryProvider).delete(userId);
+        ref.invalidate(usersProvider);
+        _message('User "$username" deleted.');
+      } catch (error) {
+        if (mounted) _message(ApiErrorMapper.message(error));
+      }
     }
   }
 

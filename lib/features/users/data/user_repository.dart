@@ -31,6 +31,10 @@ class UserRepository {
   Future<void> updateRole(String userId, String role) async {
     await _dio.patch<void>(ApiEndpoints.userRole(userId), data: {'role': role});
   }
+
+  Future<void> delete(String userId) async {
+    await _dio.delete<void>('${ApiEndpoints.users}/$userId');
+  }
 }
 
 final userRepositoryProvider = Provider<UserRepository>((ref) {
