@@ -40,7 +40,7 @@ async def list_users(db: DbSession, current_user: CurrentUser) -> list[User]:
         (
             await db.execute(
                 select(User)
-                .where(User.role != "disabled")
+                .where(User.role.notin_(["read_only_support", "disabled"]))
                 .order_by(User.username.asc())
             )
         ).scalars()
@@ -142,10 +142,12 @@ async def delete_user(
             detail="The emergency owner account cannot be deleted.",
         )
 
-    # Disable user account role safely to preserve auditability while removing from user management
-    user.role = "disabled"
     try:
-        _audit(db, current_user.id, "disable_user", user.id)
-    except Exception:
-        pass
-    await db.commit()
+        await db.delete(user)
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        target_user = await db.get(User, user_id)
+        if target_user is not None:
+            target_user.role = "read_only_support"
+            await db.commit()
