@@ -139,11 +139,28 @@ class RemotePaymentRepository {
     final statusCode = error.response?.statusCode;
     final data = error.response?.data;
     final detail = data is Map ? data['detail'] : null;
+    final message = _formatDetail(detail) ?? error.message ?? fallback;
     return RemoteLoanException(
-      detail is String ? detail : error.message ?? fallback,
+      message,
       statusCode: statusCode,
       isRetryable: statusCode == null || statusCode >= 500,
     );
+  }
+
+  String? _formatDetail(Object? detail) {
+    if (detail is String) return detail;
+    if (detail is! List<dynamic>) return null;
+    final messages = detail
+        .whereType<Map<Object?, Object?>>()
+        .map((item) {
+          final location = item['loc'];
+          final field = location is List<dynamic> && location.isNotEmpty
+              ? location.last.toString()
+              : 'request';
+          return '$field: ${item['msg']?.toString() ?? 'is invalid'}';
+        })
+        .toList(growable: false);
+    return messages.isEmpty ? null : messages.join('\n');
   }
 }
 

@@ -194,6 +194,37 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     if (accepted != true || !mounted) return;
     final deviceId = await ref.read(deviceIdentifierProvider.future);
     if (!mounted) return;
+
+    final collectionSessions =
+        ref.read(collectionSessionsProvider).valueOrNull ?? const [];
+    final session = ref.read(officerSessionProvider).valueOrNull;
+    final activeSessions = collectionSessions.where(
+      (item) =>
+          item.collectorUserId == session?.userId &&
+          (item.status == 'open' || item.status == 'collecting'),
+    ).toList();
+    var effectiveSessionId =
+        _collectionSessionId ?? (activeSessions.isNotEmpty ? activeSessions.first.id : null);
+
+    if (_paymentMethod == 'cash' &&
+        (effectiveSessionId == null || effectiveSessionId.isEmpty)) {
+      await _autoOpenCollectionSession();
+      effectiveSessionId = _collectionSessionId;
+      if (effectiveSessionId == null || effectiveSessionId.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'An active collection session is required to record cash payments.',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+    }
+
     await ref
         .read(paymentNotifierProvider.notifier)
         .confirm(
@@ -202,7 +233,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           effectiveDate: _date,
           method: _paymentMethod,
           deviceId: deviceId,
-          collectionSessionId: _collectionSessionId,
+          collectionSessionId: effectiveSessionId,
           receiptNumber: _receiptController.text,
           note: _noteController.text,
         );
