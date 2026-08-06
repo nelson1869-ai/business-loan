@@ -88,79 +88,91 @@ class CreateActionSheet extends ConsumerWidget {
             const SizedBox(height: 16),
             const Divider(),
             const SizedBox(height: 8),
+            // Options — scrollable so it never overflows on small screens
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.55,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 1. Create Borrower
+                    _CreateOptionTile(
+                      icon: Icons.person_add_outlined,
+                      color: Colors.blue.shade700,
+                      title: 'Create Borrower',
+                      subtitle: 'Add new borrower profile and PII',
+                      onTap: () {
+                        Navigator.pop(context);
+                        context.push('/borrowers/register');
+                      },
+                    ),
 
-            // 1. Create Borrower
-            _CreateOptionTile(
-              icon: Icons.person_add_outlined,
-              color: Colors.blue.shade700,
-              title: 'Create Borrower',
-              subtitle: 'Add new borrower profile and PII',
-              onTap: () {
-                Navigator.pop(context);
-                context.push('/borrowers/register');
-              },
-            ),
+                    // 2. Create Loan Application
+                    _CreateOptionTile(
+                      icon: Icons.assignment_add,
+                      color: Colors.purple.shade700,
+                      title: 'Create Loan Application',
+                      subtitle: 'Draft new loan (Pending Review)',
+                      onTap: () async {
+                        Navigator.pop(context);
+                        await _selectBorrowerForLoan(context, ref);
+                      },
+                    ),
 
-            // 2. Create Loan Application
-            _CreateOptionTile(
-              icon: Icons.assignment_add,
-              color: Colors.purple.shade700,
-              title: 'Create Loan Application',
-              subtitle: 'Draft new loan (Pending Review)',
-              onTap: () async {
-                Navigator.pop(context);
-                await _selectBorrowerForLoan(context, ref);
-              },
-            ),
+                    // 3. Record Payment
+                    _CreateOptionTile(
+                      icon: Icons.payments_outlined,
+                      color: Colors.green.shade700,
+                      title: 'Record Payment',
+                      subtitle: 'Log repayment for an active loan',
+                      onTap: () async {
+                        Navigator.pop(context);
+                        await _selectLoanForPayment(context, ref);
+                      },
+                    ),
 
-            // 3. Record Payment
-            _CreateOptionTile(
-              icon: Icons.payments_outlined,
-              color: Colors.green.shade700,
-              title: 'Record Payment',
-              subtitle: 'Log repayment for an active loan',
-              onTap: () async {
-                Navigator.pop(context);
-                await _selectLoanForPayment(context, ref);
-              },
-            ),
+                    // 4. Add Guarantor
+                    _CreateOptionTile(
+                      icon: Icons.shield_outlined,
+                      color: Colors.amber.shade800,
+                      title: 'Add Guarantor',
+                      subtitle: 'Attach guarantor to borrower profile',
+                      onTap: () {
+                        Navigator.pop(context);
+                        context.push('/borrowers');
+                      },
+                    ),
 
-            // 4. Add Guarantor
-            _CreateOptionTile(
-              icon: Icons.shield_outlined,
-              color: Colors.amber.shade800,
-              title: 'Add Guarantor',
-              subtitle: 'Attach guarantor to borrower profile',
-              onTap: () {
-                Navigator.pop(context);
-                context.push('/borrowers');
-              },
-            ),
+                    // 5. Add Documents
+                    _CreateOptionTile(
+                      icon: Icons.upload_file_outlined,
+                      color: Colors.teal.shade700,
+                      title: 'Add Documents',
+                      subtitle: 'Upload agreement, ID, or collateral files',
+                      onTap: () {
+                        Navigator.pop(context);
+                        context.push('/borrowers');
+                      },
+                    ),
 
-            // 5. Add Documents
-            _CreateOptionTile(
-              icon: Icons.upload_file_outlined,
-              color: Colors.teal.shade700,
-              title: 'Add Documents',
-              subtitle: 'Upload agreement, ID, or collateral files',
-              onTap: () {
-                Navigator.pop(context);
-                context.push('/borrowers');
-              },
+                    // 6. Add Notes
+                    _CreateOptionTile(
+                      icon: Icons.note_add_outlined,
+                      color: Colors.indigo.shade700,
+                      title: 'Add Notes',
+                      subtitle: 'Attach remarks or communication logs',
+                      onTap: () {
+                        Navigator.pop(context);
+                        context.push('/borrowers');
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                ),
+              ),
             ),
-
-            // 6. Add Notes
-            _CreateOptionTile(
-              icon: Icons.note_add_outlined,
-              color: Colors.indigo.shade700,
-              title: 'Add Notes',
-              subtitle: 'Attach remarks or communication logs',
-              onTap: () {
-                Navigator.pop(context);
-                context.push('/borrowers');
-              },
-            ),
-            const SizedBox(height: 8),
           ],
         ),
       ),

@@ -260,6 +260,7 @@ async def transition_one_loan(
     """Apply a validated loan lifecycle command."""
     permission = {
         "approve": "loan.approve",
+        "approve_and_activate": "loan.approve",
         "disburse": "loan.disburse",
         "activate": "loan.disburse",
         "complete": "loan.approve",
@@ -272,7 +273,7 @@ async def transition_one_loan(
         loan, occurred_at = await loan_service.transition_loan(
             db, loan_id, action, current_user
         )
-        if action == "disburse":
+        if action in ("disburse", "approve_and_activate"):
             await post_journal(
                 db,
                 actor=current_user,

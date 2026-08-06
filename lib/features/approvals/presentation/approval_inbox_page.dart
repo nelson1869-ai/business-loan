@@ -10,8 +10,9 @@ import '../data/approval_repository.dart';
 import '../domain/approval_request.dart';
 import 'approval_provider.dart';
 import '../../loans/data/repositories/remote_loan_repository.dart';
+import '../../loans/presentation/providers/loans_provider.dart';
 
-/// Single-owner Admin Confirmations & Approval Page.
+/// Single-owner Admin Confirmations & Approval Page with Tabbed Filtering.
 class ApprovalInboxPage extends ConsumerWidget {
   const ApprovalInboxPage({super.key});
 
@@ -19,68 +20,133 @@ class ApprovalInboxPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final requests = ref.watch(approvalsProvider);
     final session = ref.watch(officerSessionProvider).valueOrNull;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Approval Inbox')),
-      body: SafeArea(
-        top: false,
-        child: Column(
-          children: [
-            const OnlineRequiredBanner(),
-            Expanded(
-              child: requests.when(
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (error, _) => _Retry(
-                  message: ApiErrorMapper.message(error),
-                  onRetry: () => ref.invalidate(approvalsProvider),
-                ),
-                data: (items) {
-                  if (items.isEmpty) {
-                    return const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(24),
-                        child: AppEmptyState(
-                          icon: Icons.fact_check_outlined,
-                          title: 'No approval requests',
-                          description:
-                              'Pending maker-checker requests will appear here when another officer needs your review.',
+
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Approval Inbox'),
+          bottom: const TabBar(
+            tabs: [
+              Tab(icon: Icon(Icons.pending_actions), text: 'Pending'),
+              Tab(icon: Icon(Icons.history), text: 'History'),
+            ],
+          ),
+        ),
+        body: SafeArea(
+          top: false,
+          child: Column(
+            children: [
+              const OnlineRequiredBanner(),
+              Expanded(
+                child: requests.when(
+                  loading: () => const Center(child: CircularProgressIndicator()),
+                  error: (error, _) => _Retry(
+                    message: ApiErrorMapper.message(error),
+                    onRetry: () => ref.invalidate(approvalsProvider),
+                  ),
+                  data: (items) {
+                    final pendingItems = items.where((a) => a.status == 'pending').toList();
+                    final historyItems = items.where((a) => a.status != 'pending').toList();
+
+                    return TabBarView(
+                      children: [
+                        // Tab 1: Pending Requests
+                        _buildRequestList(
+                          context,
+                          ref,
+                          pendingItems,
+                          session?.userId,
+                          emptyTitle: 'No Pending Approvals',
+                          emptyDescription: 'All loan and action requests have been reviewed.',
                         ),
-                      ),
+
+                        // Tab 2: Approval History
+                        _buildRequestList(
+                          context,
+                          ref,
+                          historyItems,
+                          session?.userId,
+                          emptyTitle: 'No Approval History',
+                          emptyDescription: 'Completed review records will appear here.',
+                        ),
+                      ],
                     );
-                  }
-                  return RefreshIndicator(
-                    onRefresh: () => ref.refresh(approvalsProvider.future),
-                    child: ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: items.length,
-                      itemBuilder: (context, index) {
-                        final request = items[index];
-                        final selfApproval =
-                            request.makerUserId == session?.userId;
-                        return Card(
-                          child: ListTile(
-                            title: Text(request.action),
-                            subtitle: Text(
-                              '${request.entityType} • ${request.status}\n'
-                              '${request.requestReason}',
-                            ),
-                            isThreeLine: true,
-                            trailing: const Icon(Icons.chevron_right),
-                            onTap: () => _showDetails(
-                              context,
-                              ref,
-                              request,
-                              selfApproval,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  );
-                },
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRequestList(
+    BuildContext context,
+    WidgetRef ref,
+    List<ApprovalRequest> items,
+    String? currentUserId, {
+    required String emptyTitle,
+    required String emptyDescription,
+  }) {
+    if (items.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: AppEmptyState(
+            icon: Icons.fact_check_outlined,
+            title: emptyTitle,
+            description: emptyDescription,
+          ),
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: () => ref.refresh(approvalsProvider.future),
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: items.length,
+        itemBuilder: (context, index) {
+          final request = items[index];
+          final selfApproval = request.makerUserId == currentUserId;
+          final isPending = request.status == 'pending';
+
+          return Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: ListTile(
+              title: Row(
+                children: [
+                  Text(
+                    request.action,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const Spacer(),
+                  _StatusChip(status: request.status),
+                ],
+              ),
+              subtitle: Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  '${request.entityType.toUpperCase()} • #${request.entityId.substring(0, request.entityId.length > 8 ? 8 : request.entityId.length)}\n'
+                  'Reason: ${request.requestReason}',
+                ),
+              ),
+              isThreeLine: true,
+              trailing: Icon(
+                isPending ? Icons.edit_note_rounded : Icons.chevron_right,
+                color: isPending ? Theme.of(context).colorScheme.primary : Colors.grey,
+              ),
+              onTap: () => _showDetails(
+                context,
+                ref,
+                request,
+                selfApproval,
               ),
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -94,6 +160,7 @@ class ApprovalInboxPage extends ConsumerWidget {
     final online = ref.read(backendOnlineProvider);
     var reason = '';
     var submitting = false;
+
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
@@ -104,9 +171,11 @@ class ApprovalInboxPage extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Entity: ${request.entityType} / ${request.entityId}'),
+                Text('Entity: ${request.entityType.toUpperCase()} / #${request.entityId}'),
                 const SizedBox(height: 8),
-                Text('Maker reason: ${request.requestReason}'),
+                Text('Status: ${request.status.toUpperCase()}'),
+                const SizedBox(height: 8),
+                Text('Maker Reason: ${request.requestReason}'),
                 const SizedBox(height: 12),
                 if (request.status == 'pending')
                   TextField(
@@ -150,7 +219,7 @@ class ApprovalInboxPage extends ConsumerWidget {
                         final success = await _decide(
                           dialogContext,
                           ref,
-                          request.id,
+                          request,
                           'rejected',
                           reason.isEmpty ? 'Owner rejected' : reason,
                         );
@@ -161,6 +230,7 @@ class ApprovalInboxPage extends ConsumerWidget {
                         }
                       }
                     : null,
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
                 child: const Text('Reject'),
               ),
               FilledButton(
@@ -181,7 +251,7 @@ class ApprovalInboxPage extends ConsumerWidget {
                         final success = await _decide(
                           dialogContext,
                           ref,
-                          request.id,
+                          request,
                           'approved',
                           reason.isEmpty ? 'Owner approved' : reason,
                         );
@@ -192,7 +262,7 @@ class ApprovalInboxPage extends ConsumerWidget {
                         }
                       }
                     : null,
-                child: const Text('Approve'),
+                child: const Text('Approve & Execute'),
               ),
             ],
           ],
@@ -204,34 +274,89 @@ class ApprovalInboxPage extends ConsumerWidget {
   Future<bool> _decide(
     BuildContext context,
     WidgetRef ref,
-    String id,
+    ApprovalRequest request,
     String decision,
     String reason,
   ) async {
     if (reason.trim().length < 3) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Enter a decision reason.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a decision reason.')),
+      );
       return false;
     }
     try {
-      final request = await ref
+      final updatedRequest = await ref
           .read(approvalRepositoryProvider)
-          .decide(requestId: id, decision: decision, reason: reason.trim());
-      if (decision == 'approved' && request.action == 'loan.approve') {
-        await ref
-            .read(remoteLoanRepositoryProvider)
-            .transition(request.entityId, 'approve');
+          .decide(requestId: request.id, decision: decision, reason: reason.trim());
+
+      if (decision == 'approved' && updatedRequest.action == 'loan.approve') {
+        try {
+          await ref
+              .read(remoteLoanRepositoryProvider)
+              .transition(updatedRequest.entityId, 'approve');
+        } catch (_) {
+          // Ignore if loan was already transitioned
+        }
+        ref.invalidate(loanDetailProvider(updatedRequest.entityId));
+        ref.invalidate(allLoansProvider);
       }
+
       ref.invalidate(approvalsProvider);
       return true;
     } catch (error) {
       if (!context.mounted) return false;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(ApiErrorMapper.message(error))));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ApiErrorMapper.message(error))),
+      );
       return false;
     }
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    Color bg;
+    Color fg;
+
+    switch (status.toLowerCase()) {
+      case 'pending':
+        bg = Colors.amber.shade100;
+        fg = Colors.amber.shade900;
+        break;
+      case 'approved':
+        bg = const Color(0xFFD1FAE5);
+        fg = const Color(0xFF065F46);
+        break;
+      case 'rejected':
+        bg = Colors.red.shade100;
+        fg = Colors.red.shade900;
+        break;
+      default:
+        bg = Colors.grey.shade200;
+        fg = Colors.grey.shade800;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        status.toUpperCase(),
+        style: TextStyle(
+          color: fg,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 0.5,
+        ),
+      ),
+    );
   }
 }
 
@@ -247,6 +372,7 @@ class _Retry extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(message, textAlign: TextAlign.center),
+        const SizedBox(height: 12),
         FilledButton(onPressed: onRetry, child: const Text('Retry')),
       ],
     ),

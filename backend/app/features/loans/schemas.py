@@ -21,7 +21,7 @@ InstallmentStatus = Literal[
 ]
 CalculationMethod = Literal["fixed_periodic_reducing_balance"]
 LoanWorkflowAction = Literal[
-    "approve", "disburse", "activate", "complete", "default", "cancel", "close"
+    "approve", "disburse", "activate", "approve_and_activate", "complete", "default", "cancel", "close"
 ]
 
 
