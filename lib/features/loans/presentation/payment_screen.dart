@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -42,6 +43,63 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   DateTime _effectiveDate = DateTime.now();
   String _paymentMethod = 'cash';
   String? _collectionSessionId;
+
+  @override
+  void initState() {
+    super.initState();
+    _autoGenerateReceiptNumber();
+  }
+
+  void _autoGenerateReceiptNumber() {
+    final now = DateTime.now();
+    final yyyymmdd =
+        '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+    final randomDigits = (1000 + Random().nextInt(9000)).toString();
+    setState(() {
+      _receiptController.text = 'OR-$yyyymmdd-$randomDigits';
+    });
+  }
+
+  void _autoGenerateNote() {
+    final amountVal = double.tryParse(_amountController.text.trim());
+    final loan = ref.read(loanDetailProvider(widget.loanId)).valueOrNull;
+
+    final methodStr = switch (_paymentMethod) {
+      'cash' => 'Cash',
+      'bank' => 'Bank transfer',
+      'mobile_money' => 'Mobile money',
+      _ => 'Other',
+    };
+
+    String noteText = 'Payment collected via $methodStr.';
+
+    if (amountVal != null && amountVal > 0 && loan != null) {
+      final regular = double.tryParse(loan.regularPaymentAmount) ?? 0.0;
+      final payoff = double.tryParse(loan.outstandingPrincipal) ?? 0.0;
+
+      if (payoff > 0 && (amountVal - payoff).abs() < 0.01) {
+        noteText =
+            'Full loan payoff of ${formatCurrency(amountVal.toString())} collected via $methodStr.';
+      } else if (regular > 0 && (amountVal - regular).abs() < 0.01) {
+        noteText =
+            'Regular scheduled installment of ${formatCurrency(amountVal.toString())} collected via $methodStr.';
+      } else if (regular > 0 && amountVal < regular) {
+        noteText =
+            'Partial payment of ${formatCurrency(amountVal.toString())} received via $methodStr.';
+      } else if (regular > 0 && amountVal > regular) {
+        noteText =
+            'Advance/Overpayment of ${formatCurrency(amountVal.toString())} received via $methodStr.';
+      } else {
+        noteText =
+            'Payment of ${formatCurrency(amountVal.toString())} received via $methodStr.';
+      }
+    }
+
+    setState(() {
+      _noteController.text = noteText;
+    });
+    ref.read(paymentNotifierProvider.notifier).resetPreview();
+  }
 
   @override
   void dispose() {
@@ -131,7 +189,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     );
     _amountController.clear();
     _noteController.clear();
-    _receiptController.clear();
+    _autoGenerateReceiptNumber();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Payment recorded successfully')),
@@ -298,6 +356,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
               PaymentFormCard(
                 formKey: _formKey,
                 amountController: _amountController,
+                installmentAmount: loan?.regularPaymentAmount,
+                payoffAmount: loan?.outstandingPrincipal,
                 noteController: _noteController,
                 dateLabel: _date,
                 working: working,
@@ -312,6 +372,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                   ref.read(paymentNotifierProvider.notifier).resetPreview();
                 },
                 receiptController: _receiptController,
+                onAutoGenerateReceipt: _autoGenerateReceiptNumber,
+                onAutoGenerateNote: _autoGenerateNote,
                 sessionOptions: sessionOptions,
                 collectionSessionId: _collectionSessionId,
                 onSessionChanged: (value) {

@@ -32,6 +32,8 @@ class PaymentFormCard extends StatelessWidget {
     this.sessionOptions = const {},
     this.collectionSessionId,
     this.onSessionChanged,
+    this.onAutoGenerateReceipt,
+    this.onAutoGenerateNote,
   });
 
   final GlobalKey<FormState> formKey;
@@ -51,6 +53,8 @@ class PaymentFormCard extends StatelessWidget {
   final Map<String, String> sessionOptions;
   final String? collectionSessionId;
   final ValueChanged<String?>? onSessionChanged;
+  final VoidCallback? onAutoGenerateReceipt;
+  final VoidCallback? onAutoGenerateNote;
 
   @override
   Widget build(BuildContext context) {
@@ -63,38 +67,6 @@ class PaymentFormCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text('Record a payment', style: theme.textTheme.titleLarge),
-              const SizedBox(height: 12),
-              if (installmentAmount != null || payoffAmount != null)
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    if (installmentAmount != null)
-                      ActionChip(
-                        label: Text(
-                          '${formatCurrency(installmentAmount!)} Scheduled Installment',
-                        ),
-                        onPressed: working
-                            ? null
-                            : () {
-                                amountController.text = installmentAmount!;
-                                onFieldChange();
-                              },
-                      ),
-                    if (payoffAmount != null)
-                      ActionChip(
-                        label: Text(
-                          '${formatCurrency(payoffAmount!)} Full Payoff',
-                        ),
-                        onPressed: working
-                            ? null
-                            : () {
-                                amountController.text = payoffAmount!;
-                                onFieldChange();
-                              },
-                      ),
-                  ],
-                ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: method,
@@ -139,15 +111,69 @@ class PaymentFormCard extends StatelessWidget {
                   controller: receiptController,
                   enabled: !working,
                   maxLength: 100,
-                  decoration: const InputDecoration(
-                    labelText: 'Receipt number',
-                    prefixIcon: Icon(Icons.receipt_long_outlined),
+                  decoration: InputDecoration(
+                    labelText: 'Receipt number (Auto-generated)',
+                    prefixIcon: const Icon(Icons.receipt_long_outlined),
                     counterText: '',
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.autorenew, size: 20),
+                      tooltip: 'Auto-generate new receipt number',
+                      onPressed: working ? null : onAutoGenerateReceipt,
+                    ),
                   ),
                   validator: (value) => value == null || value.trim().isEmpty
                       ? 'Receipt number is required for cash'
                       : null,
                   onChanged: (_) => onFieldChange(),
+                ),
+              ],
+              if (installmentAmount != null || payoffAmount != null) ...[
+                const SizedBox(height: 14),
+                Text(
+                  'Recommended amounts (Tap to select):',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    if (installmentAmount != null)
+                      ActionChip(
+                        avatar: const Icon(Icons.event_note, size: 16),
+                        label: Text(
+                          '${formatCurrency(installmentAmount!)} Installment',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                        ),
+                        backgroundColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.35),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        onPressed: working
+                            ? null
+                            : () {
+                                amountController.text = installmentAmount!;
+                                onFieldChange();
+                              },
+                      ),
+                    if (payoffAmount != null)
+                      ActionChip(
+                        avatar: const Icon(Icons.savings_outlined, size: 16),
+                        label: Text(
+                          '${formatCurrency(payoffAmount!)} Full Payoff',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                        ),
+                        backgroundColor: Colors.teal.withValues(alpha: 0.18),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        onPressed: working
+                            ? null
+                            : () {
+                                amountController.text = payoffAmount!;
+                                onFieldChange();
+                              },
+                      ),
+                  ],
                 ),
               ],
               const SizedBox(height: 12),
@@ -180,9 +206,22 @@ class PaymentFormCard extends StatelessWidget {
                 controller: noteController,
                 enabled: !working,
                 maxLength: 500,
-                decoration: const InputDecoration(
+                maxLines: 2,
+                minLines: 1,
+                decoration: InputDecoration(
                   labelText: 'Note (optional)',
+                  hintText: 'e.g. Regular installment via Cash',
+                  prefixIcon: const Icon(Icons.note_alt_outlined),
                   counterText: '',
+                  suffixIcon: IconButton(
+                    icon: const Icon(
+                      Icons.auto_awesome,
+                      color: Color(0xFF0D9488),
+                      size: 20,
+                    ),
+                    tooltip: 'AI Auto-generate payment note',
+                    onPressed: working ? null : onAutoGenerateNote,
+                  ),
                 ),
                 onChanged: (_) => onFieldChange(),
               ),

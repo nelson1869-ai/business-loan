@@ -70,6 +70,29 @@ void main() {
     expect(loan.approvedAt, '2026-08-02T10:00:00Z');
   });
 
+  test('workflow transition fetches full loan when backend returns LoanWorkflowResponse', () async {
+    // When backend returns LoanWorkflowResponse (minimal envelope)
+    final workflowResponse = <String, dynamic>{
+      'loanId': 'loan-1',
+      'action': 'approve_and_activate',
+      'status': 'Active',
+      'occurredAt': '2026-08-06T12:00:00Z',
+    };
+    final fullLoanJson = _loanJson(includeInstallments: true);
+
+    adapter.customFetchHandler = (options) {
+      if (options.method == 'POST' && options.path.contains('/workflow/')) {
+        return workflowResponse;
+      }
+      return fullLoanJson;
+    };
+
+    final loan = await repository.transition('loan-1', 'approve_and_activate');
+
+    expect(loan.id, 'loan-1');
+    expect(loan.status, 'Active');
+  });
+
   test('list sends borrower filter and parses loan summaries', () async {
     adapter.responseData = <Map<String, dynamic>>[
       _loanJson(includeInstallments: false),
@@ -161,6 +184,7 @@ void main() {
 class _RecordingAdapter implements HttpClientAdapter {
   RequestOptions? lastRequest;
   Object? responseData;
+  Object? Function(RequestOptions options)? customFetchHandler;
   int statusCode = 200;
 
   @override
@@ -170,8 +194,11 @@ class _RecordingAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     lastRequest = options;
+    final data = customFetchHandler != null
+        ? customFetchHandler!(options)
+        : responseData;
     return ResponseBody.fromString(
-      jsonEncode(responseData),
+      jsonEncode(data),
       statusCode,
       headers: <String, List<String>>{
         Headers.contentTypeHeader: <String>[Headers.jsonContentType],

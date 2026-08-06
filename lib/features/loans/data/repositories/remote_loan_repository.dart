@@ -121,13 +121,24 @@ class RemoteLoanRepository {
       );
       final data = response.data;
       if (data == null) throw const FormatException('Empty loan response');
-      final loan = Loan.fromJson(data);
+      Loan loan;
+      if (data.containsKey('originalPrincipal') ||
+          data.containsKey('original_principal')) {
+        loan = Loan.fromJson(data);
+      } else {
+        loan = await getLoan(loanId);
+      }
       await _localRepo?.saveLoan(loan);
       return loan;
     } on DioException catch (error) {
       throw _mapError(error, 'Unable to update the loan workflow');
     } on FormatException catch (error) {
       throw RemoteLoanException(error.message, isRetryable: false);
+    } on TypeError catch (error) {
+      throw RemoteLoanException(
+        'Invalid loan response: $error',
+        isRetryable: false,
+      );
     }
   }
 

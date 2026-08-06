@@ -143,8 +143,8 @@ class LoanWorkflowActions extends ConsumerWidget {
         double.tryParse(loan.regularPaymentAmount) ?? 0.0;
     final double totalRepayment = regularPayment * loan.numberOfPayments;
 
-    // Show detailed loan review modal
-    final shouldProceed = await showDialog<bool>(
+    // Show single unified review & PIN security confirmation dialog
+    final confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => _SingleOwnerReviewDialog(
@@ -155,20 +155,7 @@ class LoanWorkflowActions extends ConsumerWidget {
       ),
     );
 
-    if (shouldProceed != true || !context.mounted) return;
-
-    // PIN / Biometric Confirmation
-    final confirmed = await ref
-        .read(securityConfirmationServiceProvider)
-        .promptAdminConfirmation(
-          context,
-          title: 'Confirm Loan Activation',
-          description:
-              'Approve and activate Loan #${loan.id.substring(0, loan.id.length > 8 ? 8 : loan.id.length)} for $borrowerName (₱${loan.originalPrincipal})',
-          confirmLabel: 'Confirm & Activate',
-        );
-
-    if (!confirmed || !context.mounted) return;
+    if (confirmed != true || !context.mounted) return;
 
     try {
       await ref
@@ -245,9 +232,9 @@ class LoanWorkflowActions extends ConsumerWidget {
   }
 }
 
-// ── Single Owner Review Confirmation Dialog ─────────────────────────────────
+// ── Single Owner Review & Security PIN Dialog (1 Popup) ──────────────────────
 
-class _SingleOwnerReviewDialog extends StatelessWidget {
+class _SingleOwnerReviewDialog extends ConsumerStatefulWidget {
   const _SingleOwnerReviewDialog({
     required this.loan,
     required this.borrowerName,
@@ -261,8 +248,71 @@ class _SingleOwnerReviewDialog extends StatelessWidget {
   final String totalRepayment;
 
   @override
+  ConsumerState<_SingleOwnerReviewDialog> createState() =>
+      __SingleOwnerReviewDialogState();
+}
+
+class __SingleOwnerReviewDialogState
+    extends ConsumerState<_SingleOwnerReviewDialog> {
+  final TextEditingController _pinCtrl = TextEditingController();
+  bool _isLoading = false;
+  String? _errorMessage;
+
+  @override
+  void dispose() {
+    _pinCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleConfirm() async {
+    final pin = _pinCtrl.text.trim();
+    if (pin.length < 4) {
+      setState(() => _errorMessage = 'Enter 4-digit security PIN (Default: 1234)');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    final secService = ref.read(securityConfirmationServiceProvider);
+    final isValid = await secService.verifyPin(pin);
+    if (!mounted) return;
+
+    if (isValid) {
+      Navigator.of(context).pop(true);
+    } else {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Incorrect PIN (Default: 1234)';
+        _pinCtrl.clear();
+      });
+    }
+  }
+
+  Future<void> _handleBiometric() async {
+    final secService = ref.read(securityConfirmationServiceProvider);
+    final isBioAvailable = await secService.isBiometricAvailable();
+    if (!isBioAvailable) {
+      setState(() => _errorMessage = 'Biometric authentication is not set up');
+      return;
+    }
+
+    final success = await secService.authenticateBiometric(
+      reason: 'Approve & Activate Loan #${widget.loan.id.substring(0, widget.loan.id.length > 8 ? 8 : widget.loan.id.length)}',
+    );
+    if (!mounted) return;
+
+    if (success) {
+      Navigator.of(context).pop(true);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -295,54 +345,92 @@ class _SingleOwnerReviewDialog extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Review loan terms before single-owner activation:',
+              'Review terms and verify PIN to activate loan:',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-            const SizedBox(height: 14),
-            _detailRow('Borrower', borrowerName, isHighlight: true),
-            const Divider(height: 16),
-            _detailRow('Principal', '₱${loan.originalPrincipal}', isHighlight: true),
-            _detailRow('Interest Rate', '$monthlyRatePercent% / month'),
+            const SizedBox(height: 12),
+            _detailRow('Borrower', widget.borrowerName, isDark, isHighlight: true),
+            const Divider(height: 12),
+            _detailRow('Principal', '₱${widget.loan.originalPrincipal}', isDark, isHighlight: true),
+            _detailRow('Interest Rate', '${widget.monthlyRatePercent}% / month', isDark),
             _detailRow(
               'Loan Term',
-              '${loan.termMonths} months (${loan.numberOfPayments} payments)',
+              '${widget.loan.termMonths} months (${widget.loan.numberOfPayments} payments)',
+              isDark,
             ),
-            _detailRow('Installment Amount', '₱${loan.regularPaymentAmount}'),
-            _detailRow('Total Repayment', '₱$totalRepayment', isHighlight: true),
-            _detailRow('First Due Date', loan.firstDueDate),
+            _detailRow('Installment', '₱${widget.loan.regularPaymentAmount}', isDark),
+            _detailRow('Total Repayment', '₱${widget.totalRepayment}', isDark, isHighlight: true),
+            _detailRow('First Due Date', widget.loan.firstDueDate, isDark),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _pinCtrl,
+              keyboardType: TextInputType.number,
+              obscureText: true,
+              maxLength: 6,
+              decoration: InputDecoration(
+                labelText: 'Owner Security PIN',
+                hintText: 'PIN (Default: 1234)',
+                counterText: '',
+                errorText: _errorMessage,
+                border: const OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.lock_outline, size: 20),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.fingerprint, size: 22),
+                  tooltip: 'Biometric Auth',
+                  onPressed: _handleBiometric,
+                ),
+              ),
+              onSubmitted: (_) => _handleConfirm(),
+            ),
           ],
         ),
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: const Text('Back'),
+          onPressed: _isLoading ? null : () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
         ),
         FilledButton.icon(
-          onPressed: () => Navigator.pop(context, true),
+          onPressed: _isLoading ? null : _handleConfirm,
           style: FilledButton.styleFrom(
             backgroundColor: const Color(0xFF0D9488),
           ),
-          icon: const Icon(Icons.check_circle_outline, size: 18),
-          label: const Text('Proceed to PIN'),
+          icon: _isLoading
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Icon(Icons.check_circle_outline, size: 18),
+          label: const Text('Confirm & Activate'),
         ),
       ],
     );
   }
 
-  Widget _detailRow(String label, String value, {bool isHighlight = false}) {
+  Widget _detailRow(
+    String label,
+    String value,
+    bool isDark, {
+    bool isHighlight = false,
+  }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
             label,
             style: TextStyle(
-              fontSize: 13,
-              color: isHighlight ? Colors.white : Colors.white70,
+              fontSize: 12,
+              color: isHighlight
+                  ? (isDark ? Colors.white : Colors.black87)
+                  : (isDark ? Colors.white70 : Colors.black54),
               fontWeight: isHighlight ? FontWeight.w600 : FontWeight.normal,
             ),
           ),
@@ -351,9 +439,11 @@ class _SingleOwnerReviewDialog extends StatelessWidget {
               value,
               textAlign: TextAlign.right,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: isHighlight ? FontWeight.bold : FontWeight.w500,
-                color: isHighlight ? const Color(0xFF10B981) : Colors.white,
+                color: isHighlight
+                    ? const Color(0xFF10B981)
+                    : (isDark ? Colors.white : Colors.black87),
               ),
             ),
           ),
