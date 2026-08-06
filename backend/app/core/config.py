@@ -54,11 +54,6 @@ class Settings(BaseSettings):
     login_rate_limit_per_minute: int = Field(default=5, ge=1, le=100)
     business_timezone: str = "Asia/Manila"
     currency_code: str = Field(default="PHP", min_length=3, max_length=3)
-    local_borrower_otp_enabled: bool = False
-    sms_gateway_provider: str = Field(default="dev")
-    android_sms_gateway_url: str | None = None
-    android_sms_gateway_key: str | None = None
-    android_sms_gateway_user: str | None = None
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -145,14 +140,7 @@ class Settings(BaseSettings):
         """Store an ISO-style uppercase currency code."""
         return value.upper()
 
-    @model_validator(mode="after")
-    def validate_local_borrower_otp(self) -> "Settings":
-        """Allow the fixed borrower OTP only in the development environment."""
-        if self.local_borrower_otp_enabled and self.app_env != "development":
-            raise ValueError(
-                "LOCAL_BORROWER_OTP_ENABLED may only be enabled when APP_ENV=development."
-            )
-        return self
+
 
 
 @lru_cache

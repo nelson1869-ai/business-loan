@@ -48,10 +48,10 @@ async def require_active_borrower_account(
     account: Annotated[BorrowerAccount, Depends(get_current_borrower_account)],
 ) -> BorrowerAccount:
     """Require borrower account status to be Activated or active."""
-    if account.account_status not in ("Activated", "active"):
+    if account.account_status != "activated":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Borrower account is {account.account_status}. Only Activated accounts may access this resource.",
+            detail=f"Borrower account is {account.account_status}. Only activated accounts may access this resource.",
             headers={"WWW-Authenticate": "Bearer"},
         )
     return account

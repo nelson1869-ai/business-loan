@@ -12,33 +12,7 @@ class BaseSchema(BaseModel):
     model_config = ConfigDict(populate_by_name=True, from_attributes=True)
 
 
-class OTPRequest(BaseSchema):
-    """Payload to request an OTP code."""
 
-    phone_number: str = Field(
-        ..., alias="phoneNumber", description="Input phone number"
-    )
-    invitation_code: str | None = Field(
-        None, alias="invitationCode", description="Optional activation code"
-    )
-
-
-class OTPRequestResponse(BaseSchema):
-    """Generic response for OTP request."""
-
-    message: str = "If the phone number is eligible, an OTP has been sent."
-    resend_cooldown_seconds: int = Field(60, alias="resendCooldownSeconds")
-
-
-class OTPVerifyRequest(BaseSchema):
-    """Payload to verify an OTP and obtain tokens."""
-
-    phone_number: str = Field(..., alias="phoneNumber")
-    otp: str = Field(..., min_length=6, max_length=6)
-    invitation_code: str | None = Field(None, alias="invitationCode")
-    device_identifier: str = Field(..., alias="deviceIdentifier")
-    platform: Literal["android", "ios", "web"] = "android"
-    push_token: str | None = Field(None, alias="pushToken")
 
 
 class BorrowerTokenResponse(BaseSchema):

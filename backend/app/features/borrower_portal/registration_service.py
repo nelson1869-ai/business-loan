@@ -14,7 +14,6 @@ from app.core.masking import mask_phone as mask_phone
 from app.features.borrower_portal.models import (
     BorrowerAccount,
     BorrowerInvitation,
-    BorrowerOTP,
     BorrowerRefreshToken,
     BorrowerRegistrationAudit,
     BorrowerRegistrationRequest,
@@ -111,12 +110,12 @@ async def status_for_token(db: AsyncSession, raw_token: str) -> tuple[str, str]:
             )
         )
         status = (
-            "active" if account and account.account_status == "active" else "approved"
+            "activated" if account and account.account_status == "activated" else "approved"
         )
     messages = {
         "pending": "Your registration is pending review.",
         "approved": "Your registration is approved. Verify your mobile number to continue.",
-        "active": "Your account is active. Proceed to login.",
+        "activated": "Your account is activated. Proceed to login.",
         "rejected": "Your registration was not approved. Contact the lender for assistance.",
         "cancelled": "This registration was cancelled.",
         "expired": "This registration has expired.",
@@ -206,14 +205,7 @@ async def approve(
         )
         .values(used_at=now)
     )
-    await db.execute(
-        update(BorrowerOTP)
-        .where(
-            BorrowerOTP.phone_number_normalized == item.phone_number_normalized,
-            BorrowerOTP.used_at.is_(None),
-        )
-        .values(used_at=now)
-    )
+
     _audit(
         db,
         "REGISTRATION_APPROVED",
@@ -366,9 +358,9 @@ async def account_action(
         )
     else:
         transitions = {
-            "suspend": ({"active", "approved"}, "suspended"),
-            "reactivate": ({"suspended"}, "active"),
-            "disable": ({"active", "approved", "suspended"}, "disabled"),
+            "suspend": ({"activated", "approved"}, "suspended"),
+            "reactivate": ({"suspended"}, "activated"),
+            "disable": ({"activated", "approved", "suspended"}, "disabled"),
         }
         allowed, target = transitions[action]
         if account.account_status not in allowed:

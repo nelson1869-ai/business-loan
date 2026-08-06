@@ -7,16 +7,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from httpx import ASGITransport, AsyncClient
 
-from app.core.config import Settings
 from app.core.database import get_db
 from app.features.auth.service import create_token
-from app.features.borrower_portal.otp_provider import dev_otp_provider
 from app.features.borrower_portal.service import (
-    LOCAL_DEVELOPMENT_OTP,
     create_borrower_access_token,
-    hash_secret,
     normalize_ph_phone_number,
-    request_otp,
     verify_borrower_access_token,
 )
 from app.features.borrowers.models import Borrower
@@ -69,64 +64,8 @@ class TestBorrowerTokenSecurity(unittest.TestCase):
             verify_borrower_access_token(officer_token)
 
 
-class TestLocalDevelopmentOTP(unittest.IsolatedAsyncioTestCase):
-    """Verify the fixed local OTP remains opt-in and hashed at rest."""
-
-    async def test_fixed_local_otp_is_hashed_before_storage(self) -> None:
-        db = AsyncMock()
-        db.add = MagicMock()
-        account_result = MagicMock()
-        account_result.scalar_one_or_none.return_value = SimpleNamespace(
-            account_status="active"
-        )
-        otp_result = MagicMock()
-        otp_result.scalar_one_or_none.return_value = None
-        db.execute.side_effect = [account_result, otp_result]
-        settings = Settings(
-            app_env="development",
-            database_url="postgresql+asyncpg://user:pass@localhost:5432/db",
-            jwt_secret_key="strong-random-value-0123456789-ABCDEFGHIJ",
-            cors_origins="*",
-            local_borrower_otp_enabled=True,
-            sms_gateway_provider="dev",
-        )
-
-        phone = "+639171234567"
-        dev_otp_provider.last_delivered_otp.pop(phone, None)
-        try:
-            accepted, cooldown = await request_otp(db, phone, settings=settings)
-
-            self.assertTrue(accepted)
-            self.assertEqual(cooldown, 60)
-            stored_otp = db.add.call_args.args[0]
-            self.assertEqual(
-                stored_otp.otp_code_hash, hash_secret(LOCAL_DEVELOPMENT_OTP)
-            )
-            self.assertNotEqual(stored_otp.otp_code_hash, LOCAL_DEVELOPMENT_OTP)
-            self.assertEqual(
-                dev_otp_provider.last_delivered_otp[phone], LOCAL_DEVELOPMENT_OTP
-            )
-            db.flush.assert_awaited_once()
-        finally:
-            dev_otp_provider.last_delivered_otp.pop(phone, None)
-
-
 class TestBorrowerPortalRouter(unittest.IsolatedAsyncioTestCase):
     """Router and dependency isolation tests for /api/v1/client endpoints."""
-
-    async def test_request_otp_returns_generic_response(self) -> None:
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
-            res = await client.post(
-                "/api/v1/client/auth/request-otp",
-                json={"phoneNumber": "09171234567"},
-            )
-            self.assertEqual(res.status_code, 200)
-            data = res.json()
-            self.assertIn("If the phone number is eligible", data["message"])
-            self.assertGreater(data["resendCooldownSeconds"], 0)
-            self.assertLessEqual(data["resendCooldownSeconds"], 60)
 
     @patch("app.core.database.get_db")
     async def test_officer_client_invitation_issuance(self, mock_get_db) -> None:
@@ -206,77 +145,3 @@ class TestBorrowerPortalRouter(unittest.IsolatedAsyncioTestCase):
                 headers={"Authorization": f"Bearer {borrower_token}"},
             )
             self.assertEqual(res.status_code, 401)
-
-
-class TestAndroidSmsGatewayProvider(unittest.IsolatedAsyncioTestCase):
-    """Tests for Android SMS Gateway OTP provider integration."""
-
-    def test_factory_resolves_android_gateway_when_configured(self) -> None:
-        from app.features.borrower_portal.otp_provider import (
-            AndroidSmsGatewayOTPProvider,
-            get_otp_provider,
-        )
-
-        settings = Settings(
-            app_env="development",
-            database_url="postgresql+asyncpg://user:pass@localhost:5432/db",
-            jwt_secret_key=(
-                "WwBCqC5ekfSL75WprnI2uqV6zEiBsUwaNrF5oloeUB165dGkZUPbS1HpbgsRuMoN"
-            ),
-            cors_origins="http://localhost:3000",
-            sms_gateway_provider="android_gateway",
-            android_sms_gateway_url=("https://api.sms-gate.app/3rdparty/v1/messages"),
-            android_sms_gateway_user="test-user",
-            android_sms_gateway_key="test-password",
-        )
-
-        provider = get_otp_provider(settings)
-
-        self.assertIsInstance(provider, AndroidSmsGatewayOTPProvider)
-        self.assertEqual(
-            provider.gateway_url, "https://api.sms-gate.app/3rdparty/v1/messages"
-        )
-        self.assertEqual(provider.username, "test-user")
-        self.assertEqual(provider.password, "test-password")
-
-    @patch("httpx.AsyncClient.post", new_callable=AsyncMock)
-    async def test_android_sms_gateway_sends_payload(
-        self,
-        mock_post: AsyncMock,
-    ) -> None:
-        from app.features.borrower_portal.otp_provider import (
-            AndroidSmsGatewayOTPProvider,
-        )
-
-        mock_response = MagicMock()
-        mock_response.status_code = 202
-        mock_post.return_value = mock_response
-
-        provider = AndroidSmsGatewayOTPProvider(
-            gateway_url="https://api.sms-gate.app/3rdparty/v1/messages",
-            username="test-user",
-            password="test-password",
-        )
-
-        success = await provider.send_otp("+639916084400", "849201")
-
-        self.assertTrue(success)
-        mock_post.assert_awaited_once()
-
-        call_kwargs = mock_post.call_args.kwargs
-        self.assertEqual(
-            call_kwargs["json"],
-            {
-                "textMessage": {
-                    "text": "Your Lending Nelson verification code is: 849201",
-                },
-                "phoneNumbers": ["+639916084400"],
-            },
-        )
-        self.assertIsInstance(call_kwargs["auth"], __import__("httpx").BasicAuth)
-        self.assertEqual(call_kwargs["headers"]["Accept"], "application/json")
-        self.assertEqual(call_kwargs["headers"]["Content-Type"], "application/json")
-
-
-if __name__ == "__main__":
-    unittest.main()

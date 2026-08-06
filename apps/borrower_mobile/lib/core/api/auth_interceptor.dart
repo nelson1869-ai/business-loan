@@ -12,8 +12,8 @@ class AuthInterceptor extends Interceptor {
   Completer<bool>? _refreshCompleter;
 
   static const _nonRetryableRoutes = {
-    '/api/v1/client/auth/request-otp',
-    '/api/v1/client/auth/verify-otp',
+    '/api/v1/client/auth/activate',
+    '/api/v1/client/auth/login',
     '/api/v1/client/auth/refresh',
     '/api/v1/client/auth/logout',
   };

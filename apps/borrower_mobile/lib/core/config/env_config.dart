@@ -11,7 +11,6 @@ class EnvConfig {
       validate(
         environment: appEnvironment,
         apiUrl: fromEnv,
-        localOtpEnabled: localBorrowerOtpEnabled,
         debugLogging: debugLoggingEnabled,
         releaseMode: kReleaseMode,
       );
@@ -20,7 +19,6 @@ class EnvConfig {
     validate(
       environment: appEnvironment,
       apiUrl: defaultApiBaseUrl,
-      localOtpEnabled: localBorrowerOtpEnabled,
       debugLogging: debugLoggingEnabled,
       releaseMode: kReleaseMode,
     );
@@ -30,12 +28,6 @@ class EnvConfig {
   static const String appEnvironment = String.fromEnvironment(
     'APP_ENV',
     defaultValue: 'development',
-  );
-
-  /// Whether the local development backend accepts the fixed borrower OTP.
-  static const bool localBorrowerOtpEnabled = bool.fromEnvironment(
-    'LOCAL_BORROWER_OTP_ENABLED',
-    defaultValue: false,
   );
 
   static const bool debugLoggingEnabled = bool.fromEnvironment(
@@ -51,15 +43,11 @@ class EnvConfig {
   static void validate({
     required String environment,
     required String apiUrl,
-    required bool localOtpEnabled,
     required bool debugLogging,
     required bool releaseMode,
   }) {
     if (!releaseMode || environment != 'production') return;
     final uri = Uri.tryParse(apiUrl);
-    if (localOtpEnabled) {
-      throw StateError('Development OTP cannot be enabled in production.');
-    }
     if (debugLogging) {
       throw StateError('Debug logging cannot be enabled in production.');
     }

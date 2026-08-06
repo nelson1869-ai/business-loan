@@ -16,13 +16,11 @@ from app.core.database import get_db
 from app.features.auth.service import create_token
 from app.features.borrower_portal.models import (
     BorrowerAccount,
+    BorrowerActivationCode,
     BorrowerDevice,
     BorrowerInvitation,
-    BorrowerOTP,
     BorrowerRefreshToken,
-)
-from app.features.borrower_portal.otp_provider import (
-    dev_otp_provider,
+    BorrowerRegistrationRequest,
 )
 from app.features.borrowers.models import Borrower
 from app.features.users.models import User
@@ -30,18 +28,18 @@ from app.main import app
 
 
 class TestBorrowerPortalMockedApiLifecycle(unittest.IsolatedAsyncioTestCase):
-    """Mocked API contract and router lifecycle tests for officer invitation, OTP activation,
+    """Mocked API contract and router lifecycle tests for owner approval, activation code,
 
     token rotation, reuse detection, device management, and boundary isolation.
     """
 
     async def test_full_borrower_portal_lifecycle(self) -> None:
-        # 1. Create officer user
+        # 1. Create owner user
         officer = User(
             id="usr-officer-e2e",
             username="officer_e2e",
             hashed_password="hashed_password_123",
-            role="officer",
+            role="owner",
         )
 
         # 2. Create borrower
@@ -60,7 +58,8 @@ class TestBorrowerPortalMockedApiLifecycle(unittest.IsolatedAsyncioTestCase):
             "users": {officer.id: officer},
             "borrowers": {borrower.id: borrower},
             "invitations": {},
-            "otps": {},
+            "activation_codes": {},
+            "registrations": {},
             "accounts": {},
             "devices": {},
             "refresh_tokens": {},
@@ -85,8 +84,10 @@ class TestBorrowerPortalMockedApiLifecycle(unittest.IsolatedAsyncioTestCase):
         def mock_add(instance):
             if isinstance(instance, BorrowerInvitation):
                 db_store["invitations"][instance.id] = instance
-            elif isinstance(instance, BorrowerOTP):
-                db_store["otps"][instance.id] = instance
+            elif isinstance(instance, BorrowerActivationCode):
+                db_store["activation_codes"][instance.id] = instance
+            elif isinstance(instance, BorrowerRegistrationRequest):
+                db_store["registrations"][instance.id] = instance
             elif isinstance(instance, BorrowerAccount):
                 db_store["accounts"][instance.id] = instance
             elif isinstance(instance, BorrowerDevice):
@@ -94,6 +95,8 @@ class TestBorrowerPortalMockedApiLifecycle(unittest.IsolatedAsyncioTestCase):
             elif isinstance(instance, BorrowerRefreshToken):
                 db_store["refresh_tokens"][instance.id] = instance
                 db_store["refresh_tokens_by_hash"][instance.token_hash] = instance
+            elif isinstance(instance, Borrower):
+                db_store["borrowers"][instance.id] = instance
 
         mock_db.add = MagicMock(side_effect=mock_add)
 
@@ -102,18 +105,18 @@ class TestBorrowerPortalMockedApiLifecycle(unittest.IsolatedAsyncioTestCase):
             stmt_str = str(stmt).lower()
             res = MagicMock()
 
-            # Attempt parameter extraction for exact hash lookup
             params = {}
             try:
                 params = stmt.compile().params
             except Exception:
                 pass
 
-            if "from borrower_otps" in stmt_str:
-                latest_otp = (
-                    list(db_store["otps"].values())[-1] if db_store["otps"] else None
-                )
-                res.scalar_one_or_none.return_value = latest_otp
+            if "from borrower_activation_codes" in stmt_str:
+                codes = list(db_store["activation_codes"].values())
+                res.scalar_one_or_none.return_value = codes[-1] if codes else None
+            elif "from borrower_registration_requests" in stmt_str:
+                regs = list(db_store["registrations"].values())
+                res.scalar_one_or_none.return_value = regs[-1] if regs else None
             elif "from borrower_invitations" in stmt_str:
                 latest_inv = (
                     list(db_store["invitations"].values())[-1]
@@ -142,7 +145,10 @@ class TestBorrowerPortalMockedApiLifecycle(unittest.IsolatedAsyncioTestCase):
             elif "from users" in stmt_str:
                 res.scalar_one_or_none.return_value = officer
             elif "from borrowers" in stmt_str:
-                res.scalar_one_or_none.return_value = borrower
+                if "PH-NEW-999" in params.values():
+                    res.scalar_one_or_none.return_value = None
+                else:
+                    res.scalar_one_or_none.return_value = borrower
             else:
                 res.scalar_one_or_none.return_value = None
             return res
@@ -159,125 +165,120 @@ class TestBorrowerPortalMockedApiLifecycle(unittest.IsolatedAsyncioTestCase):
         app.dependency_overrides[get_db] = _mock_db_gen
 
         try:
-            with patch(
-                "app.features.borrower_portal.service.get_otp_provider",
-                return_value=dev_otp_provider,
-            ):
-                async with AsyncClient(
-                    transport=ASGITransport(app=app), base_url="http://test"
-                ) as client:
-                    # 3. Officer creates borrower invitation code
-                    officer_token = create_token(officer, "access")
-                    inv_res = await client.post(
-                        f"/api/v1/borrowers/{borrower.id}/client-invitation",
-                        headers={"Authorization": f"Bearer {officer_token}"},
-                        json={"expiresInHours": 72},
-                    )
-                    self.assertEqual(inv_res.status_code, 201)
-                    inv_data = inv_res.json()
-                    raw_inv_code = inv_data["invitationCode"]
-                    self.assertEqual(len(raw_inv_code), 6)
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                officer_token = create_token(officer, "access")
+                phone_num = "09179876543"
 
-                    # 4. Borrower requests OTP
-                    phone_num = "09179876543"
-                    otp_req_res = await client.post(
-                        "/api/v1/client/auth/request-otp",
-                        json={"phoneNumber": phone_num, "invitationCode": raw_inv_code},
-                    )
-                    self.assertEqual(otp_req_res.status_code, 200)
+                # 1. Borrower self-registration
+                reg_res = await client.post(
+                    "/api/v1/client/auth/register",
+                    json={
+                        "firstName": "Maria",
+                        "lastName": "Santos",
+                        "phoneNumber": phone_num,
+                        "address": "123 Main Street",
+                        "dateOfBirth": "1992-05-15",
+                        "nationalId": "PH-NEW-999",
+                        "pinOrPassword": "123456Password!",
+                    },
+                )
+                self.assertEqual(reg_res.status_code, 201)
+                reg_data = reg_res.json()
+                reg_id = reg_data["id"]
 
-                    # 5. Retrieve dev OTP
-                    norm_phone = "+639179876543"
-                    dev_otp = dev_otp_provider.last_delivered_otp.get(norm_phone)
-                    self.assertIsNotNone(dev_otp)
+                # 2. Owner approves registration
+                approve_res = await client.post(
+                    f"/api/v1/borrowers/registrations/{reg_id}/approve",
+                    headers={"Authorization": f"Bearer {officer_token}"},
+                )
+                self.assertEqual(approve_res.status_code, 200)
+                approve_data = approve_res.json()
+                raw_act_code = approve_data["activationCode"]
+                self.assertEqual(len(raw_act_code), 6)
 
-                    # 6 & 7. Borrower verifies OTP and receives tokens
-                    verify_res = await client.post(
-                        "/api/v1/client/auth/verify-otp",
-                        json={
-                            "phoneNumber": phone_num,
-                            "otp": dev_otp,
-                            "invitationCode": raw_inv_code,
-                            "deviceIdentifier": "device_e2e_uuid_99",
-                            "platform": "android",
-                        },
-                    )
-                    self.assertEqual(verify_res.status_code, 200)
-                    verify_data = verify_res.json()
-                    access_token = verify_data["accessToken"]
-                    refresh_token = verify_data["refreshToken"]
-                    borrower_acct_id = verify_data["borrowerAccountId"]
-                    self.assertIsNotNone(access_token)
-                    self.assertIsNotNone(refresh_token)
+                # 3. Borrower verifies Activation Code and receives tokens
+                verify_res = await client.post(
+                    "/api/v1/client/auth/activate",
+                    json={
+                        "phoneNumber": phone_num,
+                        "activationCode": raw_act_code,
+                        "deviceIdentifier": "device_e2e_uuid_99",
+                    },
+                )
+                self.assertEqual(verify_res.status_code, 200)
+                verify_data = verify_res.json()
+                access_token = verify_data["accessToken"]
+                refresh_token = verify_data["refreshToken"]
+                borrower_acct_id = verify_data["borrowerAccountId"]
+                self.assertIsNotNone(access_token)
+                self.assertIsNotNone(refresh_token)
 
-                    # 8 & 9. Borrower calls GET /api/v1/client/me
-                    profile_res = await client.get(
-                        "/api/v1/client/me",
-                        headers={"Authorization": f"Bearer {access_token}"},
-                    )
-                    self.assertEqual(profile_res.status_code, 200)
-                    prof_data = profile_res.json()
-                    self.assertEqual(prof_data["borrowerId"], borrower.id)
-                    self.assertEqual(prof_data["borrowerAccountId"], borrower_acct_id)
-                    self.assertEqual(prof_data["firstName"], "Maria")
+                # 4. Borrower calls GET /api/v1/client/me
+                profile_res = await client.get(
+                    "/api/v1/client/me",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                )
+                self.assertEqual(profile_res.status_code, 200)
+                prof_data = profile_res.json()
+                self.assertIsNotNone(prof_data["borrowerId"])
+                self.assertEqual(prof_data["borrowerAccountId"], borrower_acct_id)
+                self.assertEqual(prof_data["firstName"], "Maria")
 
-                    # 10. Borrower registers device
-                    dev_res = await client.post(
-                        "/api/v1/client/devices",
-                        headers={"Authorization": f"Bearer {access_token}"},
-                        json={
-                            "deviceIdentifier": "device_e2e_uuid_99",
-                            "platform": "android",
-                            "pushToken": "fcm_token_sample_123",
-                        },
-                    )
-                    self.assertEqual(dev_res.status_code, 200)
-                    dev_data = dev_res.json()
-                    self.assertTrue(dev_data["isActive"])
+                # 5. Borrower registers device
+                dev_res = await client.post(
+                    "/api/v1/client/devices",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                    json={
+                        "deviceIdentifier": "device_e2e_uuid_99",
+                        "platform": "android",
+                        "pushToken": "fcm_token_sample_123",
+                    },
+                )
+                self.assertEqual(dev_res.status_code, 200)
+                dev_data = dev_res.json()
+                self.assertTrue(dev_data["isActive"])
 
-                    # 11 & 12. Rotate refresh token
-                    refresh_res = await client.post(
-                        "/api/v1/client/auth/refresh",
-                        json={"refreshToken": refresh_token},
-                    )
-                    self.assertEqual(refresh_res.status_code, 200)
-                    new_token_data = refresh_res.json()
-                    new_access_token = new_token_data["accessToken"]
-                    new_refresh_token = new_token_data["refreshToken"]
-                    self.assertNotEqual(refresh_token, new_refresh_token)
+                # 6. Rotate refresh token
+                refresh_res = await client.post(
+                    "/api/v1/client/auth/refresh",
+                    json={"refreshToken": refresh_token},
+                )
+                self.assertEqual(refresh_res.status_code, 200)
+                new_token_data = refresh_res.json()
+                new_access_token = new_token_data["accessToken"]
+                new_refresh_token = new_token_data["refreshToken"]
+                self.assertNotEqual(refresh_token, new_refresh_token)
 
-                    # 13. Re-use of old refresh token is rejected (401)
-                    reuse_res = await client.post(
-                        "/api/v1/client/auth/refresh",
-                        json={"refreshToken": refresh_token},
-                    )
-                    self.assertEqual(reuse_res.status_code, 401)
+                # 7. Re-use of old refresh token is rejected (401)
+                reuse_res = await client.post(
+                    "/api/v1/client/auth/refresh",
+                    json={"refreshToken": refresh_token},
+                )
+                self.assertEqual(reuse_res.status_code, 401)
 
-                    # 14. Borrower logs out
-                    logout_res = await client.post(
-                        "/api/v1/client/auth/logout",
-                        headers={"Authorization": f"Bearer {new_access_token}"},
-                        json={"refreshToken": new_refresh_token},
-                    )
-                    self.assertEqual(logout_res.status_code, 204)
+                # 8. Borrower logs out
+                logout_res = await client.post(
+                    "/api/v1/client/auth/logout",
+                    headers={"Authorization": f"Bearer {new_access_token}"},
+                    json={"refreshToken": new_refresh_token},
+                )
+                self.assertEqual(logout_res.status_code, 204)
 
-                    # 16. Borrower token cannot access officer endpoints
-                    officer_endpoint_res = await client.get(
-                        "/api/v1/loans",
-                        headers={"Authorization": f"Bearer {new_access_token}"},
-                    )
-                    self.assertEqual(officer_endpoint_res.status_code, 401)
+                # 9. Borrower token cannot access officer endpoints
+                officer_endpoint_res = await client.get(
+                    "/api/v1/loans",
+                    headers={"Authorization": f"Bearer {new_access_token}"},
+                )
+                self.assertEqual(officer_endpoint_res.status_code, 401)
 
-                    # 17. Officer token cannot access borrower profile endpoint
-                    borrower_me_res = await client.get(
-                        "/api/v1/client/me",
-                        headers={"Authorization": f"Bearer {officer_token}"},
-                    )
-                    self.assertEqual(borrower_me_res.status_code, 401)
+                # 10. Officer token cannot access borrower profile endpoint
+                borrower_me_res = await client.get(
+                    "/api/v1/client/me",
+                    headers={"Authorization": f"Bearer {officer_token}"},
+                )
+                self.assertEqual(borrower_me_res.status_code, 401)
 
         finally:
             app.dependency_overrides.pop(get_db, None)
-
-
-if __name__ == "__main__":
-    unittest.main()

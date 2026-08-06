@@ -14,7 +14,6 @@ from app.features.borrower_portal.models import (
     BorrowerAccount,
     BorrowerDevice,
     BorrowerInvitation,
-    BorrowerOTP,
     BorrowerRefreshToken,
 )
 from app.features.borrower_portal.service import create_borrower_access_token
@@ -43,7 +42,6 @@ class TestBorrowerPaymentsApi(unittest.IsolatedAsyncioTestCase):
             await db.execute(delete(Loan))
             await db.execute(delete(BorrowerRefreshToken))
             await db.execute(delete(BorrowerDevice))
-            await db.execute(delete(BorrowerOTP))
             await db.execute(delete(BorrowerInvitation))
             await db.execute(delete(BorrowerAccount))
             await db.execute(delete(Borrower))

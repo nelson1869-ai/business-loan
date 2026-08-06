@@ -48,7 +48,7 @@ class BorrowerAccount(Base):
         DateTime(timezone=True), nullable=True
     )
     account_status: Mapped[str] = mapped_column(
-        String(20), nullable=False, server_default="Pending", index=True
+        String(20), nullable=False, server_default="pending", index=True
     )
     password_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
     address: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -95,7 +95,7 @@ class BorrowerRegistrationRequest(Base):
     __table_args__ = (
         Index("ix_registration_pending_phone", "phone_number_normalized", "status"),
         CheckConstraint(
-            "status IN ('pending','approved','rejected','cancelled','expired','Pending','Approved','Rejected','Activated','Suspended','Disabled')",
+            "status IN ('pending','approved','rejected','cancelled','expired')",
             name="ck_registration_status",
         ),
     )
@@ -117,7 +117,7 @@ class BorrowerRegistrationRequest(Base):
     pin_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
     email: Mapped[str | None] = mapped_column(String(254))
     status: Mapped[str] = mapped_column(
-        String(20), nullable=False, server_default="Pending", index=True
+        String(20), nullable=False, server_default="pending", index=True
     )
     status_token_hash: Mapped[str] = mapped_column(
         String(128), nullable=False, unique=True, index=True
@@ -280,33 +280,6 @@ class BorrowerLoanRequest(Base):
     )
 
     borrower: Mapped["Borrower"] = relationship()
-
-
-class BorrowerOTP(Base):
-    """Temporary, hashed OTP records for SMS verification."""
-
-    __tablename__ = "borrower_otps"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    phone_number_normalized: Mapped[str] = mapped_column(
-        String(32), nullable=False, index=True
-    )
-    otp_code_hash: Mapped[str] = mapped_column(String(128), nullable=False)
-    expires_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, index=True
-    )
-    attempts: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default="0"
-    )
-    resend_available_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
-    used_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now()
-    )
 
 
 class BorrowerRefreshToken(Base):

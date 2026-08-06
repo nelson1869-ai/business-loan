@@ -11,9 +11,10 @@ from app.features.approvals.models import ApprovalRequest
 from app.features.automation.models import AutomationEventOutbox
 from app.features.borrower_portal.models import (
     BorrowerAccount,
+    BorrowerActivationCode,
     BorrowerDevice,
     BorrowerInvitation,
-    BorrowerOTP,
+    BorrowerPinReset,
     BorrowerRefreshToken,
     BorrowerRegistrationAudit,
     BorrowerRegistrationRequest,
@@ -41,9 +42,10 @@ __all__ = [
     "AutomationEventOutbox",
     "Borrower",
     "BorrowerAccount",
+    "BorrowerActivationCode",
     "BorrowerDevice",
     "BorrowerInvitation",
-    "BorrowerOTP",
+    "BorrowerPinReset",
     "BorrowerRefreshToken",
     "BorrowerRegistrationAudit",
     "BorrowerRegistrationRequest",

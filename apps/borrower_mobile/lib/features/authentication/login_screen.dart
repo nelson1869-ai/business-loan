@@ -3,18 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:borrower_mobile/core/auth/auth_notifier.dart';
 import 'package:borrower_mobile/core/auth/auth_state.dart';
-import 'package:borrower_mobile/core/config/env_config.dart';
 import 'package:borrower_mobile/core/storage/secure_token_storage.dart';
 import 'package:borrower_mobile/core/widgets/app_button.dart';
 import 'package:borrower_mobile/core/widgets/app_text_field.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
-  final bool localOtpEnabled;
-
-  const LoginScreen({
-    super.key,
-    this.localOtpEnabled = EnvConfig.localBorrowerOtpEnabled,
-  });
+  const LoginScreen({super.key});
 
   @override
   ConsumerState<LoginScreen> createState() => _LoginScreenState();

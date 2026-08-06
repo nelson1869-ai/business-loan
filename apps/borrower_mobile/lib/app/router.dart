@@ -5,7 +5,6 @@ import 'package:borrower_mobile/core/auth/auth_notifier.dart';
 import 'package:borrower_mobile/core/auth/auth_state.dart';
 import 'package:borrower_mobile/features/authentication/activation_screen.dart';
 import 'package:borrower_mobile/features/authentication/login_screen.dart';
-import 'package:borrower_mobile/features/authentication/otp_screen.dart';
 import 'package:borrower_mobile/features/dashboard/dashboard_screen.dart';
 import 'package:borrower_mobile/features/loans/loan_detail_screen.dart';
 import 'package:borrower_mobile/features/loans/loans_screen.dart';
@@ -64,10 +63,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/verify',
-        builder: (context, state) {
-          final invCode = state.extra as String?;
-          return OtpScreen(invitationCode: invCode);
-        },
+        builder: (context, state) => const ActivationScreen(),
       ),
       GoRoute(
           path: '/register',

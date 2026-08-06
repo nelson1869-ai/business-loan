@@ -7,7 +7,6 @@ void main() {
       () => EnvConfig.validate(
         environment: 'production',
         apiUrl: 'https://api.lender.example',
-        localOtpEnabled: false,
         debugLogging: false,
         releaseMode: true,
       ),
@@ -17,7 +16,6 @@ void main() {
       () => EnvConfig.validate(
         environment: 'production',
         apiUrl: 'http://localhost:8000',
-        localOtpEnabled: true,
         debugLogging: true,
         releaseMode: true,
       ),

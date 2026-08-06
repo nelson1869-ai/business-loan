@@ -51,9 +51,6 @@ from app.features.borrower_portal.schemas import (
     DeviceResponse,
     ForgotPINRequest,
     IssueResetCodeResponse,
-    OTPRequest,
-    OTPRequestResponse,
-    OTPVerifyRequest,
     OwnerApproveRegistrationResponse,
     RefreshTokenRequest,
     ResetPINRequest,
@@ -72,7 +69,6 @@ from app.features.borrower_portal.service import (
     list_borrower_loan_requests,
     login_borrower_with_pin,
     redeem_pin_reset_code,
-    request_otp,
     request_pin_reset,
     review_borrower_loan_request,
     revoke_borrower_device,
@@ -82,7 +78,6 @@ from app.features.borrower_portal.service import (
     submit_borrower_registration,
     unlock_borrower_account,
     verify_activation_code_and_activate,
-    verify_otp_and_login,
 )
 from app.features.borrowers import service as borrower_service
 
@@ -92,70 +87,7 @@ officer_router = APIRouter(prefix="/api/v1/borrowers", tags=["Borrower Invitatio
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 
 
-@client_router.post("/auth/request-otp", response_model=OTPRequestResponse)
-async def request_borrower_otp(
-    payload: OTPRequest,
-    request: Request,
-    db: DbSession,
-) -> OTPRequestResponse:
-    """Public endpoint to request an SMS OTP code without account enumeration."""
-    settings = get_settings()
-    try:
-        identity = normalize_ph_phone_number(payload.phone_number)
-    except ValueError:
-        identity = "invalid"
-    client_ip = request.client.host if request.client else "unknown"
-    limiter_key = opaque_rate_limit_key(
-        "borrower-request-otp", client_ip, identity, secret=settings.jwt_secret_key
-    )
-    if not await request.app.state.rate_limiter.allow(
-        limiter_key, settings.login_rate_limit_per_minute
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many requests. Please try again later.",
-        )
-    _, cooldown = await request_otp(db, payload.phone_number, payload.invitation_code)
-    await db.commit()
-    return OTPRequestResponse(
-        message="If the phone number is eligible, an OTP has been sent.",
-        resend_cooldown_seconds=cooldown,
-    )
 
-
-@client_router.post("/auth/verify-otp", response_model=BorrowerTokenResponse)
-async def verify_borrower_otp(
-    payload: OTPVerifyRequest,
-    db: DbSession,
-) -> BorrowerTokenResponse:
-    """Verify OTP code, link/activate account, and return borrower access/refresh tokens."""
-    try:
-        account, access_token, refresh_token, expires_in = await verify_otp_and_login(
-            db,
-            payload.phone_number,
-            payload.otp,
-            payload.invitation_code,
-            payload.device_identifier,
-            payload.platform,
-            payload.push_token,
-        )
-        await db.commit()
-    except ValueError as error:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(error),
-        ) from error
-
-    return BorrowerTokenResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        token_type="Bearer",
-        expires_in=expires_in,
-        borrower_account_id=account.id,
-        borrower_id=account.borrower_id,
-        account_status=account.account_status,
-    )
 
 
 @client_router.post("/auth/refresh", response_model=BorrowerTokenResponse)

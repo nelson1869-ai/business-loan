@@ -27,13 +27,11 @@ from app.features.borrower_portal.models import (
     BorrowerInvitation,
     BorrowerLoanRequest,
     BorrowerNotification,
-    BorrowerOTP,
     BorrowerPinReset,
     BorrowerRefreshToken,
     BorrowerRegistrationAudit,
     BorrowerRegistrationRequest,
 )
-from app.features.borrower_portal.otp_provider import get_otp_provider
 from app.features.borrower_portal.schemas import BorrowerProfileResponse
 from app.features.borrowers import service as borrower_service
 from app.features.borrowers.models import Borrower
@@ -41,7 +39,6 @@ from app.features.users.models import User
 
 logger = logging.getLogger(__name__)
 
-LOCAL_DEVELOPMENT_OTP = "123456"
 
 
 def hash_secret(secret_text: str) -> str:
@@ -104,292 +101,7 @@ async def issue_client_invitation(
     return invitation, raw_code
 
 
-async def request_otp(
-    db: AsyncSession,
-    raw_phone: str,
-    invitation_code: str | None = None,
-    settings: Settings | None = None,
-) -> tuple[bool, int]:
-    """Request an OTP for an eligible phone number without leaking account existence."""
-    current_settings = settings or get_settings()
-    try:
-        normalized_phone = normalize_ph_phone_number(raw_phone)
-    except ValueError:
-        # Generic response preserves privacy on malformed phone
-        return False, 60
 
-    now = datetime.now(UTC)
-
-    # Check eligibility: BorrowerAccount, Borrower record, Registration Request, or Invitation
-    account_result = await db.execute(
-        select(BorrowerAccount).where(
-            BorrowerAccount.phone_number_normalized == normalized_phone,
-        )
-    )
-    account = account_result.scalar_one_or_none()
-
-    borrower_exists = False
-    reg_exists = False
-    if account is None:
-        borrower_result = await db.execute(
-            select(Borrower).where(
-                or_(
-                    Borrower.phone_normalized == normalized_phone,
-                    Borrower.phone == raw_phone,
-                )
-            )
-        )
-        borrower_exists = borrower_result.scalar_one_or_none() is not None
-
-        reg_result = await db.execute(
-            select(BorrowerRegistrationRequest).where(
-                BorrowerRegistrationRequest.phone_number_normalized == normalized_phone,
-            )
-        )
-        reg_exists = reg_result.scalar_one_or_none() is not None
-
-    invitation_is_valid = False
-    if invitation_code:
-        invitation_result = await db.execute(
-            select(BorrowerInvitation).where(
-                BorrowerInvitation.invitation_code_hash == hash_secret(invitation_code),
-                BorrowerInvitation.used_at.is_(None),
-                BorrowerInvitation.expires_at > now,
-            )
-        )
-        invitation_is_valid = invitation_result.scalar_one_or_none() is not None
-
-    is_eligible = (
-        account is not None
-        or borrower_exists
-        or reg_exists
-        or invitation_is_valid
-        or current_settings.local_borrower_otp_enabled
-        or current_settings.app_env.lower() in ("development", "dev", "test")
-    )
-    if not is_eligible:
-        return False, 60
-
-    # Check resend cooldown
-    stmt = (
-        select(BorrowerOTP)
-        .where(BorrowerOTP.phone_number_normalized == normalized_phone)
-        .order_by(BorrowerOTP.created_at.desc())
-        .limit(1)
-    )
-    res = await db.execute(stmt)
-    latest_otp = res.scalar_one_or_none()
-
-    if latest_otp is not None and latest_otp.resend_available_at > now:
-        cooldown = int((latest_otp.resend_available_at - now).total_seconds())
-        return True, max(cooldown, 1)
-
-    # Generate and store OTP
-    otp_code = (
-        LOCAL_DEVELOPMENT_OTP
-        if current_settings.local_borrower_otp_enabled
-        else generate_otp_code()
-    )
-    otp_hash = hash_secret(otp_code)
-    new_otp = BorrowerOTP(
-        id=secrets.token_hex(18),
-        phone_number_normalized=normalized_phone,
-        otp_code_hash=otp_hash,
-        expires_at=now + timedelta(minutes=5),
-        resend_available_at=now + timedelta(seconds=60),
-        attempts=0,
-        created_at=now,
-    )
-    db.add(new_otp)
-    await db.flush()
-
-    # Dispatch via configured OTP provider (dev or Android SMS gateway)
-    otp_provider = get_otp_provider(current_settings)
-    delivered = await otp_provider.send_otp(normalized_phone, otp_code)
-
-    if not delivered:
-        logger.error(
-            "OTP provider failed to deliver message to %s",
-            normalized_phone[:6] + "...",
-        )
-        return False, 60
-
-    return True, 60
-
-
-async def verify_otp_and_login(
-    db: AsyncSession,
-    raw_phone: str,
-    otp: str,
-    invitation_code: str | None,
-    device_identifier: str,
-    platform: str,
-    push_token: str | None = None,
-    settings: Settings | None = None,
-) -> tuple[BorrowerAccount, str, str, int]:
-    """Verify OTP code, perform safe account linking/activation, and issue JWT tokens."""
-    current_settings = settings or get_settings()
-    normalized_phone = normalize_ph_phone_number(raw_phone)
-    now = datetime.now(UTC)
-
-    # Fetch active non-expired OTP
-    stmt = (
-        select(BorrowerOTP)
-        .where(
-            BorrowerOTP.phone_number_normalized == normalized_phone,
-            BorrowerOTP.used_at.is_(None),
-            BorrowerOTP.expires_at > now,
-        )
-        .order_by(BorrowerOTP.created_at.desc())
-        .limit(1)
-    )
-    res = await db.execute(stmt)
-    otp_record = res.scalar_one_or_none()
-
-    if otp_record is None:
-        raise ValueError("Invalid or expired OTP")
-
-    current_attempts = otp_record.attempts or 0
-
-    if current_attempts >= 5:
-        otp_record.used_at = now  # invalidate after max attempts
-        await db.flush()
-        raise ValueError("Maximum OTP verification attempts exceeded")
-
-    otp_record.attempts = current_attempts + 1
-    input_hash = hash_secret(otp)
-    if not hmac.compare_digest(otp_record.otp_code_hash, input_hash):
-        await db.flush()
-        raise ValueError("Invalid or expired OTP")
-
-    # Mark OTP as used
-    otp_record.used_at = now
-
-    # Fetch existing borrower account
-    acct_stmt = select(BorrowerAccount).where(
-        BorrowerAccount.phone_number_normalized == normalized_phone
-    )
-    acct_res = await db.execute(acct_stmt)
-    account = acct_res.scalar_one_or_none()
-
-    if account is None:
-        # Check if an active borrower record already exists for this phone number
-        borrower_stmt = select(Borrower).where(
-            Borrower.phone == normalized_phone,
-            Borrower.status == "Active",
-        )
-        borrower_res = await db.execute(borrower_stmt)
-        matched_borrower = borrower_res.scalar_one_or_none()
-
-        if matched_borrower is not None:
-            account = BorrowerAccount(
-                id=secrets.token_hex(18),
-                borrower_id=matched_borrower.id,
-                phone_number=raw_phone,
-                phone_number_normalized=normalized_phone,
-                phone_verified_at=now,
-                account_status="active",
-                created_at=now,
-                updated_at=now,
-            )
-            db.add(account)
-            await db.flush()
-        else:
-            # Require invitation code for initial linking if no active borrower exists yet
-            if not invitation_code:
-                raise ValueError("Activation code required for initial account setup")
-
-            inv_hash = hash_secret(invitation_code)
-            inv_stmt = (
-                select(BorrowerInvitation)
-                .where(
-                    BorrowerInvitation.invitation_code_hash == inv_hash,
-                    BorrowerInvitation.used_at.is_(None),
-                    BorrowerInvitation.expires_at > now,
-                )
-                .limit(1)
-            )
-            inv_res = await db.execute(inv_stmt)
-            invitation = inv_res.scalar_one_or_none()
-            if invitation is None:
-                raise ValueError("Invalid or expired activation code")
-
-            # Verify matching borrower
-            borrower = await db.get(Borrower, invitation.borrower_id)
-            if borrower is None or borrower.status != "Active":
-                raise ValueError(
-                    "Associated borrower is not eligible for portal access"
-                )
-
-            account = BorrowerAccount(
-                id=secrets.token_hex(18),
-                borrower_id=borrower.id,
-                phone_number=raw_phone,
-                phone_number_normalized=normalized_phone,
-                phone_verified_at=now,
-                account_status="active",
-                created_at=now,
-                updated_at=now,
-            )
-            db.add(account)
-            invitation.used_at = now
-            await db.flush()
-    else:
-        if account.account_status in ("suspended", "disabled"):
-            raise ValueError("Borrower account is disabled or suspended")
-        if account.phone_verified_at is None:
-            account.phone_verified_at = now
-        account.account_status = "active"
-        account.last_login_at = now
-        await db.flush()
-
-    # Register/update device
-    device_hash = hash_secret(device_identifier)
-    dev_stmt = select(BorrowerDevice).where(
-        BorrowerDevice.borrower_account_id == account.id,
-        BorrowerDevice.device_identifier_hash == device_hash,
-    )
-    dev_res = await db.execute(dev_stmt)
-    device = dev_res.scalar_one_or_none()
-    if device is None:
-        device = BorrowerDevice(
-            id=secrets.token_hex(18),
-            borrower_account_id=account.id,
-            device_identifier_hash=device_hash,
-            platform=platform,
-            push_token=push_token,
-            last_seen_at=now,
-            is_active=True,
-            created_at=now,
-            updated_at=now,
-        )
-        db.add(device)
-    else:
-        device.last_seen_at = now
-        device.is_active = True
-        if push_token is not None:
-            device.push_token = push_token
-            device.push_token_updated_at = now
-    await db.flush()
-
-    # Create JWT Tokens
-    access_token = create_borrower_access_token(account, current_settings)
-    raw_refresh_token = secrets.token_urlsafe(32)
-    refresh_hash = hash_secret(raw_refresh_token)
-
-    refresh_record = BorrowerRefreshToken(
-        id=secrets.token_hex(18),
-        borrower_account_id=account.id,
-        token_hash=refresh_hash,
-        device_id=device.id,
-        expires_at=now + timedelta(days=current_settings.refresh_token_expire_days),
-        created_at=now,
-    )
-    db.add(refresh_record)
-    await db.flush()
-
-    expires_in_sec = current_settings.access_token_expire_minutes * 60
-    return account, access_token, raw_refresh_token, expires_in_sec
 
 
 def create_borrower_access_token(
@@ -599,7 +311,7 @@ async def submit_borrower_registration(
         id_photo_url=payload.id_photo_url,
         selfie_url=payload.selfie_url,
         pin_hash=pin_hash,
-        status="Pending",
+        status="pending",
         status_token_hash=secrets.token_hex(32),
         privacy_accepted_at=now,
         terms_accepted_at=now,
@@ -651,7 +363,7 @@ async def approve_borrower_registration(
         borrower_id=borrower.id,
         phone_number=reg.phone_number,
         phone_number_normalized=reg.phone_number_normalized,
-        account_status="Approved",
+        account_status="approved",
         password_hash=reg.pin_hash,
         address=reg.address,
         id_photo_url=reg.id_photo_url,
@@ -662,7 +374,7 @@ async def approve_borrower_registration(
     db.add(account)
 
     # 3. Update registration request
-    reg.status = "Approved"
+    reg.status = "approved"
     reg.linked_borrower_id = borrower.id
     reg.reviewed_at = now
     reg.reviewed_by_user_id = owner_user.id
@@ -738,8 +450,8 @@ async def generate_new_activation_code(
     await db.flush()
 
     # If account was Pending/Approved, ensure status is Approved
-    if account.account_status in ("Pending", "pending"):
-        account.account_status = "Approved"
+    if account.account_status in ("pending", "approved"):
+        account.account_status = "approved"
 
     return activation, raw_code
 
@@ -762,7 +474,7 @@ async def verify_activation_code_and_activate(
     if account is None:
         raise ValueError("Borrower account not found for this mobile number")
 
-    if account.account_status in ("Suspended", "Disabled"):
+    if account.account_status in ("suspended", "disabled"):
         raise ValueError(f"Account is currently {account.account_status}")
 
     # Fetch active unexpired activation code
@@ -796,7 +508,7 @@ async def verify_activation_code_and_activate(
     code_rec.activated_ip = client_ip
 
     # Set account status to Activated
-    account.account_status = "Activated"
+    account.account_status = "activated"
     account.phone_verified_at = now
     account.updated_at = now
     await db.flush()
@@ -841,9 +553,9 @@ async def login_borrower_with_pin(
     if account.locked_until and account.locked_until > now:
         raise ValueError("Account is locked due to multiple failed attempts. Try again later or contact owner.")
 
-    if account.account_status not in ("Activated", "active"):
+    if account.account_status != "activated":
         raise ValueError(
-            f"Account status is '{account.account_status}'. Only Activated accounts may log in."
+            f"Account status is '{account.account_status}'. Only activated accounts may log in."
         )
 
     is_valid, needs_upgrade = verify_pin_secure(payload.pin_or_password, account.password_hash)

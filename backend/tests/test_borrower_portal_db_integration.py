@@ -17,12 +17,11 @@ from app.core.database import get_db
 from app.features.auth.service import create_token
 from app.features.borrower_portal.models import (
     BorrowerAccount,
+    BorrowerActivationCode,
     BorrowerDevice,
     BorrowerInvitation,
-    BorrowerOTP,
     BorrowerRefreshToken,
 )
-from app.features.borrower_portal.otp_provider import dev_otp_provider
 from app.features.borrower_portal.service import hash_secret
 from app.features.borrowers.models import Borrower
 from app.features.loans.models import Installment, Loan
@@ -62,7 +61,6 @@ class TestBorrowerPortalRealDatabaseIntegration(unittest.IsolatedAsyncioTestCase
             await db.execute(delete(Loan))
             await db.execute(delete(BorrowerRefreshToken))
             await db.execute(delete(BorrowerDevice))
-            await db.execute(delete(BorrowerOTP))
             await db.execute(delete(BorrowerInvitation))
             await db.execute(delete(BorrowerAccount))
             await db.execute(delete(Borrower))
@@ -144,36 +142,42 @@ class TestBorrowerPortalRealDatabaseIntegration(unittest.IsolatedAsyncioTestCase
                     inv_record.invitation_code_hash, hash_secret(raw_inv_code)
                 )
 
-            # 7. Request an OTP
+            # 7. Generate Activation Code via Owner API
             phone_num = "09171234567"
-            otp_req_res = await client.post(
-                "/api/v1/client/auth/request-otp",
-                json={"phoneNumber": phone_num, "invitationCode": raw_inv_code},
-            )
-            self.assertEqual(otp_req_res.status_code, 200)
-
-            # 8 & 9. Retrieve OTP from dev provider & verify stored as a hash in DB
             norm_phone = "+639171234567"
-            dev_otp = dev_otp_provider.last_delivered_otp.get(norm_phone)
-            self.assertIsNotNone(dev_otp)
-
             async with self.session_factory() as db:
-                otp_stmt = select(BorrowerOTP).where(
-                    BorrowerOTP.phone_number_normalized == norm_phone
+                from app.features.borrower_portal.service import generate_new_activation_code
+                from app.features.borrower_portal.models import BorrowerAccount
+                acct = BorrowerAccount(
+                    id="acct_integration_1",
+                    borrower_id=borrower.id,
+                    phone_number=phone_num,
+                    phone_number_normalized=norm_phone,
+                    account_status="approved",
+                    created_at=datetime.now(),
+                    updated_at=datetime.now(),
                 )
-                otp_record = (await db.execute(otp_stmt)).scalar_one()
-                self.assertNotEqual(otp_record.otp_code_hash, dev_otp)
-                self.assertEqual(otp_record.otp_code_hash, hash_secret(dev_otp))
+                db.add(acct)
+                await db.commit()
+                act_rec, raw_act_code = await generate_new_activation_code(db, acct.id, officer)
+                await db.commit()
 
-            # 10. Verify OTP
+            # 8. Verify Activation Code is stored hashed in DB
+            async with self.session_factory() as db:
+                code_stmt = select(BorrowerActivationCode).where(
+                    BorrowerActivationCode.borrower_id == borrower.id
+                )
+                code_record = (await db.execute(code_stmt)).scalar_one()
+                self.assertNotEqual(code_record.code_hash, raw_act_code)
+                self.assertEqual(code_record.code_hash, hash_secret(raw_act_code))
+
+            # 10. Redeem Activation Code
             verify_res = await client.post(
-                "/api/v1/client/auth/verify-otp",
+                "/api/v1/client/auth/activate",
                 json={
                     "phoneNumber": phone_num,
-                    "otp": dev_otp,
-                    "invitationCode": raw_inv_code,
+                    "activationCode": raw_act_code,
                     "deviceIdentifier": "real_device_id_uuid_1",
-                    "platform": "android",
                 },
             )
             self.assertEqual(verify_res.status_code, 200)
@@ -182,46 +186,24 @@ class TestBorrowerPortalRealDatabaseIntegration(unittest.IsolatedAsyncioTestCase
             refresh_token = verify_data["refreshToken"]
             acct_id = verify_data["borrowerAccountId"]
 
-            # 11. Confirm a borrower account is created and linked to the correct borrower
+            # 11. Confirm borrower account status is activated
             async with self.session_factory() as db:
                 acct = await db.get(BorrowerAccount, acct_id)
                 self.assertIsNotNone(acct)
                 self.assertEqual(acct.borrower_id, borrower.id)
                 self.assertEqual(acct.phone_number_normalized, norm_phone)
+                self.assertEqual(acct.account_status, "activated")
 
-            # 12. Confirm a second active account cannot be created for the same borrower
-            # 14. Confirm the invitation becomes used and cannot be reused
-            # 15. Confirm the OTP becomes used and cannot be reused
-            async with self.session_factory() as db:
-                inv_used = (
-                    await db.execute(
-                        select(BorrowerInvitation).where(
-                            BorrowerInvitation.borrower_id == borrower.id
-                        )
-                    )
-                ).scalar_one()
-                self.assertIsNotNone(inv_used.used_at)
-
-                otp_used = (
-                    await db.execute(
-                        select(BorrowerOTP).where(
-                            BorrowerOTP.phone_number_normalized == norm_phone
-                        )
-                    )
-                ).scalar_one()
-                self.assertIsNotNone(otp_used.used_at)
-
-            reuse_otp_res = await client.post(
-                "/api/v1/client/auth/verify-otp",
+            # 15. Confirm activation code cannot be reused
+            reuse_act_res = await client.post(
+                "/api/v1/client/auth/activate",
                 json={
                     "phoneNumber": phone_num,
-                    "otp": dev_otp,
-                    "invitationCode": raw_inv_code,
+                    "activationCode": raw_act_code,
                     "deviceIdentifier": "real_device_id_uuid_1",
-                    "platform": "android",
                 },
             )
-            self.assertEqual(reuse_otp_res.status_code, 400)
+            self.assertEqual(reuse_act_res.status_code, 400)
 
             # 16 & 17. Call GET /api/v1/client/me and verify return profile belongs to borrower
             me_res = await client.get(
