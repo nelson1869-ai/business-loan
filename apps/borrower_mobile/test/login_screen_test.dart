@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:borrower_mobile/features/authentication/login_screen.dart';
 
 void main() {
-  testWidgets('LoginScreen renders header and input fields',
+  testWidgets('LoginScreen renders header and PIN login fields',
       (WidgetTester tester) async {
     await tester.pumpWidget(
       const ProviderScope(
@@ -17,24 +17,8 @@ void main() {
     expect(find.text('Lending Nelson'), findsOneWidget);
     expect(find.text('BORROWER PORTAL'), findsOneWidget);
     expect(find.text('Mobile Number'), findsOneWidget);
-    expect(find.text('Request OTP Code'), findsOneWidget);
-    expect(find.byKey(const Key('local-development-otp-notice')), findsNothing);
-  });
-
-  testWidgets('LoginScreen visibly identifies the fixed local OTP',
-      (WidgetTester tester) async {
-    await tester.pumpWidget(
-      const ProviderScope(
-        child: MaterialApp(
-          home: LoginScreen(localOtpEnabled: true),
-        ),
-      ),
-    );
-
-    expect(
-      find.byKey(const Key('local-development-otp-notice')),
-      findsOneWidget,
-    );
-    expect(find.text('Local development only: use OTP 123456'), findsOneWidget);
+    expect(find.text('PIN / Password'), findsOneWidget);
+    expect(find.text('Log In to Borrower Portal'), findsOneWidget);
+    expect(find.text('Enter Activation Code'), findsOneWidget);
   });
 }

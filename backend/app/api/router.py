@@ -36,7 +36,6 @@ def register_routers(application: FastAPI) -> None:
         automation.router,
         borrowers.router,
         borrower_portal.client_router,
-        borrower_portal.officer_router,
         registration_router.public_router,
         registration_router.staff_router,
         business_settings.router,

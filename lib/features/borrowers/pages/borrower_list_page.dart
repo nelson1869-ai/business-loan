@@ -8,6 +8,7 @@ import '../../../core/network/api_error_mapper.dart';
 import '../data/borrower_repository.dart';
 import '../providers/borrowers_state.dart';
 import '../widgets/borrower_card.dart';
+import 'registration_review_page.dart';
 
 class BorrowerListPage extends ConsumerStatefulWidget {
   const BorrowerListPage({super.key});
@@ -48,6 +49,15 @@ class _BorrowerListPageState extends ConsumerState<BorrowerListPage> {
       appBar: AppBar(
         title: const Text('Borrowers'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.how_to_reg_outlined),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const RegistrationReviewPage()),
+              );
+            },
+            tooltip: 'Registration Applications',
+          ),
           IconButton(
             icon: const Icon(Icons.person_add_alt_1),
             onPressed: () {

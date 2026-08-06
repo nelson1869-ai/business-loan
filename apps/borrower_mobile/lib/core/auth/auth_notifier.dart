@@ -162,6 +162,111 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  Future<bool> activateWithCode({
+    required String phoneNumber,
+    required String activationCode,
+    required String deviceIdentifier,
+  }) async {
+    state = state.copyWith(
+      status: AuthStatus.authenticating,
+      errorMessage: null,
+    );
+
+    try {
+      final res = await apiClient.post(
+        '/api/v1/client/auth/activate',
+        data: {
+          'phoneNumber': phoneNumber,
+          'activationCode': activationCode,
+          'deviceIdentifier': deviceIdentifier,
+          'platform': 'android',
+        },
+      );
+
+      final access = res['accessToken'] as String;
+      final refresh = res['refreshToken'] as String;
+      final acctId = res['borrowerAccountId'] as String;
+      final borId = res['borrowerId'] as String;
+
+      await storage.saveTokens(
+        accessToken: access,
+        refreshToken: refresh,
+        borrowerAccountId: acctId,
+        borrowerId: borId,
+      );
+
+      state = AuthState.authenticated(
+        borrowerAccountId: acctId,
+        borrowerId: borId,
+      );
+      return true;
+    } on ApiError catch (e) {
+      state = state.copyWith(
+        status: AuthStatus.unauthenticated,
+        errorMessage: e.message,
+      );
+      return false;
+    } catch (e) {
+      state = state.copyWith(
+        status: AuthStatus.unauthenticated,
+        errorMessage: 'Account activation failed. Please check the code and try again.',
+      );
+      return false;
+    }
+  }
+
+  Future<bool> loginWithPin({
+    required String phoneNumber,
+    required String pinOrPassword,
+    required String deviceIdentifier,
+  }) async {
+    state = state.copyWith(
+      status: AuthStatus.authenticating,
+      errorMessage: null,
+    );
+
+    try {
+      final res = await apiClient.post(
+        '/api/v1/client/auth/login',
+        data: {
+          'phoneNumber': phoneNumber,
+          'pinOrPassword': pinOrPassword,
+          'deviceIdentifier': deviceIdentifier,
+        },
+      );
+
+      final access = res['accessToken'] as String;
+      final refresh = res['refreshToken'] as String;
+      final acctId = res['borrowerAccountId'] as String;
+      final borId = res['borrowerId'] as String;
+
+      await storage.saveTokens(
+        accessToken: access,
+        refreshToken: refresh,
+        borrowerAccountId: acctId,
+        borrowerId: borId,
+      );
+
+      state = AuthState.authenticated(
+        borrowerAccountId: acctId,
+        borrowerId: borId,
+      );
+      return true;
+    } on ApiError catch (e) {
+      state = state.copyWith(
+        status: AuthStatus.unauthenticated,
+        errorMessage: e.message,
+      );
+      return false;
+    } catch (e) {
+      state = state.copyWith(
+        status: AuthStatus.unauthenticated,
+        errorMessage: 'Login failed. Please check your credentials.',
+      );
+      return false;
+    }
+  }
+
   Future<void> logout() async {
     state = AuthState.unauthenticated();
     final refreshToken = await storage.getRefreshToken();

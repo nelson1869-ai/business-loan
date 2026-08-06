@@ -16,7 +16,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       _last = TextEditingController(),
       _suffix = TextEditingController(),
       _nationalId = TextEditingController(),
+      _address = TextEditingController(),
       _phone = TextEditingController(),
+      _pin = TextEditingController(),
       _email = TextEditingController();
   DateTime? _birthDate;
   bool _privacy = false, _terms = false;
@@ -29,7 +31,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       _last,
       _suffix,
       _nationalId,
+      _address,
       _phone,
+      _pin,
       _email,
     ]) {
       c.dispose();
@@ -67,7 +71,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       'lastName': _last.text.trim(),
       'suffix': _suffix.text.trim().isEmpty ? null : _suffix.text.trim(),
       'nationalId': _nationalId.text.trim(),
+      'address': _address.text.trim(),
       'phoneNumber': _phone.text.trim(),
+      'pinOrPassword': _pin.text.trim(),
       'dateOfBirth': _birthDate!.toIso8601String().split('T').first,
       'email': _email.text.trim().isEmpty ? null : _email.text.trim(),
       'privacyAccepted': _privacy,
@@ -116,7 +122,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                 _field(_last, 'Last name', required: true),
                 _field(_suffix, 'Suffix (optional)'),
                 _field(_nationalId, 'National ID', required: true),
+                _field(_address, 'Full Address', required: true),
                 _field(_phone, 'Mobile number', required: true, phone: true),
+                _field(_pin, 'Desired PIN / Password', required: true, obscure: true),
                 _field(_email, 'Email (optional)', email: true)
               ],
               ListTile(
@@ -161,11 +169,12 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   }
 
   Widget _field(TextEditingController c, String label,
-          {bool required = false, bool phone = false, bool email = false}) =>
+          {bool required = false, bool phone = false, bool email = false, bool obscure = false}) =>
       Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: TextFormField(
               controller: c,
+              obscureText: obscure,
               keyboardType: phone
                   ? TextInputType.phone
                   : email

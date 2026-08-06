@@ -102,3 +102,91 @@ class ClientInvitationResponse(BaseSchema):
     invitation_code: str = Field(..., alias="invitationCode")
     expires_at: datetime = Field(..., alias="expiresAt")
     created_at: datetime = Field(..., alias="createdAt")
+
+
+class BorrowerRegistrationSubmitRequest(BaseSchema):
+    """Borrower public sign-up registration request payload."""
+
+    first_name: str = Field(..., alias="firstName", min_length=1, max_length=100)
+    last_name: str = Field(..., alias="lastName", min_length=1, max_length=100)
+    phone_number: str = Field(..., alias="phoneNumber", min_length=7, max_length=32)
+    address: str = Field(..., alias="address", min_length=2, max_length=500)
+    date_of_birth: str = Field(..., alias="dateOfBirth")
+    national_id: str = Field(..., alias="nationalId", min_length=1, max_length=100)
+    id_photo_url: str | None = Field(None, alias="idPhotoUrl")
+    selfie_url: str | None = Field(None, alias="selfieUrl")
+    pin_or_password: str = Field(..., alias="pinOrPassword", min_length=4, max_length=128)
+
+
+class BorrowerActivationRequest(BaseSchema):
+    """Payload for borrower to redeem 6-digit owner activation code."""
+
+    phone_number: str = Field(..., alias="phoneNumber")
+    activation_code: str = Field(..., alias="activationCode", min_length=6, max_length=6)
+    device_identifier: str = Field(..., alias="deviceIdentifier")
+    platform: Literal["android", "ios", "web"] = "android"
+    push_token: str | None = Field(None, alias="pushToken")
+
+
+class BorrowerPINLoginRequest(BaseSchema):
+    """Payload for activated borrower PIN/password authentication."""
+
+    phone_number: str = Field(..., alias="phoneNumber")
+    pin_or_password: str = Field(..., alias="pinOrPassword")
+    device_identifier: str = Field(..., alias="deviceIdentifier")
+
+
+class BorrowerRegistrationItemResponse(BaseSchema):
+    """Item for owner registration review list."""
+
+    id: str
+    first_name: str = Field(..., alias="firstName")
+    last_name: str = Field(..., alias="lastName")
+    phone_number: str = Field(..., alias="phoneNumber")
+    address: str | None = None
+    date_of_birth: str = Field(..., alias="dateOfBirth")
+    national_id: str | None = Field(None, alias="nationalId")
+    id_photo_url: str | None = Field(None, alias="idPhotoUrl")
+    selfie_url: str | None = Field(None, alias="selfieUrl")
+    status: str
+    rejection_reason: str | None = Field(None, alias="rejectionReason")
+    submitted_at: datetime = Field(..., alias="submittedAt")
+
+
+class OwnerApproveRegistrationResponse(BaseSchema):
+    """Response returned to Owner when approving a registration."""
+
+    registration_id: str = Field(..., alias="registrationId")
+    borrower_id: str = Field(..., alias="borrowerId")
+    borrower_account_id: str = Field(..., alias="borrowerAccountId")
+    activation_code: str = Field(..., alias="activationCode")
+    expires_at: datetime = Field(..., alias="expiresAt")
+
+
+class BorrowerLoanRequestSubmit(BaseSchema):
+    """Payload for borrower to submit a new loan request."""
+
+    requested_amount: str = Field(..., alias="requestedAmount")
+    requested_term_months: int = Field(..., alias="requestedTermMonths", ge=1, le=120)
+    purpose: str | None = Field(None, alias="purpose", max_length=500)
+
+
+class BorrowerLoanRequestResponse(BaseSchema):
+    """Loan request response object."""
+
+    id: str
+    borrower_id: str = Field(..., alias="borrowerId")
+    requested_amount: str = Field(..., alias="requestedAmount")
+    requested_term_months: int = Field(..., alias="requestedTermMonths")
+    purpose: str | None = None
+    status: str
+    owner_notes: str | None = Field(None, alias="ownerNotes")
+    created_draft_loan_id: str | None = Field(None, alias="createdDraftLoanId")
+    created_at: datetime = Field(..., alias="createdAt")
+
+
+class ReviewBorrowerLoanRequestPayload(BaseSchema):
+    """Owner review action on a borrower loan request."""
+
+    action: Literal["approve", "decline"]
+    owner_notes: str | None = Field(None, alias="ownerNotes")

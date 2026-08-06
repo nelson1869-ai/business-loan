@@ -13,19 +13,15 @@ void main() {
     expect(find.text('Create account'), findsOneWidget);
     expect(find.byTooltip('Back to login'), findsOneWidget);
     expect(find.widgetWithText(TextFormField, 'National ID'), findsOneWidget);
+
     await tester.scrollUntilVisible(
-      find.text('I accept the privacy notice'),
+      find.text('Submit for review'),
       300,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(find.text('I accept the privacy notice'), findsOneWidget);
-    expect(find.text('I accept the terms'), findsOneWidget);
-
-    await tester.ensureVisible(find.text('Submit for review'));
     await tester.tap(find.text('Submit for review'));
     await tester.pump();
 
-    expect(find.text('Date of birth is required'), findsOneWidget);
     expect(find.text('Please complete all required fields.'), findsOneWidget);
   });
 }

@@ -22,28 +22,29 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _phoneController = TextEditingController();
-  final _invitationController = TextEditingController();
+  final _pinController = TextEditingController();
 
   @override
   void dispose() {
     _phoneController.dispose();
-    _invitationController.dispose();
+    _pinController.dispose();
     super.dispose();
   }
 
-  Future<void> _submit() async {
+  Future<void> _loginWithPin() async {
     if (!_formKey.currentState!.validate()) return;
 
     final phone = _phoneController.text.trim();
-    final invCode = _invitationController.text.trim();
+    final pin = _pinController.text.trim();
 
-    final success = await ref.read(authNotifierProvider.notifier).requestOtp(
+    final success = await ref.read(authNotifierProvider.notifier).loginWithPin(
           phoneNumber: phone,
-          invitationCode: invCode.isNotEmpty ? invCode : null,
+          pinOrPassword: pin,
+          deviceIdentifier: 'android_borrower_device_001',
         );
 
     if (success && mounted) {
-      context.go('/verify', extra: invCode);
+      context.go('/home');
     }
   }
 
@@ -53,7 +54,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final isLoading = authState.status == AuthStatus.authenticating;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
+      backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -68,14 +69,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
+                      colors: [Color(0xFF0D9488), Color(0xFF0F766E)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
                     borderRadius: BorderRadius.circular(22),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF2563EB).withValues(alpha: 0.3),
+                        color: const Color(0xFF0D9488).withValues(alpha: 0.3),
                         blurRadius: 20,
                         offset: const Offset(0, 8),
                       ),
@@ -103,26 +104,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFEFF6FF),
+                    color: const Color(0xFFCCFBF1),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFFBFDBFE)),
+                    border: Border.all(color: const Color(0xFF99F6E4)),
                   ),
                   child: const Text(
                     'BORROWER PORTAL',
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF1D4ED8),
+                      color: Color(0xFF0F766E),
                       letterSpacing: 1.1,
                     ),
                   ),
                 ),
                 const SizedBox(height: 32),
-
-                if (widget.localOtpEnabled) ...[
-                  const _LocalOtpNotice(),
-                  const SizedBox(height: 16),
-                ],
 
                 // Form Card Container
                 Container(
@@ -186,57 +182,46 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             return null;
                           },
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 16),
                         AppTextField(
-                          controller: _invitationController,
-                          label:
-                              'Client Activation Code (Optional / First Login)',
-                          hint: '6-digit officer code',
-                          prefixIcon: Icons.key_rounded,
-                          keyboardType: TextInputType.number,
-                        ),
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF8FAFC),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFFF1F5F9)),
-                          ),
-                          child: const Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(
-                                Icons.info_outline_rounded,
-                                size: 16,
-                                color: Color(0xFF64748B),
-                              ),
-                              SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'First time? Enter the code given by your Loan Officer. Returning borrowers can leave this empty.',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Color(0xFF64748B),
-                                    height: 1.35,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                          controller: _pinController,
+                          label: 'PIN / Password',
+                          hint: 'Enter your 6-digit PIN',
+                          prefixIcon: Icons.lock_outline_rounded,
+                          obscureText: true,
+                          validator: (val) {
+                            if (val == null || val.trim().isEmpty) {
+                              return 'Please enter your PIN or password';
+                            }
+                            return null;
+                          },
                         ),
                         const SizedBox(height: 24),
                         AppButton(
-                          text: 'Request OTP Code',
-                          icon: Icons.arrow_forward_rounded,
+                          text: 'Log In to Borrower Portal',
+                          icon: Icons.login_rounded,
                           isLoading: isLoading,
-                          onPressed: _submit,
+                          onPressed: _loginWithPin,
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 16),
+                        const Divider(),
+                        const SizedBox(height: 8),
+                        OutlinedButton.icon(
+                          onPressed:
+                              isLoading ? null : () => context.go('/activate'),
+                          icon: const Icon(Icons.vpn_key_outlined, size: 18),
+                          label: const Text('Enter Activation Code'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            side: const BorderSide(color: Color(0xFF0D9488)),
+                            foregroundColor: const Color(0xFF0D9488),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
                         TextButton(
                           onPressed:
                               isLoading ? null : () => context.go('/register'),
-                          child: const Text('Create account'),
+                          child: const Text('New borrower? Sign up here'),
                         ),
                       ],
                     ),
@@ -268,38 +253,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _LocalOtpNotice extends StatelessWidget {
-  const _LocalOtpNotice();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      key: const Key('local-development-otp-notice'),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFFBEB),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFF59E0B)),
-      ),
-      child: const Row(
-        children: [
-          Icon(Icons.developer_mode_rounded, color: Color(0xFFB45309)),
-          SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Local development only: use OTP 123456',
-              style: TextStyle(
-                color: Color(0xFF92400E),
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

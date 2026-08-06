@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:borrower_mobile/core/auth/auth_notifier.dart';
 import 'package:borrower_mobile/features/dashboard/providers/dashboard_provider.dart';
+import 'package:borrower_mobile/features/loans/loan_request_modal.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -440,6 +441,20 @@ class DashboardScreen extends ConsumerWidget {
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: Column(
             children: [
+              ListTile(
+                leading: const Icon(Icons.request_quote_outlined,
+                    color: Color(0xFF0D9488)),
+                title: const Text('Request New Loan'),
+                subtitle: const Text('Submit a loan application to lender'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  showDialog<void>(
+                    context: context,
+                    builder: (_) => const LoanRequestModal(),
+                  );
+                },
+              ),
+              const Divider(height: 1),
               ListTile(
                 leading: const Icon(Icons.account_balance_wallet_outlined,
                     color: Colors.indigo),

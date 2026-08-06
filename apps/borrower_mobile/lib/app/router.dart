@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:borrower_mobile/core/auth/auth_notifier.dart';
 import 'package:borrower_mobile/core/auth/auth_state.dart';
+import 'package:borrower_mobile/features/authentication/activation_screen.dart';
 import 'package:borrower_mobile/features/authentication/login_screen.dart';
 import 'package:borrower_mobile/features/authentication/otp_screen.dart';
 import 'package:borrower_mobile/features/dashboard/dashboard_screen.dart';
@@ -32,6 +33,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       final isLoggingInOrVerifying = loc == '/login' ||
           loc == '/verify' ||
+          loc == '/activate' ||
           loc == '/register' ||
           loc == '/registration-status';
 
@@ -55,6 +57,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/login',
         builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: '/activate',
+        builder: (context, state) => const ActivationScreen(),
       ),
       GoRoute(
         path: '/verify',

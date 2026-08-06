@@ -1,6 +1,13 @@
 """Borrower portal database models."""
 
 from datetime import date, datetime
+from decimal import Decimal
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.features.borrowers.models import Borrower
+    from app.features.loans.models import Loan
+    from app.features.users.models import User
 
 from sqlalchemy import (
     Boolean,
@@ -10,6 +17,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
     func,
@@ -40,8 +48,12 @@ class BorrowerAccount(Base):
         DateTime(timezone=True), nullable=True
     )
     account_status: Mapped[str] = mapped_column(
-        String(20), nullable=False, server_default="pending", index=True
+        String(20), nullable=False, server_default="Pending", index=True
     )
+    password_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    id_photo_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    selfie_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     failed_login_attempts: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
     )
@@ -77,7 +89,7 @@ class BorrowerRegistrationRequest(Base):
     __table_args__ = (
         Index("ix_registration_pending_phone", "phone_number_normalized", "status"),
         CheckConstraint(
-            "status IN ('pending','approved','rejected','cancelled','expired')",
+            "status IN ('pending','approved','rejected','cancelled','expired','Pending','Approved','Rejected','Activated','Suspended','Disabled')",
             name="ck_registration_status",
         ),
     )
@@ -93,9 +105,13 @@ class BorrowerRegistrationRequest(Base):
         String(32), nullable=False, index=True
     )
     date_of_birth: Mapped[date] = mapped_column(Date, nullable=False)
+    address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    id_photo_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    selfie_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    pin_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
     email: Mapped[str | None] = mapped_column(String(254))
     status: Mapped[str] = mapped_column(
-        String(20), nullable=False, server_default="pending", index=True
+        String(20), nullable=False, server_default="Pending", index=True
     )
     status_token_hash: Mapped[str] = mapped_column(
         String(128), nullable=False, unique=True, index=True
@@ -174,6 +190,90 @@ class BorrowerInvitation(Base):
 
     borrower: Mapped["Borrower"] = relationship()
     created_by_user: Mapped["User"] = relationship()
+
+
+class BorrowerActivationCode(Base):
+    """Cryptographically random 6-digit owner activation code for single-owner borrower activation."""
+
+    __tablename__ = "borrower_activation_codes"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    borrower_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("borrowers.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    borrower_account_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("borrower_accounts.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    code_hash: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    attempts: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    max_attempts: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=5, server_default="5"
+    )
+    used_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_by_user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    activated_device_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    activated_ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    borrower: Mapped["Borrower"] = relationship()
+    created_by_user: Mapped["User"] = relationship()
+
+
+class BorrowerLoanRequest(Base):
+    """Separate entity for borrower-submitted loan requests awaiting owner review."""
+
+    __tablename__ = "borrower_loan_requests"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    borrower_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("borrowers.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    requested_amount: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), nullable=False
+    )
+    requested_term_months: Mapped[int] = mapped_column(Integer, nullable=False)
+    purpose: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default="submitted", index=True
+    )
+    owner_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_draft_loan_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("loans.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    borrower: Mapped["Borrower"] = relationship()
 
 
 class BorrowerOTP(Base):
@@ -278,7 +378,3 @@ class BorrowerDevice(Base):
     )
 
     borrower_account: Mapped["BorrowerAccount"] = relationship(back_populates="devices")
-
-
-from app.features.borrowers.models import Borrower  # noqa: E402
-from app.features.users.models import User  # noqa: E402

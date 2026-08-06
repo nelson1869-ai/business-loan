@@ -36,7 +36,13 @@ from app.features.borrower_portal.payments_service import (
     get_borrower_payment_receipt,
 )
 from app.features.borrower_portal.schemas import (
+    BorrowerActivationRequest,
+    BorrowerLoanRequestResponse,
+    BorrowerLoanRequestSubmit,
+    BorrowerPINLoginRequest,
     BorrowerProfileResponse,
+    BorrowerRegistrationItemResponse,
+    BorrowerRegistrationSubmitRequest,
     BorrowerTokenResponse,
     ClientInvitationRequest,
     ClientInvitationResponse,
@@ -45,15 +51,25 @@ from app.features.borrower_portal.schemas import (
     OTPRequest,
     OTPRequestResponse,
     OTPVerifyRequest,
+    OwnerApproveRegistrationResponse,
     RefreshTokenRequest,
+    ReviewBorrowerLoanRequestPayload,
 )
 from app.features.borrower_portal.service import (
+    approve_borrower_registration,
+    generate_new_activation_code,
     get_borrower_profile,
     hash_secret,
     issue_client_invitation,
+    list_borrower_loan_requests,
+    login_borrower_with_pin,
     request_otp,
+    review_borrower_loan_request,
     revoke_borrower_refresh_token,
     rotate_borrower_refresh_token,
+    submit_borrower_loan_request,
+    submit_borrower_registration,
+    verify_activation_code_and_activate,
     verify_otp_and_login,
 )
 from app.features.borrowers import service as borrower_service
@@ -373,3 +389,155 @@ async def create_client_invitation(
         expires_at=invitation.expires_at,
         created_at=invitation.created_at,
     )
+
+
+# ── Single-Owner Registration, Activation & Loan Request Routes ───────────────
+
+
+@client_router.post(
+    "/auth/register",
+    response_model=BorrowerRegistrationItemResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def register_borrower_client(
+    payload: BorrowerRegistrationSubmitRequest,
+    db: DbSession,
+) -> BorrowerRegistrationItemResponse:
+    """Public sign-up endpoint for borrowers (Status = Pending)."""
+    try:
+        req = await submit_borrower_registration(db, payload)
+        await db.commit()
+    except ValueError as error:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(error),
+        ) from error
+
+    return BorrowerRegistrationItemResponse(
+        id=req.id,
+        first_name=req.first_name,
+        last_name=req.last_name,
+        phone_number=req.phone_number,
+        address=req.address,
+        date_of_birth=req.date_of_birth.isoformat(),
+        national_id=req.national_id,
+        id_photo_url=req.id_photo_url,
+        selfie_url=req.selfie_url,
+        status=req.status,
+        rejection_reason=req.rejection_reason,
+        submitted_at=req.submitted_at,
+    )
+
+
+@client_router.post("/auth/activate", response_model=BorrowerTokenResponse)
+async def activate_borrower_client(
+    payload: BorrowerActivationRequest,
+    request: Request,
+    db: DbSession,
+) -> BorrowerTokenResponse:
+    """Redeem 6-digit owner activation code and obtain tokens."""
+    client_ip = request.client.host if request.client else None
+    try:
+        account, access_token, refresh_token, expires_in = (
+            await verify_activation_code_and_activate(db, payload, client_ip)
+        )
+        await db.commit()
+    except ValueError as error:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(error),
+        ) from error
+
+    return BorrowerTokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="Bearer",
+        expires_in=expires_in,
+        borrower_account_id=account.id,
+        borrower_id=account.borrower_id,
+        account_status=account.account_status,
+    )
+
+
+@client_router.post("/auth/login", response_model=BorrowerTokenResponse)
+async def login_borrower_pin(
+    payload: BorrowerPINLoginRequest,
+    db: DbSession,
+) -> BorrowerTokenResponse:
+    """PIN / Password login endpoint for activated borrowers."""
+    try:
+        account, access_token, refresh_token, expires_in = (
+            await login_borrower_with_pin(db, payload)
+        )
+        await db.commit()
+    except ValueError as error:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(error),
+        ) from error
+
+    return BorrowerTokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="Bearer",
+        expires_in=expires_in,
+        borrower_account_id=account.id,
+        borrower_id=account.borrower_id,
+        account_status=account.account_status,
+    )
+
+
+@client_router.post(
+    "/loan-requests",
+    response_model=BorrowerLoanRequestResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def submit_loan_request_endpoint(
+    payload: BorrowerLoanRequestSubmit,
+    db: DbSession,
+    current_account: ActiveBorrowerAccount,
+) -> BorrowerLoanRequestResponse:
+    """Borrower endpoint to submit a new loan request."""
+    req = await submit_borrower_loan_request(db, current_account, payload)
+    await db.commit()
+    return BorrowerLoanRequestResponse(
+        id=req.id,
+        borrower_id=req.borrower_id,
+        requested_amount=str(req.requested_amount),
+        requested_term_months=req.requested_term_months,
+        purpose=req.purpose,
+        status=req.status,
+        owner_notes=req.owner_notes,
+        created_draft_loan_id=req.created_draft_loan_id,
+        created_at=req.created_at,
+    )
+
+
+@client_router.get(
+    "/loan-requests",
+    response_model=list[BorrowerLoanRequestResponse],
+)
+async def list_client_loan_requests(
+    db: DbSession,
+    current_account: ActiveBorrowerAccount,
+) -> list[BorrowerLoanRequestResponse]:
+    """Fetch loan request history for current borrower."""
+    requests = await list_borrower_loan_requests(db, current_account)
+    return [
+        BorrowerLoanRequestResponse(
+            id=r.id,
+            borrower_id=r.borrower_id,
+            requested_amount=str(r.requested_amount),
+            requested_term_months=r.requested_term_months,
+            purpose=r.purpose,
+            status=r.status,
+            owner_notes=r.owner_notes,
+            created_draft_loan_id=r.created_draft_loan_id,
+            created_at=r.created_at,
+        )
+        for r in requests
+    ]
+
