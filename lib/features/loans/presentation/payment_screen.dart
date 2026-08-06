@@ -10,6 +10,7 @@ import '../../../core/utils/formatters.dart';
 import '../../../core/security/device_identifier.dart';
 import '../../../core/security/officer_session.dart';
 import '../../approvals/data/approval_repository.dart';
+import '../../collection_sessions/data/collection_session_repository.dart';
 import '../../collection_sessions/presentation/collection_session_provider.dart';
 import '../domain/models/payment.dart';
 import '../../borrower_communication/presentation/borrower_communication_provider.dart';
@@ -99,6 +100,34 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       _noteController.text = noteText;
     });
     ref.read(paymentNotifierProvider.notifier).resetPreview();
+  }
+
+  Future<void> _autoOpenCollectionSession() async {
+    final session = ref.read(officerSessionProvider).valueOrNull;
+    if (session == null) return;
+    try {
+      final newSession = await ref
+          .read(collectionSessionRepositoryProvider)
+          .open(collectorUserId: session.userId, openingCash: '0.00');
+      ref.invalidate(collectionSessionsProvider);
+      if (mounted) {
+        setState(() {
+          _collectionSessionId = newSession.id;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Collection session opened successfully!'),
+            backgroundColor: Color(0xFF0D9488),
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ApiErrorMapper.message(error))),
+        );
+      }
+    }
   }
 
   @override
@@ -298,6 +327,12 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         item.id: 'Opened ${formatDateOnly(item.createdAt)}',
     };
 
+    final selectedSessionId =
+        (_collectionSessionId != null &&
+                sessionOptions.containsKey(_collectionSessionId))
+            ? _collectionSessionId
+            : (activeSessions.isNotEmpty ? activeSessions.first.id : null);
+
     ref.listen(paymentNotifierProvider, (_, next) {
       if (next.error != null) {
         ScaffoldMessenger.of(
@@ -375,11 +410,12 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                 onAutoGenerateReceipt: _autoGenerateReceiptNumber,
                 onAutoGenerateNote: _autoGenerateNote,
                 sessionOptions: sessionOptions,
-                collectionSessionId: _collectionSessionId,
+                collectionSessionId: selectedSessionId,
                 onSessionChanged: (value) {
                   setState(() => _collectionSessionId = value);
                   ref.read(paymentNotifierProvider.notifier).resetPreview();
                 },
+                onAutoOpenSession: _autoOpenCollectionSession,
                 onPickDate: _pickDate,
                 onPreview: _loadPreview,
                 onFieldChange: () =>

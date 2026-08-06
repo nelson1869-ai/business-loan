@@ -34,6 +34,7 @@ class PaymentFormCard extends StatelessWidget {
     this.onSessionChanged,
     this.onAutoGenerateReceipt,
     this.onAutoGenerateNote,
+    this.onAutoOpenSession,
   });
 
   final GlobalKey<FormState> formKey;
@@ -55,6 +56,7 @@ class PaymentFormCard extends StatelessWidget {
   final ValueChanged<String?>? onSessionChanged;
   final VoidCallback? onAutoGenerateReceipt;
   final VoidCallback? onAutoGenerateNote;
+  final VoidCallback? onAutoOpenSession;
 
   @override
   Widget build(BuildContext context) {
@@ -87,25 +89,70 @@ class PaymentFormCard extends StatelessWidget {
               ),
               if (method == 'cash') ...[
                 const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: collectionSessionId,
-                  decoration: const InputDecoration(
-                    labelText: 'Active collection session',
-                    prefixIcon: Icon(Icons.point_of_sale_outlined),
-                  ),
-                  items: sessionOptions.entries
-                      .map(
-                        (entry) => DropdownMenuItem(
-                          value: entry.key,
-                          child: Text(entry.value),
+                if (sessionOptions.isEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primaryContainer.withValues(alpha: 0.25),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: theme.colorScheme.primary.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          size: 20,
+                          color: theme.colorScheme.primary,
                         ),
-                      )
-                      .toList(growable: false),
-                  validator: (value) => value == null
-                      ? 'An active collection session is required for cash'
-                      : null,
-                  onChanged: working ? null : onSessionChanged,
-                ),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            'No active collection session',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                          ),
+                        ),
+                        FilledButton.icon(
+                          onPressed: working ? null : onAutoOpenSession,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF0D9488),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                          icon: const Icon(Icons.add_circle_outline, size: 16),
+                          label: const Text('Auto-Open'),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  DropdownButtonFormField<String>(
+                    initialValue: collectionSessionId,
+                    decoration: InputDecoration(
+                      labelText: 'Active collection session (Auto-selected)',
+                      prefixIcon: const Icon(Icons.point_of_sale_outlined),
+                      suffixIcon: onAutoOpenSession != null
+                          ? IconButton(
+                              icon: const Icon(Icons.add_circle_outline, size: 20),
+                              tooltip: 'Open new collection session',
+                              onPressed: working ? null : onAutoOpenSession,
+                            )
+                          : null,
+                    ),
+                    items: sessionOptions.entries
+                        .map(
+                          (entry) => DropdownMenuItem(
+                            value: entry.key,
+                            child: Text(entry.value),
+                          ),
+                        )
+                        .toList(growable: false),
+                    validator: (value) => value == null
+                        ? 'An active collection session is required for cash'
+                        : null,
+                    onChanged: working ? null : onSessionChanged,
+                  ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: receiptController,
