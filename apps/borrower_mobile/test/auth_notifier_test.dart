@@ -37,6 +37,18 @@ class FakeSecureTokenStorage implements SecureTokenStorage {
   Future<void> clearTokens() async {
     _storage.clear();
   }
+
+  @override
+  Future<String> getOrCreateInstallationId() async =>
+      _storage['installation_id'] ??= 'fake-test-installation-id';
+
+  @override
+  Future<String?> getSavedPhone() async => _storage['saved_phone'];
+
+  @override
+  Future<void> savePhone(String phone) async {
+    _storage['saved_phone'] = phone;
+  }
 }
 
 class FakeApiClient implements ApiClient {

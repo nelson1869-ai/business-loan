@@ -104,13 +104,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<bool> verifyOtp({
     required String otp,
     String? invitationCode,
-    required String deviceIdentifier,
+    String? deviceIdentifier,
   }) async {
     final phone = state.pendingPhoneNumber;
     if (phone == null || phone.isEmpty) {
       state = AuthState.unauthenticated('Phone number missing');
       return false;
     }
+
+    final devId = deviceIdentifier ?? await storage.getOrCreateInstallationId();
 
     state = state.copyWith(
       status: AuthStatus.authenticating,
@@ -125,7 +127,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
           'otp': otp,
           if (invitationCode != null && invitationCode.isNotEmpty)
             'invitationCode': invitationCode,
-          'deviceIdentifier': deviceIdentifier,
+          'deviceIdentifier': devId,
           'platform': 'android',
         },
       );
@@ -141,6 +143,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         borrowerAccountId: acctId,
         borrowerId: borId,
       );
+      await storage.savePhone(phone);
 
       state = AuthState.authenticated(
         borrowerAccountId: acctId,
@@ -165,8 +168,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<bool> activateWithCode({
     required String phoneNumber,
     required String activationCode,
-    required String deviceIdentifier,
+    String? deviceIdentifier,
   }) async {
+    final devId = deviceIdentifier ?? await storage.getOrCreateInstallationId();
+
     state = state.copyWith(
       status: AuthStatus.authenticating,
       errorMessage: null,
@@ -178,7 +183,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         data: {
           'phoneNumber': phoneNumber,
           'activationCode': activationCode,
-          'deviceIdentifier': deviceIdentifier,
+          'deviceIdentifier': devId,
           'platform': 'android',
         },
       );
@@ -194,6 +199,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         borrowerAccountId: acctId,
         borrowerId: borId,
       );
+      await storage.savePhone(phoneNumber);
 
       state = AuthState.authenticated(
         borrowerAccountId: acctId,
@@ -218,8 +224,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<bool> loginWithPin({
     required String phoneNumber,
     required String pinOrPassword,
-    required String deviceIdentifier,
+    String? deviceIdentifier,
   }) async {
+    final devId = deviceIdentifier ?? await storage.getOrCreateInstallationId();
+
     state = state.copyWith(
       status: AuthStatus.authenticating,
       errorMessage: null,
@@ -231,7 +239,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         data: {
           'phoneNumber': phoneNumber,
           'pinOrPassword': pinOrPassword,
-          'deviceIdentifier': deviceIdentifier,
+          'deviceIdentifier': devId,
         },
       );
 
@@ -246,6 +254,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         borrowerAccountId: acctId,
         borrowerId: borId,
       );
+      await storage.savePhone(phoneNumber);
 
       state = AuthState.authenticated(
         borrowerAccountId: acctId,
@@ -263,6 +272,57 @@ class AuthNotifier extends StateNotifier<AuthState> {
         status: AuthStatus.unauthenticated,
         errorMessage: 'Login failed. Please check your credentials.',
       );
+      return false;
+    }
+  }
+
+  Future<bool> confirmPin(String pin) async {
+    try {
+      await apiClient.post(
+        '/api/v1/client/auth/confirm-pin',
+        data: {'pin': pin},
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<String> requestForgotPin(String phoneNumber) async {
+    try {
+      final res = await apiClient.post(
+        '/api/v1/client/auth/forgot-pin',
+        data: {'phoneNumber': phoneNumber},
+      );
+      return res['message'] as String? ??
+          'If the account exists, the owner has been notified.';
+    } on ApiError catch (e) {
+      return e.message;
+    } catch (_) {
+      return 'Request failed. Please try again.';
+    }
+  }
+
+  Future<bool> resetPinWithCode({
+    required String phoneNumber,
+    required String resetCode,
+    required String newPin,
+  }) async {
+    try {
+      await apiClient.post(
+        '/api/v1/client/auth/reset-pin',
+        data: {
+          'phoneNumber': phoneNumber,
+          'resetCode': resetCode,
+          'newPin': newPin,
+        },
+      );
+      return true;
+    } on ApiError catch (e) {
+      state = state.copyWith(errorMessage: e.message);
+      return false;
+    } catch (_) {
+      state = state.copyWith(errorMessage: 'PIN reset failed');
       return false;
     }
   }

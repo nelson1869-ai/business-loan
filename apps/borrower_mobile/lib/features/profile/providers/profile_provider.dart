@@ -3,6 +3,7 @@ import 'package:borrower_mobile/core/auth/auth_notifier.dart';
 import 'package:borrower_mobile/features/profile/data/profile_repository.dart';
 import 'package:borrower_mobile/features/profile/models/borrower_device.dart';
 import 'package:borrower_mobile/features/profile/models/borrower_profile.dart';
+import 'package:borrower_mobile/core/storage/secure_token_storage.dart';
 
 final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
   final apiClient = ref.watch(apiClientProvider);
@@ -74,13 +75,15 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
   }
 
   Future<void> registerCurrentDevice({
-    String deviceIdentifier = 'borrower-mobile-app',
+    String? deviceIdentifier,
     String platform = 'android',
     String? pushToken,
   }) async {
     try {
+      final storage = SecureTokenStorage();
+      final devId = deviceIdentifier ?? await storage.getOrCreateInstallationId();
       final request = DeviceRegisterRequest(
-        deviceIdentifier: deviceIdentifier,
+        deviceIdentifier: devId,
         platform: platform,
         pushToken: pushToken,
       );

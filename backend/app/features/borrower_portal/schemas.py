@@ -60,10 +60,13 @@ class RefreshTokenRequest(BaseSchema):
 
 
 class DeviceRegisterRequest(BaseSchema):
-    """Payload to register or update device push tokens."""
+    """Payload to register or update device details."""
 
     device_identifier: str = Field(..., alias="deviceIdentifier")
     platform: Literal["android", "ios", "web"] = "android"
+    device_name: str | None = Field(None, alias="deviceName")
+    model: str | None = Field(None)
+    app_version: str | None = Field(None, alias="appVersion")
     push_token: str | None = Field(None, alias="pushToken")
 
 
@@ -72,8 +75,42 @@ class DeviceResponse(BaseSchema):
 
     id: str
     platform: str
-    is_active: bool = Field(..., alias="isActive")
+    device_name: str | None = Field(None, alias="deviceName")
+    model: str | None = Field(None)
+    app_version: str | None = Field(None, alias="appVersion")
+    is_trusted: bool = Field(True, alias="isTrusted")
+    is_active: bool = Field(True, alias="isActive")
+    first_seen_at: datetime | None = Field(None, alias="firstSeenAt")
     last_seen_at: datetime = Field(..., alias="lastSeenAt")
+    revoked_at: datetime | None = Field(None, alias="revokedAt")
+
+
+class ConfirmPINRequest(BaseSchema):
+    """Payload to confirm PIN after activation."""
+
+    pin: str = Field(..., alias="pin", min_length=4, max_length=128)
+
+
+class ForgotPINRequest(BaseSchema):
+    """Payload for borrower to request PIN reset."""
+
+    phone_number: str = Field(..., alias="phoneNumber")
+
+
+class ResetPINRequest(BaseSchema):
+    """Payload to reset PIN using owner-issued reset code."""
+
+    phone_number: str = Field(..., alias="phoneNumber")
+    reset_code: str = Field(..., alias="resetCode", min_length=6, max_length=6)
+    new_pin: str = Field(..., alias="newPin", min_length=4, max_length=128)
+
+
+class IssueResetCodeResponse(BaseSchema):
+    """Response for owner issuing PIN reset code."""
+
+    account_id: str = Field(..., alias="accountId")
+    reset_code: str = Field(..., alias="resetCode")
+    expires_at: datetime = Field(..., alias="expiresAt")
 
 
 class BorrowerProfileResponse(BaseSchema):

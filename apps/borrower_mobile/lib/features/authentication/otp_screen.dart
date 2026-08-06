@@ -34,7 +34,6 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     final success = await ref.read(authNotifierProvider.notifier).verifyOtp(
           otp: otp,
           invitationCode: widget.invitationCode,
-          deviceIdentifier: 'android_borrower_device_001',
         );
 
     if (success && mounted) {

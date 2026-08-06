@@ -10,20 +10,27 @@ from typing import Any
 import jwt
 from fastapi import HTTPException, status
 from jwt.exceptions import PyJWTError
-from sqlalchemy import or_, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
 from app.core.phone_numbers import normalize_ph_phone_number
-from app.features.auth.service import TokenValidationError
+from app.features.auth.service import (
+    TokenValidationError,
+    hash_password as hash_pin_bcrypt,
+    verify_password as verify_pin_bcrypt,
+)
 from app.features.borrower_portal.models import (
     BorrowerAccount,
     BorrowerActivationCode,
     BorrowerDevice,
     BorrowerInvitation,
     BorrowerLoanRequest,
+    BorrowerNotification,
     BorrowerOTP,
+    BorrowerPinReset,
     BorrowerRefreshToken,
+    BorrowerRegistrationAudit,
     BorrowerRegistrationRequest,
 )
 from app.features.borrower_portal.otp_provider import get_otp_provider
@@ -40,6 +47,28 @@ LOCAL_DEVELOPMENT_OTP = "123456"
 def hash_secret(secret_text: str) -> str:
     """Return a deterministic SHA-256 hex hash of an OTP or token string."""
     return hashlib.sha256(secret_text.encode("utf-8")).hexdigest()
+
+
+def hash_pin_secure(pin: str) -> str:
+    """Hash a borrower PIN securely using bcrypt."""
+    return hash_pin_bcrypt(pin)
+
+
+def verify_pin_secure(pin: str, stored_hash: str | None) -> tuple[bool, bool]:
+    """
+    Verify borrower PIN against stored hash.
+    Returns (is_valid, needs_upgrade).
+    Supports bcrypt and automatic upgrade from legacy SHA-256.
+    """
+    if not stored_hash:
+        return False, False
+    if stored_hash.startswith("$2b$") or stored_hash.startswith("$2a$"):
+        return verify_pin_bcrypt(pin, stored_hash), False
+    # Legacy SHA-256 comparison fallback with automatic migration
+    legacy_hash = hash_secret(pin)
+    if hmac.compare_digest(stored_hash, legacy_hash):
+        return True, True  # Valid and needs upgrade to bcrypt
+    return False, False
 
 
 def generate_otp_code() -> str:
@@ -556,7 +585,7 @@ async def submit_borrower_registration(
         raise ValueError("A borrower with this Government ID already exists")
 
     dob = date.fromisoformat(payload.date_of_birth)
-    pin_hash = hash_secret(payload.pin_or_password)
+    pin_hash = hash_pin_secure(payload.pin_or_password)
 
     req = BorrowerRegistrationRequest(
         id=secrets.token_hex(18),
@@ -808,20 +837,70 @@ async def login_borrower_with_pin(
     if account is None:
         raise ValueError("Invalid phone number or PIN")
 
-    if account.account_status != "Activated" and account.account_status != "active":
+    # Check lock status
+    if account.locked_until and account.locked_until > now:
+        raise ValueError("Account is locked due to multiple failed attempts. Try again later or contact owner.")
+
+    if account.account_status not in ("Activated", "active"):
         raise ValueError(
             f"Account status is '{account.account_status}'. Only Activated accounts may log in."
         )
 
-    pin_hash = hash_secret(payload.pin_or_password)
-    if account.password_hash and account.password_hash != pin_hash:
-        account.failed_login_attempts += 1
-        await db.flush()
+    is_valid, needs_upgrade = verify_pin_secure(payload.pin_or_password, account.password_hash)
+    if not is_valid:
+        account.failed_login_attempts = (account.failed_login_attempts or 0) + 1
+        account.last_failed_login = now
+        if account.failed_login_attempts >= 10:
+            account.locked_until = now + timedelta(days=3650)  # Owner reset required
+        elif account.failed_login_attempts >= 5:
+            account.locked_until = now + timedelta(minutes=15)  # 15 min cooldown
+        account.updated_at = now
+        await db.commit()
         raise ValueError("Invalid phone number or PIN")
 
+    # Successful authentication
     account.failed_login_attempts = 0
+    account.locked_until = None
     account.last_login_at = now
+    account.last_successful_login = now
+    if needs_upgrade:
+        account.password_hash = hash_pin_secure(payload.pin_or_password)
     account.updated_at = now
+    await db.flush()
+
+    # Device registration/verification
+    device_hash = hash_secret(payload.device_identifier)
+    dev_stmt = select(BorrowerDevice).where(
+        BorrowerDevice.borrower_account_id == account.id,
+        BorrowerDevice.device_identifier_hash == device_hash,
+    )
+    dev_res = await db.execute(dev_stmt)
+    device = dev_res.scalar_one_or_none()
+    if device is None:
+        count_res = await db.execute(
+            select(func.count(BorrowerDevice.id)).where(
+                BorrowerDevice.borrower_account_id == account.id
+            )
+        )
+        existing_count = count_res.scalar() or 0
+        device = BorrowerDevice(
+            id=secrets.token_hex(18),
+            borrower_account_id=account.id,
+            device_identifier_hash=device_hash,
+            platform="android",
+            first_seen_at=now,
+            last_seen_at=now,
+            is_active=True,
+            is_trusted=(existing_count == 0),
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(device)
+    else:
+        if device.revoked_at is not None or not device.is_active:
+            raise ValueError("This device registration has been revoked. Contact owner.")
+        device.last_seen_at = now
+        device.is_active = True
     await db.flush()
 
     settings = get_settings()
@@ -831,7 +910,7 @@ async def login_borrower_with_pin(
         id=secrets.token_hex(18),
         borrower_account_id=account.id,
         token_hash=hash_secret(raw_refresh),
-        device_id=payload.device_identifier,
+        device_id=device.id,
         expires_at=now + timedelta(days=settings.refresh_token_expire_days),
         created_at=now,
     )
@@ -906,4 +985,297 @@ async def review_borrower_loan_request(
     req.updated_at = now
     await db.flush()
     return req
+
+
+async def confirm_borrower_pin(
+    db: AsyncSession,
+    current_account: BorrowerAccount,
+    pin: str,
+) -> bool:
+    """Verify borrower PIN post-activation to confirm registration PIN accuracy."""
+    is_valid, needs_upgrade = verify_pin_secure(pin, current_account.password_hash)
+    if not is_valid:
+        raise ValueError("PIN confirmation failed. PIN does not match.")
+    if needs_upgrade:
+        current_account.password_hash = hash_pin_secure(pin)
+        await db.flush()
+    return True
+
+
+async def request_pin_reset(
+    db: AsyncSession,
+    phone_number: str,
+) -> tuple[bool, str]:
+    """Request a PIN reset code without leaking whether account exists."""
+    try:
+        norm_phone = normalize_ph_phone_number(phone_number)
+    except ValueError:
+        return True, "If the account exists, the owner has been notified of your PIN reset request."
+
+    res = await db.execute(
+        select(BorrowerAccount).where(
+            BorrowerAccount.phone_number_normalized == norm_phone
+        )
+    )
+    account = res.scalar_one_or_none()
+    if account is not None:
+        now = datetime.now(UTC)
+        audit = BorrowerRegistrationAudit(
+            id=secrets.token_hex(18),
+            actor_user_id=None,
+            action="forgot_pin_requested",
+            target_type="borrower_account",
+            target_id=account.id,
+            metadata_json=f'{{"phone":"{norm_phone}"}}',
+            created_at=now,
+        )
+        db.add(audit)
+        notif = BorrowerNotification(
+            id=secrets.token_hex(18),
+            borrower_id=account.borrower_id,
+            title="PIN Reset Requested",
+            message="A PIN reset request was submitted. Contact owner to obtain your 6-digit reset code.",
+            notification_type="pin_reset_requested",
+            created_at=now,
+        )
+        db.add(notif)
+        await db.flush()
+
+    return True, "If the account exists, the owner has been notified of your PIN reset request."
+
+
+async def issue_pin_reset_code(
+    db: AsyncSession,
+    account_id: str,
+    owner_user: User,
+) -> tuple[BorrowerPinReset, str]:
+    """Owner endpoint to generate a 6-digit PIN reset code for a borrower account."""
+    now = datetime.now(UTC)
+    account = await db.get(BorrowerAccount, account_id)
+    if account is None:
+        raise ValueError("Borrower account not found")
+
+    # Invalidate prior unused reset codes
+    await db.execute(
+        update(BorrowerPinReset)
+        .where(
+            BorrowerPinReset.borrower_account_id == account.id,
+            BorrowerPinReset.used_at.is_(None),
+        )
+        .values(used_at=now)
+    )
+
+    raw_code = f"{secrets.randbelow(1000000):06d}"
+    code_hash = hash_secret(raw_code)
+    expires_at = now + timedelta(hours=24)
+
+    reset_rec = BorrowerPinReset(
+        id=secrets.token_hex(18),
+        borrower_account_id=account.id,
+        code_hash=code_hash,
+        expires_at=expires_at,
+        attempts=0,
+        max_attempts=5,
+        created_by_user_id=owner_user.id,
+        created_at=now,
+    )
+    db.add(reset_rec)
+    audit = BorrowerRegistrationAudit(
+        id=secrets.token_hex(18),
+        actor_user_id=owner_user.id,
+        action="pin_reset_code_issued",
+        target_type="borrower_account",
+        target_id=account.id,
+        created_at=now,
+    )
+    db.add(audit)
+    await db.flush()
+    return reset_rec, raw_code
+
+
+async def redeem_pin_reset_code(
+    db: AsyncSession,
+    phone_number: str,
+    reset_code: str,
+    new_pin: str,
+) -> bool:
+    """Redeem owner PIN reset code, update PIN hash to bcrypt, unlock account, and revoke all sessions."""
+    now = datetime.now(UTC)
+    norm_phone = normalize_ph_phone_number(phone_number)
+
+    res = await db.execute(
+        select(BorrowerAccount).where(
+            BorrowerAccount.phone_number_normalized == norm_phone
+        )
+    )
+    account = res.scalar_one_or_none()
+    if account is None:
+        raise ValueError("Invalid phone number or reset code")
+
+    code_hash = hash_secret(reset_code)
+    stmt = (
+        select(BorrowerPinReset)
+        .where(
+            BorrowerPinReset.borrower_account_id == account.id,
+            BorrowerPinReset.used_at.is_(None),
+        )
+        .order_by(BorrowerPinReset.created_at.desc())
+    )
+    res_code = await db.execute(stmt)
+    reset_rec = res_code.scalar_one_or_none()
+
+    if reset_rec is None or reset_rec.expires_at < now:
+        raise ValueError("Invalid or expired PIN reset code")
+
+    if reset_rec.attempts >= reset_rec.max_attempts:
+        raise ValueError("Maximum reset attempts exceeded. Request a new reset code from owner.")
+
+    if reset_rec.code_hash != code_hash:
+        reset_rec.attempts += 1
+        await db.flush()
+        remaining = reset_rec.max_attempts - reset_rec.attempts
+        raise ValueError(f"Incorrect reset code. {remaining} attempt(s) remaining.")
+
+    # Mark reset code as used
+    reset_rec.used_at = now
+
+    # Update PIN to bcrypt, unlock account
+    account.password_hash = hash_pin_secure(new_pin)
+    account.failed_login_attempts = 0
+    account.locked_until = None
+    account.updated_at = now
+
+    # Revoke ALL active refresh tokens for account (force re-login on all devices)
+    await db.execute(
+        update(BorrowerRefreshToken)
+        .where(
+            BorrowerRefreshToken.borrower_account_id == account.id,
+            BorrowerRefreshToken.revoked_at.is_(None),
+        )
+        .values(revoked_at=now)
+    )
+
+    audit = BorrowerRegistrationAudit(
+        id=secrets.token_hex(18),
+        actor_user_id=None,
+        action="pin_reset_completed",
+        target_type="borrower_account",
+        target_id=account.id,
+        created_at=now,
+    )
+    db.add(audit)
+    await db.flush()
+    return True
+
+
+async def unlock_borrower_account(
+    db: AsyncSession,
+    account_id: str,
+    owner_user: User,
+) -> BorrowerAccount:
+    """Owner endpoint to immediately unlock a locked borrower account."""
+    now = datetime.now(UTC)
+    account = await db.get(BorrowerAccount, account_id)
+    if account is None:
+        raise ValueError("Borrower account not found")
+
+    account.failed_login_attempts = 0
+    account.locked_until = None
+    account.updated_at = now
+
+    audit = BorrowerRegistrationAudit(
+        id=secrets.token_hex(18),
+        actor_user_id=owner_user.id,
+        action="account_unlocked",
+        target_type="borrower_account",
+        target_id=account.id,
+        created_at=now,
+    )
+    db.add(audit)
+    await db.flush()
+    return account
+
+
+async def force_logout_borrower(
+    db: AsyncSession,
+    account_id: str,
+    owner_user: User,
+) -> int:
+    """Owner endpoint to force logout all sessions for a borrower account."""
+    now = datetime.now(UTC)
+    account = await db.get(BorrowerAccount, account_id)
+    if account is None:
+        raise ValueError("Borrower account not found")
+
+    result = await db.execute(
+        update(BorrowerRefreshToken)
+        .where(
+            BorrowerRefreshToken.borrower_account_id == account.id,
+            BorrowerRefreshToken.revoked_at.is_(None),
+        )
+        .values(revoked_at=now)
+    )
+    revoked_count = result.rowcount
+
+    audit = BorrowerRegistrationAudit(
+        id=secrets.token_hex(18),
+        actor_user_id=owner_user.id,
+        action="forced_logout_all",
+        target_type="borrower_account",
+        target_id=account.id,
+        metadata_json=f'{{"revoked_sessions":{revoked_count}}}',
+        created_at=now,
+    )
+    db.add(audit)
+    await db.flush()
+    return revoked_count
+
+
+async def list_borrower_devices(
+    db: AsyncSession,
+    account_id: str,
+) -> list[BorrowerDevice]:
+    """Fetch active and registered devices for a borrower account."""
+    stmt = (
+        select(BorrowerDevice)
+        .where(BorrowerDevice.borrower_account_id == account_id)
+        .order_by(BorrowerDevice.last_seen_at.desc())
+    )
+    res = await db.execute(stmt)
+    return list(res.scalars())
+
+
+async def revoke_borrower_device(
+    db: AsyncSession,
+    account_id: str,
+    device_id: str,
+) -> bool:
+    """Revoke a registered device and its active refresh tokens."""
+    now = datetime.now(UTC)
+    dev_stmt = select(BorrowerDevice).where(
+        BorrowerDevice.id == device_id,
+        BorrowerDevice.borrower_account_id == account_id,
+    )
+    res = await db.execute(dev_stmt)
+    device = res.scalar_one_or_none()
+    if device is None:
+        raise ValueError("Device not found")
+
+    device.is_active = False
+    device.revoked_at = now
+    device.updated_at = now
+
+    # Revoke tokens associated with device
+    await db.execute(
+        update(BorrowerRefreshToken)
+        .where(
+            BorrowerRefreshToken.borrower_account_id == account_id,
+            BorrowerRefreshToken.device_id == device.id,
+            BorrowerRefreshToken.revoked_at.is_(None),
+        )
+        .values(revoked_at=now)
+    )
+    await db.flush()
+    return True
+
 

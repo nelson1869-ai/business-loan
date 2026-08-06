@@ -35,7 +35,6 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
     final success = await ref.read(authNotifierProvider.notifier).activateWithCode(
           phoneNumber: phone,
           activationCode: code,
-          deviceIdentifier: 'android_borrower_device_001',
         );
 
     if (success && mounted) {

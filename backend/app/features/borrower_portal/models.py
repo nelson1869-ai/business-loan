@@ -60,6 +60,12 @@ class BorrowerAccount(Base):
     locked_until: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    last_failed_login: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_successful_login: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     last_login_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
@@ -357,12 +363,24 @@ class BorrowerDevice(Base):
         String(128), nullable=False, index=True
     )
     platform: Mapped[str] = mapped_column(String(20), nullable=False)
+    device_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    model: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    app_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
     push_token: Mapped[str | None] = mapped_column(String(512), nullable=True)
     push_token_updated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    first_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
     last_seen_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    is_trusted: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
     )
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="true"
@@ -378,6 +396,41 @@ class BorrowerDevice(Base):
     )
 
     borrower_account: Mapped["BorrowerAccount"] = relationship(back_populates="devices")
+
+
+class BorrowerPinReset(Base):
+    """Owner-issued one-time code for borrower PIN reset."""
+
+    __tablename__ = "borrower_pin_resets"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    borrower_account_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("borrower_accounts.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    code_hash: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    attempts: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    max_attempts: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=5, server_default="5"
+    )
+    used_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_by_user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    created_by_user: Mapped["User"] = relationship()
 
 
 class BorrowerNotification(Base):

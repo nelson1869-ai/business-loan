@@ -46,29 +46,41 @@ from app.features.borrower_portal.schemas import (
     BorrowerTokenResponse,
     ClientInvitationRequest,
     ClientInvitationResponse,
+    ConfirmPINRequest,
     DeviceRegisterRequest,
     DeviceResponse,
+    ForgotPINRequest,
+    IssueResetCodeResponse,
     OTPRequest,
     OTPRequestResponse,
     OTPVerifyRequest,
     OwnerApproveRegistrationResponse,
     RefreshTokenRequest,
+    ResetPINRequest,
     ReviewBorrowerLoanRequestPayload,
 )
 from app.features.borrower_portal.service import (
     approve_borrower_registration,
+    confirm_borrower_pin,
+    force_logout_borrower,
     generate_new_activation_code,
     get_borrower_profile,
     hash_secret,
     issue_client_invitation,
+    issue_pin_reset_code,
+    list_borrower_devices,
     list_borrower_loan_requests,
     login_borrower_with_pin,
+    redeem_pin_reset_code,
     request_otp,
+    request_pin_reset,
     review_borrower_loan_request,
+    revoke_borrower_device,
     revoke_borrower_refresh_token,
     rotate_borrower_refresh_token,
     submit_borrower_loan_request,
     submit_borrower_registration,
+    unlock_borrower_account,
     verify_activation_code_and_activate,
     verify_otp_and_login,
 )
@@ -473,7 +485,6 @@ async def login_borrower_pin(
         )
         await db.commit()
     except ValueError as error:
-        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(error),
@@ -488,6 +499,164 @@ async def login_borrower_pin(
         borrower_id=account.borrower_id,
         account_status=account.account_status,
     )
+
+
+@client_router.post("/auth/confirm-pin", status_code=status.HTTP_200_OK)
+async def confirm_borrower_pin_endpoint(
+    payload: ConfirmPINRequest,
+    db: DbSession,
+    current_account: ActiveBorrowerAccount,
+) -> dict[str, str]:
+    """Confirm borrower PIN post-activation."""
+    try:
+        await confirm_borrower_pin(db, current_account, payload.pin)
+        await db.commit()
+    except ValueError as error:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(error),
+        ) from error
+    return {"message": "PIN confirmed successfully"}
+
+
+@client_router.post("/auth/forgot-pin", status_code=status.HTTP_200_OK)
+async def forgot_borrower_pin_endpoint(
+    payload: ForgotPINRequest,
+    db: DbSession,
+) -> dict[str, str]:
+    """Public endpoint to request PIN reset without exposing account existence."""
+    _, message = await request_pin_reset(db, payload.phone_number)
+    await db.commit()
+    return {"message": message}
+
+
+@client_router.post("/auth/reset-pin", status_code=status.HTTP_200_OK)
+async def reset_borrower_pin_endpoint(
+    payload: ResetPINRequest,
+    db: DbSession,
+) -> dict[str, str]:
+    """Public endpoint to redeem owner PIN reset code and set new PIN."""
+    try:
+        await redeem_pin_reset_code(
+            db, payload.phone_number, payload.reset_code, payload.new_pin
+        )
+        await db.commit()
+    except ValueError as error:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(error),
+        ) from error
+    return {"message": "PIN reset successful. Please log in with your new PIN."}
+
+
+@client_router.get("/devices", response_model=list[DeviceResponse])
+async def list_client_devices(
+    db: DbSession,
+    current_account: ActiveBorrowerAccount,
+) -> list[DeviceResponse]:
+    """Fetch active registered devices for the authenticated borrower."""
+    devices = await list_borrower_devices(db, current_account.id)
+    return [
+        DeviceResponse(
+            id=d.id,
+            platform=d.platform,
+            device_name=d.device_name,
+            model=d.model,
+            app_version=d.app_version,
+            is_trusted=d.is_trusted,
+            is_active=d.is_active,
+            first_seen_at=d.first_seen_at,
+            last_seen_at=d.last_seen_at,
+            revoked_at=d.revoked_at,
+        )
+        for d in devices
+    ]
+
+
+@client_router.post("/devices/{device_id}/revoke", status_code=status.HTTP_200_OK)
+async def revoke_client_device(
+    device_id: str,
+    db: DbSession,
+    current_account: ActiveBorrowerAccount,
+) -> dict[str, str]:
+    """Revoke a registered device for the authenticated borrower."""
+    try:
+        await revoke_borrower_device(db, current_account.id, device_id)
+        await db.commit()
+    except ValueError as error:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(error),
+        ) from error
+    return {"message": "Device revoked successfully"}
+
+
+@officer_router.post("/accounts/{account_id}/unlock", status_code=status.HTTP_200_OK)
+async def unlock_account_endpoint(
+    account_id: str,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> dict[str, str]:
+    """Owner endpoint to immediately unlock a locked borrower account."""
+    try:
+        await unlock_borrower_account(db, account_id, current_user)
+        await db.commit()
+    except ValueError as error:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(error),
+        ) from error
+    return {"message": "Borrower account unlocked successfully"}
+
+
+@officer_router.post(
+    "/accounts/{account_id}/reset-code",
+    response_model=IssueResetCodeResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def issue_reset_code_endpoint(
+    account_id: str,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> IssueResetCodeResponse:
+    """Owner endpoint to issue a 6-digit PIN reset code for a borrower account."""
+    try:
+        reset_rec, raw_code = await issue_pin_reset_code(db, account_id, current_user)
+        await db.commit()
+    except ValueError as error:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(error),
+        ) from error
+    return IssueResetCodeResponse(
+        account_id=reset_rec.borrower_account_id,
+        reset_code=raw_code,
+        expires_at=reset_rec.expires_at,
+    )
+
+
+@officer_router.post("/accounts/{account_id}/logout-all", status_code=status.HTTP_200_OK)
+async def force_logout_endpoint(
+    account_id: str,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> dict[str, Any]:
+    """Owner endpoint to force logout all active sessions for a borrower."""
+    try:
+        count = await force_logout_borrower(db, account_id, current_user)
+        await db.commit()
+    except ValueError as error:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(error),
+        ) from error
+    return {"message": f"Revoked {count} active sessions", "revokedCount": count}
 
 
 @client_router.post(

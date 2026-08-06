@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:borrower_mobile/core/auth/auth_notifier.dart';
 import 'package:borrower_mobile/core/auth/auth_state.dart';
 import 'package:borrower_mobile/core/config/env_config.dart';
+import 'package:borrower_mobile/core/storage/secure_token_storage.dart';
 import 'package:borrower_mobile/core/widgets/app_button.dart';
 import 'package:borrower_mobile/core/widgets/app_text_field.dart';
 
@@ -25,6 +26,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _pinController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    _loadSavedPhone();
+  }
+
+  Future<void> _loadSavedPhone() async {
+    final storage = SecureTokenStorage();
+    final saved = await storage.getSavedPhone();
+    if (saved != null && saved.isNotEmpty && mounted) {
+      _phoneController.text = saved;
+    }
+  }
+
+  @override
   void dispose() {
     _phoneController.dispose();
     _pinController.dispose();
@@ -40,7 +55,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final success = await ref.read(authNotifierProvider.notifier).loginWithPin(
           phoneNumber: phone,
           pinOrPassword: pin,
-          deviceIdentifier: 'android_borrower_device_001',
         );
 
     if (success && mounted) {
