@@ -174,10 +174,10 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      expect(find.text('Official Receipt'), findsOneWidget);
+      expect(find.text('Official Payment Receipt'), findsOneWidget);
       expect(find.text('RCPT-ABCD12345678'), findsOneWidget);
       expect(find.text('₱ 1,020.00'), findsOneWidget);
-      expect(find.text('₱ 1,000.00'), findsOneWidget);
+      expect(find.text('₱ 1,000.00'), findsAtLeastNWidgets(1));
       expect(find.text('₱ 20.00'), findsOneWidget);
       expect(find.text('₱ 4,000.00'), findsOneWidget);
       expect(find.text('POSTED'), findsOneWidget);

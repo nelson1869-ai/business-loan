@@ -33,15 +33,16 @@ class RegistrationNotifier extends StateNotifier<RegistrationState> {
     try {
       final response =
           await _api.post('/api/v1/client/auth/register', data: form);
-      // Backend returns the registration record with an `id` field.
-      // Store the id so we can check status later.
-      final registrationId =
-          response['id'] as String? ?? response['registrationToken'] as String?;
-      if (registrationId != null) {
-        await _storage.save(registrationId);
+      // Backend returns `registrationToken` (or `registration_token`).
+      // Save this token to query `/registration-status` later.
+      final token = response['registrationToken'] as String? ??
+          response['registration_token'] as String? ??
+          response['id'] as String?;
+      if (token != null) {
+        await _storage.save(token);
       }
       state = RegistrationState(
-          status: response['status'] as String? ?? 'Pending',
+          status: response['status'] as String? ?? 'pending',
           message: response['message'] as String?);
       return true;
     } on ApiError catch (error) {
