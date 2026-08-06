@@ -66,7 +66,9 @@ class PaymentRepository {
   }
 
   Future<String> fetchAiExplanation(String receiptId) async {
-    final response = await apiClient.post('/api/v1/client/me/receipts/$receiptId/explanation', {});
+    final response = await apiClient.post(
+      '/api/v1/client/me/receipts/$receiptId/explanation',
+    );
     return response['aiExplanation'] as String? ?? 'No explanation generated';
   }
 }
