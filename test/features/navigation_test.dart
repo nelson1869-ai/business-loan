@@ -177,7 +177,7 @@ void main() {
         await tester.tap(
           find.descendant(
             of: find.byType(BottomNavigationBar),
-            matching: find.byIcon(Icons.people),
+            matching: find.byIcon(Icons.people_outline),
           ),
         );
         await tester.pumpAndSettle();
@@ -253,7 +253,7 @@ void main() {
         await tester.tap(
           find.descendant(
             of: find.byType(BottomNavigationBar),
-            matching: find.byIcon(Icons.settings),
+            matching: find.byIcon(Icons.settings_outlined),
           ),
         );
         await tester.pumpAndSettle();

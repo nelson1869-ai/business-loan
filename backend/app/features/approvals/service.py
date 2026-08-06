@@ -67,7 +67,10 @@ async def decide_request(
         raise ValueError("Approval request not found")
     if request.status != "pending":
         raise ValueError("Approval request already has a final decision")
-    if request.maker_user_id == checker.id and checker.role not in {"admin", "owner"}:
+    if (
+        request.maker_user_id == checker.id
+        and getattr(checker, "role", "officer") not in {"admin", "owner"}
+    ):
         raise PermissionError("Maker cannot approve or reject own request")
     if decision not in {"approved", "rejected"}:
         raise ValueError("Invalid approval decision")

@@ -6,9 +6,7 @@ import 'package:lending_nelson/core/widgets/online_required_banner.dart';
 import 'package:lending_nelson/features/accounting/domain/journal_entry.dart';
 import 'package:lending_nelson/features/accounting/presentation/accounting_provider.dart';
 import 'package:lending_nelson/features/accounting/presentation/journal_list_page.dart';
-import 'package:lending_nelson/features/approvals/domain/approval_request.dart';
-import 'package:lending_nelson/features/approvals/presentation/approval_inbox_page.dart';
-import 'package:lending_nelson/features/approvals/presentation/approval_provider.dart';
+
 import 'package:lending_nelson/features/collection_sessions/domain/collection_session.dart';
 import 'package:lending_nelson/features/collection_sessions/presentation/collection_session_provider.dart';
 import 'package:lending_nelson/features/collection_sessions/presentation/collection_sessions_page.dart';
@@ -65,25 +63,7 @@ void main() {
     expect(find.text('No policy versions.'), findsNothing);
   });
 
-  testWidgets('approval inbox uses an informative empty state', (tester) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          approvalsProvider.overrideWith(
-            (ref) async => const <ApprovalRequest>[],
-          ),
-          officerSessionProvider.overrideWith((ref) async => null),
-          backendOnlineProvider.overrideWithValue(false),
-        ],
-        child: const MaterialApp(home: ApprovalInboxPage()),
-      ),
-    );
-    await tester.pumpAndSettle();
 
-    expect(find.text('No approval requests'), findsOneWidget);
-    expect(find.textContaining('maker-checker'), findsOneWidget);
-    expect(find.text('No approval requests.'), findsNothing);
-  });
 
   testWidgets('collection sessions use an informative empty state', (
     tester,

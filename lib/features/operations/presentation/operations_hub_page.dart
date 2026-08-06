@@ -28,13 +28,6 @@ class OperationsHubPage extends ConsumerWidget {
           Icons.policy_outlined,
           '/operations/policies',
         ),
-      if (session?.permissions.any(_approvalPermission) == true)
-        const _OperationItem(
-          'Approval Inbox',
-          'Review maker-checker requests',
-          Icons.approval_outlined,
-          '/operations/approvals',
-        ),
       if (session?.can('reconciliation.submit') == true ||
           session?.can('reconciliation.approve') == true)
         const _OperationItem(
@@ -91,17 +84,6 @@ class OperationsHubPage extends ConsumerWidget {
     );
   }
 }
-
-bool _approvalPermission(String permission) => const {
-  'loan.approve',
-  'loan.disburse',
-  'loan.restructure',
-  'loan.write_off',
-  'payment.reverse',
-  'policy.approve',
-  'reconciliation.approve',
-  'accounting.post_adjustment',
-}.contains(permission);
 
 class _OperationItem {
   const _OperationItem(this.title, this.subtitle, this.icon, this.route);

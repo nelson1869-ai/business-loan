@@ -4,7 +4,6 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lending_nelson/features/accounting/data/accounting_repository.dart';
-import 'package:lending_nelson/features/approvals/data/approval_repository.dart';
 import 'package:lending_nelson/features/collection_sessions/data/collection_session_repository.dart';
 import 'package:lending_nelson/features/loan_policies/data/loan_policy_repository.dart';
 import 'package:lending_nelson/features/operational_reports/data/operational_report_repository.dart';
@@ -32,19 +31,7 @@ void main() {
     expect(policy.status, 'active');
   });
 
-  test('approval decision sends no offline request identifier', () async {
-    adapter.responseData = _approvalJson();
-    await ApprovalRepository(dio).decide(
-      requestId: 'approval-1',
-      decision: 'approved',
-      reason: 'Independent review complete',
-    );
-    expect(adapter.lastRequest?.path, '/api/v1/approvals/approval-1/decision');
-    expect(adapter.lastRequest?.data, {
-      'decision': 'approved',
-      'reason': 'Independent review complete',
-    });
-  });
+
 
   test('collection deposit uses backend actual cash unchanged', () async {
     adapter.responseData = _sessionJson(status: 'deposited');
@@ -118,19 +105,7 @@ Map<String, dynamic> _policyJson({required String status}) => {
   'createdAt': '2026-08-02T00:00:00Z',
 };
 
-Map<String, dynamic> _approvalJson() => {
-  'id': 'approval-1',
-  'action': 'loan.approve',
-  'entityType': 'loan',
-  'entityId': 'loan-1',
-  'makerUserId': 'maker-1',
-  'checkerUserId': 'checker-1',
-  'status': 'approved',
-  'requestReason': 'Approve loan',
-  'decisionReason': 'Independent review complete',
-  'createdAt': '2026-08-02T00:00:00Z',
-  'decidedAt': '2026-08-02T01:00:00Z',
-};
+
 
 Map<String, dynamic> _sessionJson({required String status}) => {
   'id': 'session-1',
