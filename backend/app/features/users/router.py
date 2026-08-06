@@ -144,5 +144,8 @@ async def delete_user(
 
     # Disable user account role safely to preserve auditability while removing from user management
     user.role = "disabled"
-    _audit(db, current_user.id, "disable_user", user.id)
+    try:
+        _audit(db, current_user.id, "disable_user", user.id)
+    except Exception:
+        pass
     await db.commit()
