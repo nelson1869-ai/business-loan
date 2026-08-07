@@ -34,8 +34,8 @@ class RegistrationConflict(Exception):
 def _audit(
     db: AsyncSession,
     action: str,
-    entity_type: str,
-    entity_id: str,
+    target_type: str,
+    target_id: str,
     actor: User | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> None:
@@ -43,8 +43,8 @@ def _audit(
         BorrowerRegistrationAudit(
             id=str(uuid4()),
             action=action,
-            entity_type=entity_type,
-            entity_id=entity_id,
+            target_type=target_type,
+            target_id=target_id,
             actor_user_id=actor.id if actor else None,
             metadata_json=json.dumps(metadata or {}, sort_keys=True),
         )
