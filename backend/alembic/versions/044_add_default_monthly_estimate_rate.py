@@ -1,4 +1,4 @@
-﻿"""Add default_monthly_estimate_rate to business_settings.
+"""Add default_monthly_estimate_rate to business_settings.
 
 Revision ID: 044
 Revises: 043
@@ -7,6 +7,7 @@ Revises: 043
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "044"
@@ -26,7 +27,7 @@ def upgrade() -> None:
     )
     op.execute(
         """
-        DO 
+        DO $$
         BEGIN
             IF NOT EXISTS (
                 SELECT 1 FROM pg_constraint
@@ -36,7 +37,7 @@ def upgrade() -> None:
                 ADD CONSTRAINT ck_business_settings_estimate_rate
                 CHECK (default_monthly_estimate_rate >= 0);
             END IF;
-        END ;
+        END $$;
         """
     )
 
