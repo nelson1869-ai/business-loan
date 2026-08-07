@@ -61,7 +61,6 @@ class TestBorrowerPaymentsApi(unittest.IsolatedAsyncioTestCase):
             await db.execute(delete(Loan))
             await db.execute(delete(BorrowerRefreshToken))
             await db.execute(delete(BorrowerDevice))
-            await db.execute(delete(BorrowerOTP))
             await db.execute(delete(BorrowerAccount))
             await db.execute(delete(Borrower))
             await db.execute(delete(User))

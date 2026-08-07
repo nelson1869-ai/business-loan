@@ -7,6 +7,12 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 
 from app.core.authorization import require_owner, require_permission
+from app.core.dependencies import CurrentUser, DbSession
+from app.features.accounting.service import (
+    post_journal,
+    repayment_lines,
+    reversing_lines,
+)
 from app.features.automation.outbox import process_outbox_batch, publish_outbox_event
 from app.features.automation.schemas import DomainEventEnvelope, EventActor, EventEntity
 from app.features.loans import service as loan_service
