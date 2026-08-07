@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.authorization import require_owner
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser
@@ -37,6 +38,7 @@ from app.features.borrower_portal.payments_service import (
 )
 from app.features.borrower_portal.schemas import (
     BorrowerActivationRequest,
+    BorrowerAppAccessStatusResponse,
     BorrowerLoanRequestResponse,
     BorrowerLoanRequestSubmit,
     BorrowerPINLoginRequest,
@@ -47,6 +49,7 @@ from app.features.borrower_portal.schemas import (
     ConfirmPINRequest,
     DeviceRegisterRequest,
     DeviceResponse,
+    EnableAppAccessResponse,
     ForgotPINRequest,
     IssueResetCodeResponse,
     OwnerApproveRegistrationResponse,
@@ -57,8 +60,10 @@ from app.features.borrower_portal.schemas import (
 from app.features.borrower_portal.service import (
     approve_borrower_registration,
     confirm_borrower_pin,
+    enable_existing_borrower_app_access,
     force_logout_borrower,
     generate_new_activation_code,
+    get_borrower_app_access_status,
     get_borrower_profile,
     hash_secret,
     issue_pin_reset_code,
@@ -482,7 +487,44 @@ async def revoke_client_device(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(error),
         ) from error
-    return {"message": "Device revoked successfully"}
+@owner_router.post(
+    "/{borrower_id}/enable-app-access",
+    response_model=EnableAppAccessResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def enable_app_access_endpoint(
+    borrower_id: str,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> EnableAppAccessResponse:
+    """Owner endpoint to enable Borrower App access for an existing Borrower record."""
+    require_owner(current_user)
+    try:
+        response = await enable_existing_borrower_app_access(db, borrower_id, current_user)
+        await db.commit()
+        return response
+    except ValueError as error:
+        await db.rollback()
+        detail_msg = str(error)
+        status_code = status.HTTP_404_NOT_FOUND if "not found" in detail_msg.lower() else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=status_code, detail=detail_msg) from error
+
+
+@owner_router.get(
+    "/{borrower_id}/app-access",
+    response_model=BorrowerAppAccessStatusResponse,
+)
+async def get_app_access_status_endpoint(
+    borrower_id: str,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> BorrowerAppAccessStatusResponse:
+    """Owner endpoint to query borrower app access status. NEVER returns raw activation code."""
+    require_owner(current_user)
+    try:
+        return await get_borrower_app_access_status(db, borrower_id)
+    except ValueError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
 
 
 @owner_router.post("/accounts/{account_id}/unlock", status_code=status.HTTP_200_OK)

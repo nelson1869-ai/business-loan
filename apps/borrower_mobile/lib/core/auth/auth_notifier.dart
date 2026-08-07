@@ -72,6 +72,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<bool> activateWithCode({
     required String phoneNumber,
     required String activationCode,
+    required String newPin,
+    required String confirmPin,
     String? deviceIdentifier,
   }) async {
     final devId = deviceIdentifier ?? await storage.getOrCreateInstallationId();
@@ -87,6 +89,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
         data: {
           'phoneNumber': phoneNumber,
           'activationCode': activationCode,
+          'newPin': newPin,
+          'confirmPin': confirmPin,
           'deviceIdentifier': devId,
           'platform': 'android',
         },

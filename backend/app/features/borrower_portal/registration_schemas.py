@@ -81,6 +81,17 @@ class RegistrationStatusResponse(StrictSchema):
     message: str
 
 
+class PossibleBorrowerMatch(StrictSchema):
+    borrower_id: str
+    full_name: str
+    masked_phone: str
+    masked_national_id: str
+    existing_loans_count: int
+    active_loans_count: int
+    current_balance: str
+    match_reason: str
+
+
 class RegistrationListItem(StrictSchema):
     id: str
     first_name: str
@@ -95,6 +106,7 @@ class RegistrationListItem(StrictSchema):
     status: str
     submitted_at: datetime
     linked_borrower_id: str | None
+    possible_matches: list[PossibleBorrowerMatch] = Field(default_factory=list)
 
 
 class RegistrationApproval(StrictSchema):

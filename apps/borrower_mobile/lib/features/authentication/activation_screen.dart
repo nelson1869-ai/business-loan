@@ -18,11 +18,15 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
   final _formKey = GlobalKey<FormState>();
   final _phoneController = TextEditingController();
   final _codeController = TextEditingController();
+  final _pinController = TextEditingController();
+  final _confirmPinController = TextEditingController();
 
   @override
   void dispose() {
     _phoneController.dispose();
     _codeController.dispose();
+    _pinController.dispose();
+    _confirmPinController.dispose();
     super.dispose();
   }
 
@@ -31,10 +35,14 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
 
     final phone = _phoneController.text.trim();
     final code = _codeController.text.trim();
+    final pin = _pinController.text.trim();
+    final confirmPin = _confirmPinController.text.trim();
 
     final success = await ref.read(authNotifierProvider.notifier).activateWithCode(
           phoneNumber: phone,
           activationCode: code,
+          newPin: pin,
+          confirmPin: confirmPin,
         );
 
     if (success && mounted) {
@@ -93,7 +101,7 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      'Enter your mobile number and the 6-digit Owner Activation Code given to you by your lender.',
+                      'Enter your mobile number, activation code, and create your 4 to 6 digit security PIN.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 14,
@@ -123,6 +131,36 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
                       validator: (val) {
                         if (val == null || val.trim().length != 6) {
                           return 'Please enter the 6-digit code.';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    AppTextField(
+                      controller: _pinController,
+                      label: 'Create New PIN',
+                      hint: '4 to 6 digits',
+                      obscureText: true,
+                      keyboardType: TextInputType.number,
+                      maxLength: 6,
+                      validator: (val) {
+                        if (val == null || val.trim().length < 4) {
+                          return 'PIN must be at least 4 digits.';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    AppTextField(
+                      controller: _confirmPinController,
+                      label: 'Confirm New PIN',
+                      hint: 'Re-enter your PIN',
+                      obscureText: true,
+                      keyboardType: TextInputType.number,
+                      maxLength: 6,
+                      validator: (val) {
+                        if (val == null || val.trim() != _pinController.text.trim()) {
+                          return 'PINs do not match.';
                         }
                         return null;
                       },

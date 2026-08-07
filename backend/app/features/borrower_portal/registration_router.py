@@ -78,7 +78,10 @@ async def registration_status(
     return RegistrationStatusResponse(status=cast(Any, current_status), message=message)
 
 
-def _item(row: BorrowerRegistrationRequest) -> RegistrationListItem:
+async def _build_item(
+    db: DbSession, row: BorrowerRegistrationRequest
+) -> RegistrationListItem:
+    matches_raw = await service.find_possible_borrower_matches(db, row)
     return RegistrationListItem(
         id=row.id,
         first_name=row.first_name,
@@ -93,6 +96,7 @@ def _item(row: BorrowerRegistrationRequest) -> RegistrationListItem:
         status=row.status,
         submitted_at=row.submitted_at,
         linked_borrower_id=row.linked_borrower_id,
+        possible_matches=matches_raw,
     )
 
 
@@ -112,10 +116,8 @@ async def list_registrations(
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
 ) -> list[RegistrationListItem]:
     require_owner(current_user)
-    return [
-        _item(row)
-        for row in await service.list_requests(db, requested_status, offset, limit)
-    ]
+    rows = await service.list_requests(db, requested_status, offset, limit)
+    return [await _build_item(db, row) for row in rows]
 
 
 @staff_router.get(
@@ -128,7 +130,7 @@ async def registration_detail(
     row = await db.get(BorrowerRegistrationRequest, request_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Registration request not found")
-    return _item(row)
+    return await _build_item(db, row)
 
 
 @staff_router.post(

@@ -115,13 +115,39 @@ class BorrowerRegistrationSubmitRequest(BaseSchema):
 
 
 class BorrowerActivationRequest(BaseSchema):
-    """Payload for borrower to redeem 6-digit owner activation code."""
+    """Payload for borrower to redeem 6-digit owner activation code and optionally create PIN."""
 
     phone_number: str = Field(..., alias="phoneNumber")
     activation_code: str = Field(..., alias="activationCode", min_length=6, max_length=6)
     device_identifier: str = Field(..., alias="deviceIdentifier")
     platform: Literal["android", "ios", "web"] = "android"
     push_token: str | None = Field(None, alias="pushToken")
+    new_pin: str | None = Field(None, alias="newPin", min_length=4, max_length=128)
+    confirm_pin: str | None = Field(None, alias="confirmPin", min_length=4, max_length=128)
+
+
+class EnableAppAccessResponse(BaseSchema):
+    """Response returned to Owner when enabling app access for an existing borrower (returns raw activation code once)."""
+
+    borrower_id: str = Field(..., alias="borrowerId")
+    borrower_account_id: str = Field(..., alias="borrowerAccountId")
+    account_status: str = Field(..., alias="accountStatus")
+    activation_code: str = Field(..., alias="activationCode")
+    expires_at: datetime = Field(..., alias="expiresAt")
+
+
+class BorrowerAppAccessStatusResponse(BaseSchema):
+    """Status payload returned for Owner app access query. NEVER includes raw activation code."""
+
+    has_account: bool = Field(..., alias="hasAccount")
+    account_id: str | None = Field(None, alias="accountId")
+    account_status: str | None = Field(None, alias="accountStatus")
+    phone_number: str | None = Field(None, alias="phoneNumber")
+    activation_pending: bool = Field(False, alias="activationPending")
+    activation_expires_at: datetime | None = Field(None, alias="activationExpiresAt")
+    trusted_devices_count: int = Field(0, alias="trustedDevicesCount")
+    last_login_at: datetime | None = Field(None, alias="lastLoginAt")
+    can_regenerate_activation_code: bool = Field(False, alias="canRegenerateActivationCode")
 
 
 class BorrowerPINLoginRequest(BaseSchema):

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../domain/borrower_model.dart';
+import '../borrower_app_access_card.dart';
 import '../pii_masked_text.dart';
 
 /// Overview Tab View presenting personal, employment, emergency, and guarantor details.
@@ -20,6 +21,8 @@ class OverviewTabView extends StatelessWidget {
       children: [
         ...leading,
         if (leading.isNotEmpty) const SizedBox(height: 16),
+        BorrowerAppAccessCard(borrower: borrower),
+        const SizedBox(height: 16),
         _SectionCard(
           title: 'Personal Information',
           icon: Icons.person_outline,

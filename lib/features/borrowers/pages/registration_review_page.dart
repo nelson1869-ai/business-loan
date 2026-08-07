@@ -5,6 +5,41 @@ import '../../../core/network/api_client.dart';
 import '../../../core/network/api_error_mapper.dart';
 import '../../../core/presentation/design_system/app_state_views.dart';
 
+class PossibleBorrowerMatch {
+  final String borrowerId;
+  final String fullName;
+  final String maskedPhone;
+  final String maskedNationalId;
+  final int existingLoansCount;
+  final int activeLoansCount;
+  final String currentBalance;
+  final String matchReason;
+
+  const PossibleBorrowerMatch({
+    required this.borrowerId,
+    required this.fullName,
+    required this.maskedPhone,
+    required this.maskedNationalId,
+    required this.existingLoansCount,
+    required this.activeLoansCount,
+    required this.currentBalance,
+    required this.matchReason,
+  });
+
+  factory PossibleBorrowerMatch.fromJson(Map<String, dynamic> json) {
+    return PossibleBorrowerMatch(
+      borrowerId: json['borrowerId'] as String? ?? '',
+      fullName: json['fullName'] as String? ?? '',
+      maskedPhone: json['maskedPhone'] as String? ?? '',
+      maskedNationalId: json['maskedNationalId'] as String? ?? '',
+      existingLoansCount: json['existingLoansCount'] as int? ?? 0,
+      activeLoansCount: json['activeLoansCount'] as int? ?? 0,
+      currentBalance: json['currentBalance'] as String? ?? '0.00',
+      matchReason: json['matchReason'] as String? ?? '',
+    );
+  }
+}
+
 /// Single-Owner Borrower Registration Review Item model.
 class RegistrationItem {
   final String id;
@@ -20,6 +55,7 @@ class RegistrationItem {
   final String status;
   final String submittedAt;
   final String? linkedBorrowerId;
+  final List<PossibleBorrowerMatch> possibleMatches;
 
   const RegistrationItem({
     required this.id,
@@ -35,9 +71,11 @@ class RegistrationItem {
     required this.status,
     required this.submittedAt,
     this.linkedBorrowerId,
+    this.possibleMatches = const [],
   });
 
   factory RegistrationItem.fromJson(Map<String, dynamic> json) {
+    final matchesRaw = json['possibleMatches'] as List<dynamic>? ?? [];
     return RegistrationItem(
       id: json['id'] as String,
       firstName: json['firstName'] as String? ?? '',
@@ -52,6 +90,9 @@ class RegistrationItem {
       status: json['status'] as String? ?? 'pending',
       submittedAt: json['submittedAt'] as String? ?? '',
       linkedBorrowerId: json['linkedBorrowerId'] as String?,
+      possibleMatches: matchesRaw
+          .map((m) => PossibleBorrowerMatch.fromJson(Map<String, dynamic>.from(m as Map)))
+          .toList(),
     );
   }
 }
@@ -427,6 +468,31 @@ class __ApplicantReviewModalState extends ConsumerState<_ApplicantReviewModal> {
     );
   }
 
+  Future<void> _approveAndLink(String borrowerId) async {
+    setState(() => _working = true);
+    final dio = ref.read(apiClientProvider);
+    try {
+      final response = await dio.post<Map<String, dynamic>>(
+        '/api/v1/borrower-registration-requests/${widget.item.id}/approve',
+        data: <String, dynamic>{'borrowerId': borrowerId},
+      );
+      if (!mounted) return;
+      Navigator.pop(context);
+      ref.invalidate(borrowerRegistrationsProvider);
+
+      final data = response.data ?? {};
+      final accountStatus = data['accountStatus'] as String? ?? '';
+      _showApprovalResultDialog(accountStatus);
+    } catch (error) {
+      if (mounted) {
+        setState(() => _working = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ApiErrorMapper.message(error))),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
@@ -447,6 +513,80 @@ class __ApplicantReviewModalState extends ConsumerState<_ApplicantReviewModal> {
             if (item.linkedBorrowerId != null)
               _detailRow('Linked Borrower', item.linkedBorrowerId!),
 
+            if (item.possibleMatches.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.amber.shade400),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: const [
+                        Icon(Icons.warning_amber_rounded,
+                            size: 18, color: Colors.amber),
+                        SizedBox(width: 6),
+                        Text(
+                          'Possible Existing Borrower Match',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                            color: Color(0xFF78350F),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Select an existing borrower below to link this app access request without creating a duplicate record:',
+                      style: TextStyle(fontSize: 11, color: Color(0xFF92400E)),
+                    ),
+                    const SizedBox(height: 8),
+                    ...item.possibleMatches.map((m) => Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.amber.shade200),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${m.fullName} (${m.matchReason})',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              Text('Phone: ${m.maskedPhone}',
+                                  style: const TextStyle(fontSize: 11)),
+                              Text('Loans: ${m.existingLoansCount} (${m.activeLoansCount} active) | Bal: ₱${m.currentBalance}',
+                                  style: const TextStyle(fontSize: 11)),
+                              const SizedBox(height: 6),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  icon: const Icon(Icons.link, size: 14),
+                                  label: const Text('Link to Existing Borrower',
+                                      style: TextStyle(fontSize: 11)),
+                                  onPressed: _working
+                                      ? null
+                                      : () => _approveAndLink(m.borrowerId),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -463,9 +603,10 @@ class __ApplicantReviewModalState extends ConsumerState<_ApplicantReviewModal> {
           ),
           FilledButton.icon(
             onPressed: _working ? null : _approve,
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0D9488)),
+            style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF0D9488)),
             icon: const Icon(Icons.check_circle_outline, size: 18),
-            label: const Text('Approve & Generate Code'),
+            label: const Text('Create New Borrower'),
           ),
         ],
       ],

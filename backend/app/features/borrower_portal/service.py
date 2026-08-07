@@ -2,10 +2,12 @@
 
 import hashlib
 import hmac
+import json
 import logging
 import secrets
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
+from uuid import uuid4
 
 import jwt
 from fastapi import HTTPException, status
@@ -32,7 +34,11 @@ from app.features.borrower_portal.models import (
     BorrowerRegistrationAudit,
     BorrowerRegistrationRequest,
 )
-from app.features.borrower_portal.schemas import BorrowerProfileResponse
+from app.features.borrower_portal.schemas import (
+    BorrowerAppAccessStatusResponse,
+    BorrowerProfileResponse,
+    EnableAppAccessResponse,
+)
 from app.features.borrowers import service as borrower_service
 from app.features.borrowers.models import Borrower
 from app.features.notifications.service import create_borrower_notification
@@ -402,6 +408,169 @@ async def approve_borrower_registration(
     )
 
 
+def _audit_portal_event(
+    db: AsyncSession,
+    action: str,
+    target_type: str,
+    target_id: str,
+    actor: User | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    """Record PII-minimal immutable security audit event."""
+    db.add(
+        BorrowerRegistrationAudit(
+            id=str(uuid4()),
+            action=action,
+            target_type=target_type,
+            target_id=target_id,
+            actor_user_id=actor.id if actor else None,
+            metadata_json=json.dumps(metadata or {}, sort_keys=True),
+            created_at=datetime.now(UTC),
+        )
+    )
+
+
+async def enable_existing_borrower_app_access(
+    db: AsyncSession,
+    borrower_id: str,
+    owner_user: User,
+) -> EnableAppAccessResponse:
+    """Owner action to enable Borrower App access for an existing Borrower record."""
+    now = datetime.now(UTC)
+    borrower = await db.scalar(
+        select(Borrower)
+        .where(Borrower.id == borrower_id, Borrower.status != "Deleted")
+        .with_for_update()
+    )
+    if borrower is None:
+        raise ValueError("Borrower not found")
+
+    # Check whether BorrowerAccount already exists for borrower_id
+    existing_account = await db.scalar(
+        select(BorrowerAccount)
+        .where(BorrowerAccount.borrower_id == borrower_id)
+        .with_for_update()
+    )
+    if existing_account is not None:
+        if existing_account.account_status in ("approved", "activated"):
+            raise ValueError("Borrower app access is already enabled for this borrower.")
+        else:
+            raise ValueError(
+                f"Account is currently {existing_account.account_status}. Use account management actions instead."
+            )
+
+    # Normalize borrower phone
+    norm_phone = normalize_ph_phone_number(borrower.phone)
+
+    # Check for conflicts with another account using the same normalized phone number
+    phone_conflict = await db.scalar(
+        select(BorrowerAccount)
+        .where(BorrowerAccount.phone_number_normalized == norm_phone)
+        .with_for_update()
+    )
+    if phone_conflict is not None:
+        raise ValueError("Phone number is already linked to another borrower account")
+
+    account = BorrowerAccount(
+        id=str(uuid4()),
+        borrower_id=borrower.id,
+        phone_number=norm_phone,
+        phone_number_normalized=norm_phone,
+        account_status="approved",
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(account)
+    await db.flush()
+
+    # Generate 6-digit activation code
+    activation, raw_code = await generate_new_activation_code(db, account.id, owner_user)
+
+    _audit_portal_event(
+        db,
+        "OWNER_ENABLED_BORROWER_APP_ACCESS",
+        "borrower_account",
+        account.id,
+        owner_user,
+        {"borrower_id": borrower.id},
+    )
+    await db.flush()
+
+    return EnableAppAccessResponse(
+        borrower_id=borrower.id,
+        borrower_account_id=account.id,
+        account_status=account.account_status,
+        activation_code=raw_code,
+        expires_at=activation.expires_at,
+    )
+
+
+async def get_borrower_app_access_status(
+    db: AsyncSession,
+    borrower_id: str,
+) -> BorrowerAppAccessStatusResponse:
+    """Owner endpoint to query borrower app access status. NEVER returns raw activation code."""
+    now = datetime.now(UTC)
+    borrower = await db.scalar(
+        select(Borrower).where(Borrower.id == borrower_id)
+    )
+    if borrower is None:
+        raise ValueError("Borrower not found")
+
+    account = await db.scalar(
+        select(BorrowerAccount).where(BorrowerAccount.borrower_id == borrower_id)
+    )
+    if account is None:
+        return BorrowerAppAccessStatusResponse(
+            has_account=False,
+            account_id=None,
+            account_status=None,
+            phone_number=borrower.phone,
+            activation_pending=False,
+            activation_expires_at=None,
+            trusted_devices_count=0,
+            last_login_at=None,
+            can_regenerate_activation_code=False,
+        )
+
+    # Check active unexpired activation code
+    stmt = (
+        select(BorrowerActivationCode)
+        .where(
+            BorrowerActivationCode.borrower_account_id == account.id,
+            BorrowerActivationCode.used_at.is_(None),
+        )
+        .order_by(BorrowerActivationCode.created_at.desc())
+    )
+    res_code = await db.execute(stmt)
+    code_rec = res_code.scalar_one_or_none()
+
+    activation_pending = code_rec is not None and code_rec.expires_at > now and account.account_status in ("approved", "pending")
+    activation_expires_at = code_rec.expires_at if (code_rec is not None and code_rec.expires_at > now) else None
+
+    # Count trusted devices
+    devices_res = await db.execute(
+        select(func.count(BorrowerDevice.id)).where(
+            BorrowerDevice.borrower_account_id == account.id,
+            BorrowerDevice.is_trusted.is_(True),
+            BorrowerDevice.is_active.is_(True),
+        )
+    )
+    trusted_count = devices_res.scalar_one() or 0
+
+    return BorrowerAppAccessStatusResponse(
+        has_account=True,
+        account_id=account.id,
+        account_status=account.account_status,
+        phone_number=account.phone_number,
+        activation_pending=activation_pending,
+        activation_expires_at=activation_expires_at,
+        trusted_devices_count=trusted_count,
+        last_login_at=account.last_login_at or account.last_successful_login,
+        can_regenerate_activation_code=account.account_status in ("approved", "pending", "activated"),
+    )
+
+
 async def generate_new_activation_code(
     db: AsyncSession,
     account_id: str,
@@ -448,6 +617,15 @@ async def generate_new_activation_code(
     if account.account_status in ("pending", "approved"):
         account.account_status = "approved"
 
+    _audit_portal_event(
+        db,
+        "OWNER_REGENERATED_ACTIVATION_CODE",
+        "borrower_activation_code",
+        activation.id,
+        owner_user,
+        {"borrower_id": account.borrower_id, "borrower_account_id": account.id},
+    )
+
     return activation, raw_code
 
 
@@ -456,7 +634,7 @@ async def verify_activation_code_and_activate(
     payload: BorrowerActivationRequest,
     client_ip: str | None = None,
 ) -> tuple[BorrowerAccount, str, str, int]:
-    """Redeem 6-digit Activation Code, set account status to Activated, and issue JWT token pair."""
+    """Redeem 6-digit Activation Code, enforce PIN creation if missing, set status to Activated, and issue JWT token pair."""
     now = datetime.now(UTC)
     norm_phone = normalize_ph_phone_number(payload.phone_number)
 
@@ -497,6 +675,20 @@ async def verify_activation_code_and_activate(
         remaining = code_rec.max_attempts - code_rec.attempts
         raise ValueError(f"Incorrect activation code. {remaining} attempt(s) remaining.")
 
+    # Correction 1 & 13: Enforce PIN Creation if borrower has no PIN set yet
+    if account.password_hash is None:
+        if not payload.new_pin or not payload.confirm_pin:
+            raise ValueError("PIN creation is required upon activation. Please enter and confirm your new PIN.")
+        if payload.new_pin != payload.confirm_pin:
+            raise ValueError("PIN and confirm PIN do not match.")
+        if len(payload.new_pin) < 4:
+            raise ValueError("PIN must be at least 4 digits.")
+        account.password_hash = hash_pin_secure(payload.new_pin)
+    elif payload.new_pin:
+        if payload.new_pin != payload.confirm_pin:
+            raise ValueError("PIN and confirm PIN do not match.")
+        account.password_hash = hash_pin_secure(payload.new_pin)
+
     # Mark code as redeemed
     code_rec.used_at = now
     code_rec.activated_device_id = payload.device_identifier
@@ -507,7 +699,7 @@ async def verify_activation_code_and_activate(
     account.phone_verified_at = now
     account.updated_at = now
 
-    # Register & trust activating device
+    # Correction 10 & 13: Register & trust activating device
     device_hash = hash_secret(payload.device_identifier)
     dev_stmt = select(BorrowerDevice).where(
         BorrowerDevice.borrower_account_id == account.id,
@@ -539,6 +731,14 @@ async def verify_activation_code_and_activate(
             device.push_token = payload.push_token
             device.push_token_updated_at = now
     await db.flush()
+
+    _audit_portal_event(
+        db,
+        "BORROWER_APP_ACTIVATED",
+        "borrower_account",
+        account.id,
+        metadata={"borrower_id": account.borrower_id},
+    )
 
     await create_borrower_notification(
         db,
