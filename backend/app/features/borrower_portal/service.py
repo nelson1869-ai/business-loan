@@ -874,11 +874,26 @@ async def submit_borrower_loan_request(
 ) -> BorrowerLoanRequest:
     """Borrower endpoint to submit a new loan request."""
     now = datetime.now(UTC)
+
+    # Check for active submitted request awaiting review
+    existing_pending = await db.scalar(
+        select(BorrowerLoanRequest).where(
+            BorrowerLoanRequest.borrower_id == current_account.borrower_id,
+            BorrowerLoanRequest.status.in_(["submitted", "pending"]),
+        )
+    )
+    if existing_pending is not None:
+        raise ValueError(
+            "DUPLICATE_PENDING_LOAN_REQUEST: You already have a loan request awaiting review."
+        )
+
     req = BorrowerLoanRequest(
         id=secrets.token_hex(18),
         borrower_id=current_account.borrower_id,
         requested_amount=Decimal(payload.requested_amount),
         requested_term_months=payload.requested_term_months,
+        requested_payment_frequency=payload.requested_payment_frequency,
+        requested_repayment_structure=payload.requested_repayment_structure,
         purpose=payload.purpose,
         status="submitted",
         created_at=now,

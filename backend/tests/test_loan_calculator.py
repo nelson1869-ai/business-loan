@@ -7,6 +7,7 @@ from app.features.loans.calculator import (
     LoanCalculationError,
     allocate_payment,
     build_installment_schedule,
+    build_interest_only_schedule,
     calculate_period_interest,
     calculate_prorated_interest,
 )
@@ -120,6 +121,37 @@ class InstallmentScheduleTests(unittest.TestCase):
     def test_payment_count_must_be_positive(self) -> None:
         with self.assertRaisesRegex(LoanCalculationError, "must be positive"):
             build_installment_schedule(Decimal("1000.00"), Decimal("0.05"), 0)
+
+
+class InterestOnlyScheduleTests(unittest.TestCase):
+    """Verify interest-only schedule generation."""
+
+    def test_interest_only_interim_payments_are_interest_only_and_final_is_bullet(self) -> None:
+        schedule = build_interest_only_schedule(
+            Decimal("1000.00"),
+            periodic_rate=Decimal("0.05"),
+            number_of_payments=3,
+        )
+
+        self.assertEqual(len(schedule), 3)
+
+        # Interim installment 1
+        self.assertEqual(schedule[0].payment_amount, Decimal("50.00"))
+        self.assertEqual(schedule[0].interest_amount, Decimal("50.00"))
+        self.assertEqual(schedule[0].principal_amount, Decimal("0.00"))
+        self.assertEqual(schedule[0].remaining_principal, Decimal("1000.00"))
+
+        # Interim installment 2
+        self.assertEqual(schedule[1].payment_amount, Decimal("50.00"))
+        self.assertEqual(schedule[1].interest_amount, Decimal("50.00"))
+        self.assertEqual(schedule[1].principal_amount, Decimal("0.00"))
+        self.assertEqual(schedule[1].remaining_principal, Decimal("1000.00"))
+
+        # Final installment 3 (bullet payment)
+        self.assertEqual(schedule[2].payment_amount, Decimal("1050.00"))
+        self.assertEqual(schedule[2].interest_amount, Decimal("50.00"))
+        self.assertEqual(schedule[2].principal_amount, Decimal("1000.00"))
+        self.assertEqual(schedule[2].remaining_principal, Decimal("0.00"))
 
 
 class DocumentedLoanScenarioTests(unittest.TestCase):

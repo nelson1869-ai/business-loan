@@ -14,7 +14,10 @@ from app.features.admin_assistant.models import AuditLog
 from app.features.loan_policies.models import LoanPolicyVersion
 from app.features.notifications.service import create_borrower_notification
 from app.features.loan_policies.service import policy_snapshot
-from app.features.loans.calculator import build_installment_schedule
+from app.features.loans.calculator import (
+    build_installment_schedule,
+    build_interest_only_schedule,
+)
 from app.features.loans.models import Installment, Loan
 from app.features.loans.schemas import (
     LoanCreate,
@@ -49,11 +52,18 @@ def build_due_dates(payload: LoanCreate) -> tuple[date, ...]:
 def build_quote(payload: LoanQuoteRequest) -> LoanQuoteResponse:
     """Calculate an indicative schedule without reading or writing the database."""
     periodic_rate = payload.monthly_rate / Decimal(payload.payments_per_month)
-    calculations = build_installment_schedule(
-        payload.original_principal,
-        periodic_rate,
-        payload.number_of_payments,
-    )
+    if payload.repayment_structure == "interest_only":
+        calculations = build_interest_only_schedule(
+            payload.original_principal,
+            periodic_rate,
+            payload.number_of_payments,
+        )
+    else:
+        calculations = build_installment_schedule(
+            payload.original_principal,
+            periodic_rate,
+            payload.number_of_payments,
+        )
     date_terms = LoanCreate(
         borrower_id="00000000-0000-0000-0000-000000000000",
         original_principal=payload.original_principal,
@@ -63,6 +73,7 @@ def build_quote(payload: LoanQuoteRequest) -> LoanQuoteResponse:
         start_date=payload.first_due_date - timedelta(days=1),
         first_due_date=payload.first_due_date,
         calculation_method=payload.calculation_method,
+        repayment_structure=payload.repayment_structure,
     )
     due_dates = build_due_dates(date_terms)
     total_interest = sum(
@@ -82,6 +93,7 @@ def build_quote(payload: LoanQuoteRequest) -> LoanQuoteResponse:
         total_repayment=total_repayment,
         final_due_date=due_dates[-1],
         calculation_method=payload.calculation_method,
+        repayment_structure=payload.repayment_structure,
         installments=[
             LoanQuoteInstallment(
                 installment_number=item.number,
@@ -116,11 +128,18 @@ async def create_loan(
                 "Loan calculation method does not match the selected policy"
             )
     periodic_rate = payload.monthly_rate / Decimal(payload.payments_per_month)
-    calculations = build_installment_schedule(
-        payload.original_principal,
-        periodic_rate,
-        payload.number_of_payments,
-    )
+    if payload.repayment_structure == "interest_only":
+        calculations = build_interest_only_schedule(
+            payload.original_principal,
+            periodic_rate,
+            payload.number_of_payments,
+        )
+    else:
+        calculations = build_installment_schedule(
+            payload.original_principal,
+            periodic_rate,
+            payload.number_of_payments,
+        )
     due_dates = build_due_dates(payload)
     # Offline clients use request_id as the canonical resource id so dependent
     # queued mutations (payments, notes, documents) remain addressable after
@@ -138,6 +157,7 @@ async def create_loan(
             else {
                 "source": "legacy-explicit-terms",
                 "calculationMethod": payload.calculation_method,
+                "repaymentStructure": payload.repayment_structure,
                 "monthlyRate": str(payload.monthly_rate),
                 "rounding": "ROUND_HALF_UP",
                 "paymentAllocationOrder": ["interest", "principal", "unapplied_credit"],
@@ -151,6 +171,7 @@ async def create_loan(
         number_of_payments=payload.number_of_payments,
         regular_payment_amount=calculations[0].payment_amount,
         calculation_method=payload.calculation_method,
+        repayment_structure=payload.repayment_structure,
         start_date=payload.start_date,
         first_due_date=due_dates[0],
         final_due_date=due_dates[-1],

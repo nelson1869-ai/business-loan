@@ -961,3 +961,113 @@ class TestBorrowerLoansApi(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual(res.status_code, 404)
+
+    async def test_submit_borrower_loan_request_persists_requested_terms(self) -> None:
+        suffix = secrets.token_hex(4)
+        bor_id = f"bor-req-{suffix}"
+        acct_id = f"acct-req-{suffix}"
+
+        async with self.session_factory() as db:
+            borrower = Borrower(
+                id=bor_id,
+                first_name="Maria",
+                last_name="Santos",
+                national_id=f"PH-REQ-{suffix}",
+                phone=f"0940{suffix[:7]}",
+                date_of_birth=date(1992, 3, 3),
+                status="Active",
+            )
+            db.add(borrower)
+            account = BorrowerAccount(
+                id=acct_id,
+                borrower_id=bor_id,
+                phone_number=f"0940{suffix[:7]}",
+                phone_number_normalized=f"+63940{suffix[:7]}",
+                account_status="active",
+            )
+            db.add(account)
+            await db.commit()
+
+        token = create_borrower_access_token(account)
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            res = await client.post(
+                "/api/v1/client/loan-requests",
+                headers={"Authorization": f"Bearer {token}"},
+                json={
+                    "requestedAmount": "5000.00",
+                    "requestedTermMonths": 2,
+                    "requestedPaymentFrequency": "twice_a_month",
+                    "requestedRepaymentStructure": "interest_only",
+                    "purpose": "Inventory expansion",
+                },
+            )
+
+        self.assertEqual(res.status_code, 201)
+        data = res.json()
+        self.assertEqual(data["requestedAmount"], "5000.00")
+        self.assertEqual(data["requestedTermMonths"], 2)
+        self.assertEqual(data["requestedPaymentFrequency"], "twice_a_month")
+        self.assertEqual(data["requestedRepaymentStructure"], "interest_only")
+        self.assertEqual(data["purpose"], "Inventory expansion")
+        self.assertEqual(data["status"], "submitted")
+
+    async def test_duplicate_submitted_request_returns_409(self) -> None:
+        suffix = secrets.token_hex(4)
+        bor_id = f"bor-dup-{suffix}"
+        acct_id = f"acct-dup-{suffix}"
+
+        async with self.session_factory() as db:
+            borrower = Borrower(
+                id=bor_id,
+                first_name="Juan",
+                last_name="Reyes",
+                national_id=f"PH-DUP-{suffix}",
+                phone=f"0941{suffix[:7]}",
+                date_of_birth=date(1994, 4, 4),
+                status="Active",
+            )
+            db.add(borrower)
+            account = BorrowerAccount(
+                id=acct_id,
+                borrower_id=bor_id,
+                phone_number=f"0941{suffix[:7]}",
+                phone_number_normalized=f"+63941{suffix[:7]}",
+                account_status="active",
+            )
+            db.add(account)
+            await db.commit()
+
+        token = create_borrower_access_token(account)
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            # First submission succeeds
+            res1 = await client.post(
+                "/api/v1/client/loan-requests",
+                headers={"Authorization": f"Bearer {token}"},
+                json={
+                    "requestedAmount": "3000.00",
+                    "requestedTermMonths": 1,
+                    "requestedPaymentFrequency": "monthly",
+                    "requestedRepaymentStructure": "principal_plus_interest",
+                },
+            )
+            self.assertEqual(res1.status_code, 201)
+
+            # Second submission fails with 409 Conflict
+            res2 = await client.post(
+                "/api/v1/client/loan-requests",
+                headers={"Authorization": f"Bearer {token}"},
+                json={
+                    "requestedAmount": "4000.00",
+                    "requestedTermMonths": 3,
+                    "requestedPaymentFrequency": "monthly",
+                    "requestedRepaymentStructure": "interest_only",
+                },
+            )
+            self.assertEqual(res2.status_code, 409)
+            self.assertIn("awaiting review", res2.json()["detail"])

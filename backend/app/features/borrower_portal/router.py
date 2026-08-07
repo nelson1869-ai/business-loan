@@ -607,13 +607,29 @@ async def submit_loan_request_endpoint(
     current_account: ActiveBorrowerAccount,
 ) -> BorrowerLoanRequestResponse:
     """Borrower endpoint to submit a new loan request."""
-    req = await submit_borrower_loan_request(db, current_account, payload)
-    await db.commit()
+    try:
+        req = await submit_borrower_loan_request(db, current_account, payload)
+        await db.commit()
+    except ValueError as error:
+        await db.rollback()
+        err_msg = str(error)
+        if "DUPLICATE_PENDING_LOAN_REQUEST" in err_msg or "awaiting review" in err_msg:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="You already have a loan request awaiting review.",
+            ) from error
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=err_msg,
+        ) from error
+
     return BorrowerLoanRequestResponse(
         id=req.id,
         borrower_id=req.borrower_id,
         requested_amount=str(req.requested_amount),
         requested_term_months=req.requested_term_months,
+        requested_payment_frequency=getattr(req, "requested_payment_frequency", "monthly"),
+        requested_repayment_structure=getattr(req, "requested_repayment_structure", "principal_plus_interest"),
         purpose=req.purpose,
         status=req.status,
         owner_notes=req.owner_notes,
@@ -638,6 +654,8 @@ async def list_client_loan_requests(
             borrower_id=r.borrower_id,
             requested_amount=str(r.requested_amount),
             requested_term_months=r.requested_term_months,
+            requested_payment_frequency=getattr(r, "requested_payment_frequency", "monthly"),
+            requested_repayment_structure=getattr(r, "requested_repayment_structure", "principal_plus_interest"),
             purpose=r.purpose,
             status=r.status,
             owner_notes=r.owner_notes,

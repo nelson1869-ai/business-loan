@@ -190,6 +190,8 @@ class BorrowerLoanRequestSubmit(BaseSchema):
 
     requested_amount: str = Field(..., alias="requestedAmount")
     requested_term_months: int = Field(..., alias="requestedTermMonths", ge=1, le=120)
+    requested_payment_frequency: str = Field("monthly", alias="requestedPaymentFrequency")
+    requested_repayment_structure: str = Field("principal_plus_interest", alias="requestedRepaymentStructure")
     purpose: str | None = Field(None, alias="purpose", max_length=500)
 
 
@@ -200,6 +202,8 @@ class BorrowerLoanRequestResponse(BaseSchema):
     borrower_id: str = Field(..., alias="borrowerId")
     requested_amount: str = Field(..., alias="requestedAmount")
     requested_term_months: int = Field(..., alias="requestedTermMonths")
+    requested_payment_frequency: str = Field("monthly", alias="requestedPaymentFrequency")
+    requested_repayment_structure: str = Field("principal_plus_interest", alias="requestedRepaymentStructure")
     purpose: str | None = None
     status: str
     owner_notes: str | None = Field(None, alias="ownerNotes")

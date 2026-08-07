@@ -101,6 +101,12 @@ class Loan(Base):
         nullable=False,
         default="fixed_periodic_reducing_balance",
     )
+    repayment_structure: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False,
+        server_default="principal_plus_interest",
+        default="principal_plus_interest",
+    )
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
     first_due_date: Mapped[date] = mapped_column(Date, nullable=False)
     final_due_date: Mapped[date] = mapped_column(Date, nullable=False)

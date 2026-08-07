@@ -228,6 +228,15 @@ class BorrowerLoanRequest(Base):
         Numeric(18, 2), nullable=False
     )
     requested_term_months: Mapped[int] = mapped_column(Integer, nullable=False)
+    requested_payment_frequency: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default="monthly", default="monthly"
+    )
+    requested_repayment_structure: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False,
+        server_default="principal_plus_interest",
+        default="principal_plus_interest",
+    )
     purpose: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, server_default="submitted", index=True

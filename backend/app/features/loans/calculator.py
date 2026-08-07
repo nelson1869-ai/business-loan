@@ -185,3 +185,47 @@ def build_installment_schedule(
         balance = remaining
 
     return tuple(installments)
+
+
+def build_interest_only_schedule(
+    original_principal: Decimal,
+    periodic_rate: Decimal,
+    number_of_payments: int,
+) -> tuple[Installment, ...]:
+    """Build an interest-only schedule where interim payments pay interest only and final payment pays principal + interest."""
+    principal = _money(original_principal, "original_principal")
+    rate = _rate(periodic_rate)
+    if principal <= 0:
+        raise LoanCalculationError("original_principal must be positive")
+    if not isinstance(number_of_payments, int) or isinstance(
+        number_of_payments, bool
+    ):
+        raise LoanCalculationError("number_of_payments must be an integer")
+    if number_of_payments <= 0:
+        raise LoanCalculationError("number_of_payments must be positive")
+
+    installments: list[Installment] = []
+    interest = calculate_period_interest(principal, rate)
+
+    for number in range(1, number_of_payments + 1):
+        is_final_payment = number == number_of_payments
+        if is_final_payment:
+            principal_paid = principal
+            payment = (principal + interest).quantize(CENT, rounding=ROUND_HALF_UP)
+            remaining = Decimal("0.00")
+        else:
+            principal_paid = Decimal("0.00")
+            payment = interest
+            remaining = principal
+
+        installments.append(
+            Installment(
+                number=number,
+                payment_amount=payment,
+                interest_amount=interest,
+                principal_amount=principal_paid,
+                remaining_principal=remaining,
+            )
+        )
+
+    return tuple(installments)

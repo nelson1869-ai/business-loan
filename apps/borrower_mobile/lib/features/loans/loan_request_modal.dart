@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:borrower_mobile/core/api/api_error.dart';
 import 'package:borrower_mobile/core/auth/auth_notifier.dart';
+import 'package:dio/dio.dart';
 
 class LoanRequestModal extends ConsumerStatefulWidget {
   const LoanRequestModal({super.key});
@@ -13,7 +15,9 @@ class _LoanRequestModalState extends ConsumerState<LoanRequestModal> {
   final _formKey = GlobalKey<FormState>();
   final _amountCtrl = TextEditingController();
   final _purposeCtrl = TextEditingController();
-  int _termMonths = 6;
+  int _termMonths = 1;
+  String _paymentFrequency = 'monthly';
+  String _repaymentStructure = 'principal_plus_interest';
   bool _working = false;
 
   @override
@@ -34,6 +38,8 @@ class _LoanRequestModalState extends ConsumerState<LoanRequestModal> {
         data: {
           'requestedAmount': _amountCtrl.text.trim(),
           'requestedTermMonths': _termMonths,
+          'requestedPaymentFrequency': _paymentFrequency,
+          'requestedRepaymentStructure': _repaymentStructure,
           'purpose': _purposeCtrl.text.trim().isEmpty ? null : _purposeCtrl.text.trim(),
         },
       );
@@ -48,8 +54,11 @@ class _LoanRequestModalState extends ConsumerState<LoanRequestModal> {
     } catch (e) {
       if (mounted) {
         setState(() => _working = false);
+        final String message = e is DioException
+            ? ApiError.fromDioException(e).message
+            : (e is ApiError ? e.message : 'Unable to submit your loan request. Please try again.');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to submit loan request: $e')),
+          SnackBar(content: Text(message)),
         );
       }
     }
@@ -62,7 +71,12 @@ class _LoanRequestModalState extends ConsumerState<LoanRequestModal> {
         children: [
           Icon(Icons.request_quote_outlined, color: Color(0xFF0D9488)),
           SizedBox(width: 10),
-          Text('Submit Loan Request'),
+          Expanded(
+            child: Text(
+              'Submit Loan Request',
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
       content: SingleChildScrollView(
@@ -79,7 +93,7 @@ class _LoanRequestModalState extends ConsumerState<LoanRequestModal> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _amountCtrl,
-                keyboardType: TextInputType.number,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 decoration: const InputDecoration(
                   labelText: 'Requested Amount (PHP)',
                   prefixText: '₱ ',
@@ -96,10 +110,10 @@ class _LoanRequestModalState extends ConsumerState<LoanRequestModal> {
               DropdownButtonFormField<int>(
                 initialValue: _termMonths,
                 decoration: const InputDecoration(
-                  labelText: 'Requested Term (Months)',
+                  labelText: 'Loan Duration',
                   border: OutlineInputBorder(),
                 ),
-                items: [1, 2, 3, 6, 12, 18, 24].map((m) {
+                items: [1, 2, 3, 6].map((m) {
                   return DropdownMenuItem(
                     value: m,
                     child: Text('$m ${m == 1 ? "Month" : "Months"}'),
@@ -107,6 +121,36 @@ class _LoanRequestModalState extends ConsumerState<LoanRequestModal> {
                 }).toList(),
                 onChanged: (val) {
                   if (val != null) setState(() => _termMonths = val);
+                },
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                initialValue: _paymentFrequency,
+                decoration: const InputDecoration(
+                  labelText: 'Payment Frequency',
+                  border: OutlineInputBorder(),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'monthly', child: Text('Monthly')),
+                  DropdownMenuItem(value: 'twice_a_month', child: Text('Twice a Month')),
+                ],
+                onChanged: (val) {
+                  if (val != null) setState(() => _paymentFrequency = val);
+                },
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                initialValue: _repaymentStructure,
+                decoration: const InputDecoration(
+                  labelText: 'Repayment Structure',
+                  border: OutlineInputBorder(),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'principal_plus_interest', child: Text('Principal + Interest')),
+                  DropdownMenuItem(value: 'interest_only', child: Text('Interest Only')),
+                ],
+                onChanged: (val) {
+                  if (val != null) setState(() => _repaymentStructure = val);
                 },
               ),
               const SizedBox(height: 16),

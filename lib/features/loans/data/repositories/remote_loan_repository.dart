@@ -43,6 +43,7 @@ class RemoteLoanRepository {
     required int termMonths,
     required int paymentsPerMonth,
     required String firstDueDate,
+    String repaymentStructure = 'principal_plus_interest',
   }) async {
     try {
       final response = await _dio.post<Map<String, dynamic>>(
@@ -53,6 +54,7 @@ class RemoteLoanRepository {
           'termMonths': termMonths,
           'paymentsPerMonth': paymentsPerMonth,
           'firstDueDate': firstDueDate,
+          'repaymentStructure': repaymentStructure,
         },
       );
       final json = response.data;

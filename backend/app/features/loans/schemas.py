@@ -20,6 +20,7 @@ InstallmentStatus = Literal[
     "Cancelled",
 ]
 CalculationMethod = Literal["fixed_periodic_reducing_balance"]
+RepaymentStructure = Literal["principal_plus_interest", "interest_only"]
 LoanWorkflowAction = Literal[
     "approve", "disburse", "activate", "approve_and_activate", "complete", "default", "cancel", "close"
 ]
@@ -38,6 +39,7 @@ class LoanCreate(BaseModel):
     start_date: date
     first_due_date: date
     calculation_method: CalculationMethod = "fixed_periodic_reducing_balance"
+    repayment_structure: RepaymentStructure = "principal_plus_interest"
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
@@ -79,6 +81,7 @@ class LoanQuoteRequest(BaseModel):
     payments_per_month: int = Field(gt=0, le=31)
     first_due_date: date
     calculation_method: CalculationMethod = "fixed_periodic_reducing_balance"
+    repayment_structure: RepaymentStructure = "principal_plus_interest"
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
@@ -122,6 +125,7 @@ class LoanQuoteResponse(BaseModel):
     total_repayment: Decimal
     final_due_date: date
     calculation_method: CalculationMethod
+    repayment_structure: RepaymentStructure = "principal_plus_interest"
     installments: list[LoanQuoteInstallment]
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
@@ -166,6 +170,7 @@ class LoanResponse(BaseModel):
     number_of_payments: int
     regular_payment_amount: Decimal
     calculation_method: CalculationMethod
+    repayment_structure: RepaymentStructure = "principal_plus_interest"
     start_date: date
     first_due_date: date
     final_due_date: date

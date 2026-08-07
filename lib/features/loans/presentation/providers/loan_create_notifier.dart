@@ -44,6 +44,7 @@ class LoanCreateNotifier extends StateNotifier<LoanCreateState> {
     required int termMonths,
     required int paymentsPerMonth,
     required DateTime firstDueDate,
+    String repaymentStructure = 'principal_plus_interest',
   }) async {
     state = const LoanCreateState(isCalculating: true);
     final monthlyRateStr = percentageToDecimalRate(rate);
@@ -54,6 +55,7 @@ class LoanCreateNotifier extends StateNotifier<LoanCreateState> {
         termMonths: termMonths,
         paymentsPerMonth: paymentsPerMonth,
         firstDueDate: formatDateOnly(firstDueDate),
+        repaymentStructure: repaymentStructure,
       );
       state = LoanCreateState(quote: quote);
       return quote;
@@ -71,6 +73,7 @@ class LoanCreateNotifier extends StateNotifier<LoanCreateState> {
     required int paymentsPerMonth,
     required DateTime startDate,
     required DateTime firstDueDate,
+    String repaymentStructure = 'principal_plus_interest',
   }) async {
     if (!firstDueDate.isAfter(startDate)) {
       state = const LoanCreateState(
@@ -98,6 +101,7 @@ class LoanCreateNotifier extends StateNotifier<LoanCreateState> {
       paymentsPerMonth,
       formatDateOnly(startDate),
       formatDateOnly(firstDueDate),
+      repaymentStructure,
     ].join('|');
     if (_requestFingerprint != fingerprint) {
       _requestFingerprint = fingerprint;
@@ -113,6 +117,7 @@ class LoanCreateNotifier extends StateNotifier<LoanCreateState> {
       paymentsPerMonth: paymentsPerMonth,
       startDate: formatDateOnly(startDate),
       firstDueDate: formatDateOnly(firstDueDate),
+      repaymentStructure: repaymentStructure,
     );
 
     try {

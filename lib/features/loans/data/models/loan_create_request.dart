@@ -10,6 +10,7 @@ class LoanCreateRequest {
     required this.paymentsPerMonth,
     required this.startDate,
     required this.firstDueDate,
+    this.repaymentStructure = 'principal_plus_interest',
   });
 
   final String borrowerId;
@@ -20,6 +21,7 @@ class LoanCreateRequest {
   final int paymentsPerMonth;
   final String startDate;
   final String firstDueDate;
+  final String repaymentStructure;
 
   /// Converts the approved terms to the backend's camel-case request body.
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -31,5 +33,6 @@ class LoanCreateRequest {
     'paymentsPerMonth': paymentsPerMonth,
     'startDate': startDate,
     'firstDueDate': firstDueDate,
+    'repaymentStructure': repaymentStructure,
   };
 }
