@@ -157,3 +157,71 @@ class TestBorrowerPortalRouter(unittest.IsolatedAsyncioTestCase):
                 headers={"Authorization": f"Bearer {borrower_token}"},
             )
             self.assertEqual(res.status_code, 401)
+
+
+from pydantic import ValidationError
+from app.features.borrower_portal.schemas import BorrowerLoanRequestSubmit
+
+
+class TestBorrowerLoanRequestValidation(unittest.TestCase):
+    """Verify strict Pydantic Literal validation for payment frequency and repayment structure."""
+
+    def test_monthly_accepted(self) -> None:
+        req = BorrowerLoanRequestSubmit(
+            requestedAmount="5000.00",
+            requestedTermMonths=3,
+            requestedPaymentFrequency="monthly",
+            requestedRepaymentStructure="principal_plus_interest",
+        )
+        self.assertEqual(req.requested_payment_frequency, "monthly")
+
+    def test_twice_a_month_accepted(self) -> None:
+        req = BorrowerLoanRequestSubmit(
+            requestedAmount="5000.00",
+            requestedTermMonths=3,
+            requestedPaymentFrequency="twice_a_month",
+            requestedRepaymentStructure="interest_only",
+        )
+        self.assertEqual(req.requested_payment_frequency, "twice_a_month")
+
+    def test_weekly_rejected(self) -> None:
+        with self.assertRaises(ValidationError):
+            BorrowerLoanRequestSubmit(
+                requestedAmount="5000.00",
+                requestedTermMonths=3,
+                requestedPaymentFrequency="weekly",
+            )
+
+    def test_arbitrary_frequency_rejected(self) -> None:
+        with self.assertRaises(ValidationError):
+            BorrowerLoanRequestSubmit(
+                requestedAmount="5000.00",
+                requestedTermMonths=3,
+                requestedPaymentFrequency="daily",
+            )
+
+    def test_principal_plus_interest_accepted(self) -> None:
+        req = BorrowerLoanRequestSubmit(
+            requestedAmount="5000.00",
+            requestedTermMonths=3,
+            requestedRepaymentStructure="principal_plus_interest",
+        )
+        self.assertEqual(
+            req.requested_repayment_structure, "principal_plus_interest"
+        )
+
+    def test_interest_only_accepted(self) -> None:
+        req = BorrowerLoanRequestSubmit(
+            requestedAmount="5000.00",
+            requestedTermMonths=3,
+            requestedRepaymentStructure="interest_only",
+        )
+        self.assertEqual(req.requested_repayment_structure, "interest_only")
+
+    def test_arbitrary_repayment_structure_rejected(self) -> None:
+        with self.assertRaises(ValidationError):
+            BorrowerLoanRequestSubmit(
+                requestedAmount="5000.00",
+                requestedTermMonths=3,
+                requestedRepaymentStructure="random_structure",
+            )

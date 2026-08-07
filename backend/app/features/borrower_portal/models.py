@@ -216,6 +216,16 @@ class BorrowerLoanRequest(Base):
     """Separate entity for borrower-submitted loan requests awaiting owner review."""
 
     __tablename__ = "borrower_loan_requests"
+    __table_args__ = (
+        CheckConstraint(
+            "requested_payment_frequency IN ('monthly', 'twice_a_month')",
+            name="ck_borrower_loan_requests_requested_payment_frequency",
+        ),
+        CheckConstraint(
+            "requested_repayment_structure IN ('principal_plus_interest', 'interest_only')",
+            name="ck_borrower_loan_requests_requested_repayment_structure",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     borrower_id: Mapped[str] = mapped_column(

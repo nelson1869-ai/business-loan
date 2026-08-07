@@ -29,7 +29,10 @@ class _LoanCreateScreenState extends ConsumerState<LoanCreateScreen> {
 
   static DateTime _defaultFirstDueDate(DateTime start, int paymentsPerMonth) {
     if (paymentsPerMonth == 2) {
-      return start.add(const Duration(days: 15));
+      if (start.day < 15) {
+        return DateTime(start.year, start.month, 15);
+      }
+      return DateTime(start.year, start.month + 1, 15);
     }
     return DateTime(start.year, start.month + 1, start.day);
   }

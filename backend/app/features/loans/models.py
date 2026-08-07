@@ -53,6 +53,10 @@ class Loan(Base):
             "calculation_method = 'fixed_periodic_reducing_balance'",
             name="ck_loans_calculation_method",
         ),
+        CheckConstraint(
+            "repayment_structure IN ('principal_plus_interest', 'interest_only')",
+            name="ck_loans_repayment_structure",
+        ),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)

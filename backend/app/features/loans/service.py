@@ -39,7 +39,49 @@ def _add_months(value: date, months: int) -> date:
 
 
 def build_due_dates(payload: LoanCreate) -> tuple[date, ...]:
-    """Generate lender-approved dates from a monthly anchor and frequency."""
+    """Generate lender-approved due dates starting from first_due_date.
+
+    - Monthly (payments_per_month = 1):
+      Generates 1 payment per month on the same day as first_due_date (clamped to month-end).
+    - Twice a Month (payments_per_month = 2):
+      Generates 2 payments per month using canonical semi-monthly slots:
+      15th and last calendar day of the month.
+      The sequence starts at first_due_date (no due dates earlier than first_due_date).
+    """
+    if payload.payments_per_month == 1:
+        dates: list[date] = []
+        for month_offset in range(payload.term_months):
+            dates.append(_add_months(payload.first_due_date, month_offset))
+        return tuple(dates)
+
+    if payload.payments_per_month == 2:
+        total_payments = payload.number_of_payments
+        dates: list[date] = []
+        year = payload.first_due_date.year
+        month = payload.first_due_date.month
+
+        while len(dates) < total_payments:
+            last_day = monthrange(year, month)[1]
+            candidate_15 = date(year, month, 15)
+            candidate_last = date(year, month, last_day)
+
+            if candidate_15 >= payload.first_due_date:
+                dates.append(candidate_15)
+                if len(dates) == total_payments:
+                    break
+
+            if candidate_last >= payload.first_due_date:
+                dates.append(candidate_last)
+
+            # Advance to next month
+            month += 1
+            if month > 12:
+                month = 1
+                year += 1
+
+        return tuple(dates)
+
+    # Fallback for historical/other frequencies
     dates: list[date] = []
     for month_offset in range(payload.term_months):
         anchor = _add_months(payload.first_due_date, month_offset)
