@@ -99,9 +99,9 @@ def require_any_permission(user: object, permissions: Iterable[str]) -> None:
 
 
 def require_owner(user: object) -> None:
-    """Enforce that the authenticated user possesses the owner role."""
+    """Enforce that the authenticated user possesses the owner or admin role."""
     role = str(getattr(user, "role", "")).lower()
-    if role != "owner":
+    if role not in {"owner", "admin"}:
         raise HTTPException(
             status_code=403, detail="Owner authorization required"
         )

@@ -22,7 +22,6 @@ class LoanWorkflowActions extends ConsumerWidget {
     // Hide entirely for terminal / active states
     if (loan.status == 'Active' ||
         loan.status == 'Paid' ||
-        loan.status == 'Closed' ||
         loan.status == 'Cancelled' ||
         loan.status == 'Defaulted') {
       return const SizedBox.shrink();
@@ -44,11 +43,29 @@ class LoanWorkflowActions extends ConsumerWidget {
             onPressed: online && canManage ? () => _cancelDraft(context, ref) : null,
             style: OutlinedButton.styleFrom(
               foregroundColor: Colors.red.shade700,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               textStyle: const TextStyle(fontSize: 12),
             ),
             icon: const Icon(Icons.cancel_outlined, size: 15),
             label: const Text('Cancel Draft'),
+          ),
+          OutlinedButton.icon(
+            onPressed: online && canManage
+                ? () => _transition(
+                      context,
+                      ref,
+                      'approve',
+                      title: 'Approve Loan',
+                      label: 'Approve',
+                    )
+                : null,
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              textStyle:
+                  const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+            icon: const Icon(Icons.check_circle_outline, size: 15),
+            label: const Text('Approve'),
           ),
           FilledButton.icon(
             onPressed: online && canManage
@@ -56,7 +73,7 @@ class LoanWorkflowActions extends ConsumerWidget {
                 : null,
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFF0D9488),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               textStyle:
                   const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
             ),

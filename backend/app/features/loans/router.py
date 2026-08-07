@@ -6,7 +6,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy.exc import IntegrityError
 
-from app.core.authorization import require_permission
+from app.core.authorization import require_owner, require_permission
 from app.core.config import get_settings
 from app.core.dependencies import CurrentUser, DbSession
 from app.features.accounting.service import loan_disbursement_lines, post_journal
@@ -258,17 +258,20 @@ async def transition_one_loan(
     loan_id: str, action: LoanWorkflowAction, db: DbSession, current_user: CurrentUser
 ) -> LoanWorkflowResponse:
     """Apply a validated loan lifecycle command."""
-    permission = {
-        "approve": "loan.approve",
-        "approve_and_activate": "loan.approve",
-        "disburse": "loan.disburse",
-        "activate": "loan.disburse",
-        "complete": "loan.approve",
-        "default": "loan.write_off",
-        "cancel": "loan.approve",
-        "close": "loan.approve",
-    }[action]
-    require_permission(current_user, permission)
+    if action == "approve_and_activate":
+        require_owner(current_user)
+    else:
+        permission = {
+            "approve": "loan.approve",
+            "disburse": "loan.disburse",
+            "activate": "loan.disburse",
+            "complete": "loan.approve",
+            "default": "loan.write_off",
+            "cancel": "loan.approve",
+            "close": "loan.approve",
+        }[action]
+        require_permission(current_user, permission)
+
     try:
         loan, occurred_at = await loan_service.transition_loan(
             db, loan_id, action, current_user
@@ -290,7 +293,7 @@ async def transition_one_loan(
             eventType=event_type,
             idempotencyKey=f"{event_type}:{loan.id}:{occurred_at.isoformat()}",
             actor=EventActor(
-                id=current_user.id, role=getattr(current_user, "role", "officer")
+                id=current_user.id, role=getattr(current_user, "role", "owner")
             ),
             entity=EventEntity(type="loan", id=loan.id),
             data={
@@ -310,6 +313,9 @@ async def transition_one_loan(
             status_code=404 if "not found" in str(error).lower() else 409,
             detail=str(error),
         ) from error
+    except Exception:
+        await db.rollback()
+        raise
     return LoanWorkflowResponse(
         loan_id=loan.id, action=action, status=loan.status, occurred_at=occurred_at
     )

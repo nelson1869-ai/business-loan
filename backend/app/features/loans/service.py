@@ -359,16 +359,12 @@ async def transition_loan(
     if action == "approve":
         if loan.status != "Draft" or loan.approved_at is not None:
             raise ValueError("Only an unapproved draft may be approved")
-        if loan.created_by_user_id == user.id and user.role not in {"admin", "owner"}:
-            raise ValueError("Maker cannot approve own loan")
         loan.approved_at = now
         loan.approved_by_user_id = user.id
     elif action == "approve_and_activate":
         # Single-owner shortcut: approve + disburse + activate in one atomic step.
         if loan.status != "Draft" or loan.approved_at is not None:
             raise ValueError("Only an unapproved draft may be approved")
-        if user.role not in {"admin", "owner"}:
-            raise ValueError("Only admin/owner can use approve_and_activate")
         loan.approved_at = now
         loan.approved_by_user_id = user.id
         loan.disbursed_at = now
@@ -431,7 +427,10 @@ async def transition_loan(
             borrower_id=loan.borrower_id,
             notification_type="loan_activated",
             title="Loan Activated",
-            message=f"Your loan ({loan.id[:8]}) of ₱{loan.principal_amount:,.2f} is now active.",
+            message=(
+                f"Your loan ({loan.id[:8]}) of "
+                f"₱{loan.original_principal:,.2f} is now active."
+            ),
             entity_type="loan",
             entity_id=loan.id,
             metadata={"loan_id": loan.id},
