@@ -7,6 +7,21 @@ import '../../borrowers/domain/borrower_model.dart';
 import 'providers/loan_create_notifier.dart';
 import 'widgets/loan_date_field.dart';
 
+/// Calculates the initial suggested first due date based on payment frequency.
+DateTime calculateDefaultFirstDueDate(DateTime start, int paymentsPerMonth) {
+  if (paymentsPerMonth == 2) {
+    final lastDayOfMonth = DateTime(start.year, start.month + 1, 0);
+    if (start.day < 15) {
+      return DateTime(start.year, start.month, 15);
+    }
+    if (start.day < lastDayOfMonth.day) {
+      return lastDayOfMonth;
+    }
+    return DateTime(start.year, start.month + 1, 15);
+  }
+  return DateTime(start.year, start.month + 1, start.day);
+}
+
 class LoanCreateScreen extends ConsumerStatefulWidget {
   const LoanCreateScreen({super.key, required this.borrowerId, this.borrower});
 
@@ -28,13 +43,7 @@ class _LoanCreateScreenState extends ConsumerState<LoanCreateScreen> {
   late DateTime _firstDueDate = _defaultFirstDueDate(_startDate, _paymentsPerMonth);
 
   static DateTime _defaultFirstDueDate(DateTime start, int paymentsPerMonth) {
-    if (paymentsPerMonth == 2) {
-      if (start.day < 15) {
-        return DateTime(start.year, start.month, 15);
-      }
-      return DateTime(start.year, start.month + 1, 15);
-    }
-    return DateTime(start.year, start.month + 1, start.day);
+    return calculateDefaultFirstDueDate(start, paymentsPerMonth);
   }
 
   @override
