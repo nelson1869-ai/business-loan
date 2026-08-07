@@ -43,6 +43,7 @@ async def update_business_settings(
     settings.receipt_footer = payload.receipt_footer.strip()
     if payload.timezone is not None:
         settings.timezone = payload.timezone
+    settings.default_monthly_estimate_rate = payload.default_monthly_estimate_rate
     db.add(
         AuditLog(
             id=str(uuid4()),

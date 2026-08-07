@@ -32,6 +32,7 @@ class BusinessSettingRepository {
       currencyCode: 'PHP',
       receiptFooter: '',
       updatedAt: DateTime.fromMillisecondsSinceEpoch(0),
+      // defaultMonthlyEstimateRate remains null until a server fetch succeeds
     );
   }
 
@@ -52,17 +53,20 @@ class BusinessSettingRepository {
     required String businessName,
     required String currencyCode,
     required String receiptFooter,
+    String? defaultMonthlyEstimateRate,
   }) async {
-    final payload = {
+    final payload = <String, dynamic>{
       'businessName': businessName,
       'currencyCode': currencyCode,
       'receiptFooter': receiptFooter,
+      'defaultMonthlyEstimateRate': defaultMonthlyEstimateRate,
     };
     final settings = BusinessSetting(
       businessName: businessName,
       currencyCode: currencyCode,
       receiptFooter: receiptFooter,
       updatedAt: DateTime.now(),
+      defaultMonthlyEstimateRate: defaultMonthlyEstimateRate,
     );
     await _storage.write(key: _cacheKey, value: jsonEncode(settings.toJson()));
     await _sync.enqueue(

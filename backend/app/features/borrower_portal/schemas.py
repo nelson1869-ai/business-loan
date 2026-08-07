@@ -228,3 +228,64 @@ class ReviewBorrowerLoanRequestPayload(BaseSchema):
 
     action: Literal["approve", "decline"]
     owner_notes: str | None = Field(None, alias="ownerNotes")
+
+
+# ---------------------------------------------------------------------------
+# Borrower loan estimate / quote (read-only, no DB writes)
+# ---------------------------------------------------------------------------
+
+
+class BorrowerLoanQuoteRequest(BaseSchema):
+    """Parameters submitted by borrower for an in-memory loan estimate.
+
+    The borrower must NOT supply an interest rate.  The rate is read server-
+    side from BusinessSetting.default_monthly_estimate_rate.
+    """
+
+    requested_amount: str = Field(..., alias="requestedAmount")
+    requested_term_months: int = Field(..., alias="requestedTermMonths", ge=1, le=120)
+    requested_payment_frequency: RequestedPaymentFrequency = Field(
+        ..., alias="requestedPaymentFrequency"
+    )
+    requested_repayment_structure: RequestedRepaymentStructure = Field(
+        ..., alias="requestedRepaymentStructure"
+    )
+
+
+class BorrowerLoanQuoteUnavailableResponse(BaseSchema):
+    """Returned when no estimate rate is configured by the Owner."""
+
+    available: Literal[False] = False
+    message: str = (
+        "Loan estimate is currently unavailable. "
+        "Final terms will be provided by the lender."
+    )
+
+
+class BorrowerLoanQuoteInstallment(BaseSchema):
+    """One calculated installment row inside a borrower estimate response."""
+
+    installment_number: int = Field(..., alias="installmentNumber")
+    due_date: str = Field(..., alias="dueDate")
+    payment_amount: str = Field(..., alias="paymentAmount")
+    interest_amount: str = Field(..., alias="interestAmount")
+    principal_amount: str = Field(..., alias="principalAmount")
+    remaining_principal: str = Field(..., alias="remainingPrincipal")
+
+
+class BorrowerLoanQuoteAvailableResponse(BaseSchema):
+    """Returned when an estimate rate is configured and the quote succeeded."""
+
+    available: Literal[True] = True
+    estimated_monthly_rate: str = Field(..., alias="estimatedMonthlyRate")
+    disclaimer: str = (
+        "Estimate only. Final interest, payment dates, fees, and "
+        "approved terms are determined by the lender."
+    )
+    number_of_payments: int = Field(..., alias="numberOfPayments")
+    regular_payment_amount: str = Field(..., alias="regularPaymentAmount")
+    total_interest: str = Field(..., alias="totalInterest")
+    total_repayment: str = Field(..., alias="totalRepayment")
+    provisional_first_due_date: str = Field(..., alias="provisionalFirstDueDate")
+    provisional_final_due_date: str = Field(..., alias="provisionalFinalDueDate")
+    installments: list[BorrowerLoanQuoteInstallment]

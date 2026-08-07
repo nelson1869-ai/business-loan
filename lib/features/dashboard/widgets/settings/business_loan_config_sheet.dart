@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lending_nelson/core/presentation/design_system/design_system.dart';
+import 'package:lending_nelson/core/utils/formatters.dart';
 
 import '../../../settings/data/business_setting_repository.dart';
 import '../../../settings/providers/business_setting_provider.dart';
@@ -18,6 +19,11 @@ class _BusinessLoanConfigSheetState
   final _businessName = TextEditingController();
   final _currencyCode = TextEditingController();
   final _receiptFooter = TextEditingController();
+
+  /// Displayed as percentage (e.g. "10"), stored on backend as "0.10".
+  /// Empty string means no estimate rate configured.
+  final _estimateRate = TextEditingController();
+
   bool _initialized = false;
   bool _saving = false;
 
@@ -31,6 +37,11 @@ class _BusinessLoanConfigSheetState
         _businessName.text = settings.businessName;
         _currencyCode.text = settings.currencyCode;
         _receiptFooter.text = settings.receiptFooter;
+        // Convert stored decimal rate to display percentage.
+        // formatInterestRate("0.10") → "10%" → strip "%" → "10"
+        final raw = settings.defaultMonthlyEstimateRate;
+        _estimateRate.text =
+            raw == null ? '' : formatInterestRate(raw).replaceAll('%', '').trim();
       });
     }, fireImmediately: true);
   }
@@ -40,6 +51,7 @@ class _BusinessLoanConfigSheetState
     _businessName.dispose();
     _currencyCode.dispose();
     _receiptFooter.dispose();
+    _estimateRate.dispose();
     super.dispose();
   }
 
@@ -48,7 +60,7 @@ class _BusinessLoanConfigSheetState
     final settingsAsync = ref.watch(businessSettingProvider);
 
     return DraggableScrollableSheet(
-      initialChildSize: 0.78,
+      initialChildSize: 0.85,
       minChildSize: 0.5,
       maxChildSize: 0.95,
       expand: false,
@@ -105,6 +117,32 @@ class _BusinessLoanConfigSheetState
                 prefixIcon: Icon(Icons.receipt_long_outlined),
               ),
             ),
+            const SizedBox(height: 20),
+            const Divider(),
+            const SizedBox(height: 12),
+            Text(
+              'Borrower Loan Estimates',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'When set, borrowers can preview an estimated payment schedule '
+              'before submitting a loan request. The final interest rate is '
+              'still determined by you when creating the actual loan.',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _estimateRate,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              textInputAction: TextInputAction.done,
+              decoration: const InputDecoration(
+                labelText: 'Default Monthly Estimate Rate',
+                suffixText: '%',
+                prefixIcon: Icon(Icons.percent_outlined),
+                helperText: 'Leave blank to disable borrower estimates',
+              ),
+            ),
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: _saving ? null : _save,
@@ -129,6 +167,20 @@ class _BusinessLoanConfigSheetState
       _message('Enter a business name and a three-letter currency code.');
       return;
     }
+
+    // Validate the estimate rate field if non-empty.
+    String? decimalRate;
+    final rateText = _estimateRate.text.trim();
+    if (rateText.isNotEmpty) {
+      final rateValue = double.tryParse(rateText);
+      if (rateValue == null || rateValue < 0) {
+        _message('Enter a valid non-negative percentage for the estimate rate, or leave it blank.');
+        return;
+      }
+      // Convert display percentage → exact decimal string (e.g. "10" → "0.10").
+      decimalRate = percentageToDecimalRate(rateText);
+    }
+
     setState(() => _saving = true);
     try {
       await ref
@@ -137,6 +189,7 @@ class _BusinessLoanConfigSheetState
             businessName: name,
             currencyCode: currency,
             receiptFooter: _receiptFooter.text.trim(),
+            defaultMonthlyEstimateRate: decimalRate,
           );
       ref.invalidate(businessSettingProvider);
       if (mounted) _message('Business settings saved.');

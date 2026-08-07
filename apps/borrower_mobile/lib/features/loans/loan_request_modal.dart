@@ -20,11 +20,64 @@ class _LoanRequestModalState extends ConsumerState<LoanRequestModal> {
   String _repaymentStructure = 'principal_plus_interest';
   bool _working = false;
 
+  // ---- Quote / estimate state ----
+  Map<String, dynamic>? _quoteResult;
+  bool _quoteLoading = false;
+  bool _quoteIsStale = false;
+
   @override
   void dispose() {
     _amountCtrl.dispose();
     _purposeCtrl.dispose();
     super.dispose();
+  }
+
+  void _invalidateQuote() {
+    if (_quoteResult == null && !_quoteIsStale) return;
+    setState(() {
+      _quoteResult = null;
+      _quoteIsStale = true;
+    });
+  }
+
+  Future<void> _calculateEstimate() async {
+    if (_quoteLoading) return;
+
+    final amountText = _amountCtrl.text.trim();
+    if (amountText.isEmpty || double.tryParse(amountText) == null) {
+      _showMessage('Enter a valid requested amount before calculating an estimate.');
+      return;
+    }
+
+    setState(() {
+      _quoteLoading = true;
+      _quoteIsStale = false;
+    });
+
+    try {
+      final api = ref.read(apiClientProvider);
+      final result = await api.post(
+        '/api/v1/client/loan-requests/quote',
+        data: {
+          'requestedAmount': amountText,
+          'requestedTermMonths': _termMonths,
+          'requestedPaymentFrequency': _paymentFrequency,
+          'requestedRepaymentStructure': _repaymentStructure,
+        },
+      );
+      if (mounted) {
+        setState(() {
+          _quoteResult = result;
+          _quoteIsStale = false;
+        });
+      }
+    } on DioException catch (e) {
+      if (mounted) _showMessage(ApiError.fromDioException(e).message);
+    } catch (_) {
+      if (mounted) _showMessage('Unable to calculate estimate. Please try again.');
+    } finally {
+      if (mounted) setState(() => _quoteLoading = false);
+    }
   }
 
   Future<void> _submit() async {
@@ -57,15 +110,34 @@ class _LoanRequestModalState extends ConsumerState<LoanRequestModal> {
         final String message = e is DioException
             ? ApiError.fromDioException(e).message
             : (e is ApiError ? e.message : 'Unable to submit your loan request. Please try again.');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
       }
     }
   }
 
+  void _showMessage(String text) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  String _formatPercentage(String decimalStr) {
+    final value = double.tryParse(decimalStr);
+    if (value == null) return decimalStr;
+    final pct = value <= 1.0 ? value * 100 : value;
+    final formatted = pct.toStringAsFixed(2);
+    final trimmed = formatted.replaceFirst(RegExp(r'\.?0+$'), '');
+    return '$trimmed%';
+  }
+
+  String _formatCurrency(String amount) {
+    final value = double.tryParse(amount);
+    if (value == null) return 'PHP $amount';
+    return 'PHP ${value.toStringAsFixed(2).replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => ',')}';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return AlertDialog(
       title: const Row(
         children: [
@@ -96,9 +168,10 @@ class _LoanRequestModalState extends ConsumerState<LoanRequestModal> {
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 decoration: const InputDecoration(
                   labelText: 'Requested Amount (PHP)',
-                  prefixText: '₱ ',
+                  prefixText: 'PHP ',
                   border: OutlineInputBorder(),
                 ),
+                onChanged: (_) => _invalidateQuote(),
                 validator: (val) {
                   if (val == null || val.trim().isEmpty) return 'Enter amount';
                   final parsed = double.tryParse(val.trim());
@@ -120,7 +193,10 @@ class _LoanRequestModalState extends ConsumerState<LoanRequestModal> {
                   );
                 }).toList(),
                 onChanged: (val) {
-                  if (val != null) setState(() => _termMonths = val);
+                  if (val != null) {
+                    setState(() => _termMonths = val);
+                    _invalidateQuote();
+                  }
                 },
               ),
               const SizedBox(height: 16),
@@ -135,7 +211,10 @@ class _LoanRequestModalState extends ConsumerState<LoanRequestModal> {
                   DropdownMenuItem(value: 'twice_a_month', child: Text('Twice a Month')),
                 ],
                 onChanged: (val) {
-                  if (val != null) setState(() => _paymentFrequency = val);
+                  if (val != null) {
+                    setState(() => _paymentFrequency = val);
+                    _invalidateQuote();
+                  }
                 },
               ),
               const SizedBox(height: 16),
@@ -150,9 +229,57 @@ class _LoanRequestModalState extends ConsumerState<LoanRequestModal> {
                   DropdownMenuItem(value: 'interest_only', child: Text('Interest Only')),
                 ],
                 onChanged: (val) {
-                  if (val != null) setState(() => _repaymentStructure = val);
+                  if (val != null) {
+                    setState(() => _repaymentStructure = val);
+                    _invalidateQuote();
+                  }
                 },
               ),
+
+              // ---- Estimate section ----
+              const SizedBox(height: 20),
+              const Divider(),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: (_quoteLoading || _working) ? null : _calculateEstimate,
+                icon: _quoteLoading
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.calculate_outlined),
+                label: Text(_quoteLoading ? 'Calculating...' : 'Calculate Estimate'),
+              ),
+
+              if (_quoteIsStale && _quoteResult == null) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.amber.shade300),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, size: 16, color: Colors.amber.shade800),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Form values changed. Recalculate estimate.',
+                          style: TextStyle(fontSize: 12, color: Colors.amber.shade900),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              if (_quoteResult != null) ...[
+                const SizedBox(height: 12),
+                _buildQuoteResult(theme),
+              ],
+
               const SizedBox(height: 16),
               TextFormField(
                 controller: _purposeCtrl,
@@ -184,6 +311,107 @@ class _LoanRequestModalState extends ConsumerState<LoanRequestModal> {
               : const Text('Submit Request'),
         ),
       ],
+    );
+  }
+
+  Widget _buildQuoteResult(ThemeData theme) {
+    final quote = _quoteResult!;
+    final available = quote['available'] as bool? ?? false;
+
+    if (!available) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.blue.shade50,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.blue.shade200),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.info_outline, color: Colors.blue.shade700, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                quote['message'] as String? ??
+                    'Loan estimate is currently unavailable. Final terms will be provided by the lender.',
+                style: TextStyle(fontSize: 12, color: Colors.blue.shade900),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final rate = quote['estimatedMonthlyRate'] as String? ?? '';
+    final numPayments = quote['numberOfPayments'] as int? ?? 0;
+    final regularAmt = quote['regularPaymentAmount'] as String? ?? '0';
+    final totalInterest = quote['totalInterest'] as String? ?? '0';
+    final totalRepayment = quote['totalRepayment'] as String? ?? '0';
+    final firstDue = quote['provisionalFirstDueDate'] as String? ?? '';
+    final finalDue = quote['provisionalFinalDueDate'] as String? ?? '';
+    final disclaimer = quote['disclaimer'] as String? ??
+        'Estimate only. Final interest, payment dates, fees, and approved terms are determined by the lender.';
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: const Color(0xFF0D9488).withValues(alpha: 0.4)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.bar_chart_outlined, color: Color(0xFF0D9488), size: 18),
+                const SizedBox(width: 6),
+                Text(
+                  'Estimated Loan Preview',
+                  style: theme.textTheme.titleSmall?.copyWith(color: const Color(0xFF0D9488)),
+                ),
+              ],
+            ),
+            const Divider(height: 16),
+            _previewRow('Estimated Monthly Rate', _formatPercentage(rate)),
+            _previewRow('Number of Payments', '$numPayments'),
+            _previewRow('Est. Payment Amount', _formatCurrency(regularAmt)),
+            _previewRow('Estimated Interest', _formatCurrency(totalInterest)),
+            _previewRow('Estimated Total Repayment', _formatCurrency(totalRepayment)),
+            if (firstDue.isNotEmpty) _previewRow('First Payment (Est.)', firstDue),
+            if (finalDue.isNotEmpty) _previewRow('Final Payment (Est.)', finalDue),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade50,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                disclaimer,
+                style: TextStyle(fontSize: 11, color: Colors.amber.shade900, fontStyle: FontStyle.italic),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _previewRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          ),
+          Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        ],
+      ),
     );
   }
 }

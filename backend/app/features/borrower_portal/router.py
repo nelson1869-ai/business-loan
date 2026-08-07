@@ -1,7 +1,9 @@
 """Borrower portal API endpoints (/api/v1/client) and officer invitation endpoint."""
 
 import secrets
-from datetime import UTC, datetime
+from calendar import monthrange
+from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -39,6 +41,10 @@ from app.features.borrower_portal.payments_service import (
 from app.features.borrower_portal.schemas import (
     BorrowerActivationRequest,
     BorrowerAppAccessStatusResponse,
+    BorrowerLoanQuoteAvailableResponse,
+    BorrowerLoanQuoteInstallment,
+    BorrowerLoanQuoteRequest,
+    BorrowerLoanQuoteUnavailableResponse,
     BorrowerLoanRequestResponse,
     BorrowerLoanRequestSubmit,
     BorrowerPINLoginRequest,
@@ -83,6 +89,9 @@ from app.features.borrower_portal.service import (
     verify_activation_code_and_activate,
 )
 from app.features.borrowers import service as borrower_service
+from app.features.business_settings.models import BusinessSetting
+from app.features.loans.schemas import LoanQuoteRequest
+from app.features.loans import service as loan_service
 
 client_router = APIRouter(prefix="/api/v1/client", tags=["Borrower Client API"])
 owner_router = APIRouter(prefix="/api/v1/borrowers", tags=["Owner Administration"])
@@ -665,3 +674,97 @@ async def list_client_loan_requests(
         for r in requests
     ]
 
+
+# ---------------------------------------------------------------------------
+# Borrower loan estimate / quote
+# ---------------------------------------------------------------------------
+
+_SETTINGS_ID = "default"
+_FREQUENCY_TO_PAYMENTS: dict[str, int] = {
+    "monthly": 1,
+    "twice_a_month": 2,
+}
+
+
+def _provisional_first_due_date(payments_per_month: int) -> date:
+    """Return a provisional first due date using canonical semi-monthly slots.
+
+    Uses tomorrow as the anchor.  For twice-a-month, advances to the nearest
+    15th or month-end that is >= tomorrow.
+    """
+    anchor = date.today() + timedelta(days=1)
+    if payments_per_month == 1:
+        return anchor
+    # Semi-monthly: advance to the nearest canonical slot >= anchor
+    last_day = monthrange(anchor.year, anchor.month)[1]
+    candidate_15 = date(anchor.year, anchor.month, 15)
+    candidate_last = date(anchor.year, anchor.month, last_day)
+    if anchor <= candidate_15:
+        return candidate_15
+    if anchor <= candidate_last:
+        return candidate_last
+    # Already past month-end — go to 15th of next month
+    next_month = anchor.month % 12 + 1
+    next_year = anchor.year + (1 if anchor.month == 12 else 0)
+    return date(next_year, next_month, 15)
+
+
+@client_router.post(
+    "/loan-requests/quote",
+    response_model=BorrowerLoanQuoteUnavailableResponse
+    | BorrowerLoanQuoteAvailableResponse,
+)
+async def borrower_loan_quote(
+    payload: BorrowerLoanQuoteRequest,
+    db: DbSession,
+    current_account: ActiveBorrowerAccount,
+) -> BorrowerLoanQuoteUnavailableResponse | BorrowerLoanQuoteAvailableResponse:
+    """Return an in-memory loan estimate using the configured estimate rate.
+
+    Never creates Loan, Installment, Payment, or BorrowerLoanRequest records.
+    The borrower cannot supply an interest rate; it is read server-side from
+    BusinessSetting.default_monthly_estimate_rate.
+    """
+    del current_account  # Identity confirmed by ActiveBorrowerAccount dependency.
+
+    settings = await db.get(BusinessSetting, _SETTINGS_ID)
+    if settings is None or settings.default_monthly_estimate_rate is None:
+        return BorrowerLoanQuoteUnavailableResponse()
+
+    rate: Decimal = settings.default_monthly_estimate_rate
+    payments_per_month = _FREQUENCY_TO_PAYMENTS[payload.requested_payment_frequency]
+    principal = Decimal(payload.requested_amount)
+
+    first_due_date = _provisional_first_due_date(payments_per_month)
+
+    quote_request = LoanQuoteRequest(
+        original_principal=principal,
+        monthly_rate=rate,
+        term_months=payload.requested_term_months,
+        payments_per_month=payments_per_month,
+        first_due_date=first_due_date,
+        repayment_structure=payload.requested_repayment_structure,
+    )
+
+    result = loan_service.build_quote(quote_request)
+
+    return BorrowerLoanQuoteAvailableResponse(
+        estimated_monthly_rate=str(rate),
+        number_of_payments=result.number_of_payments,
+        regular_payment_amount=str(result.regular_payment_amount),
+        total_interest=str(result.total_interest),
+        total_repayment=str(result.total_repayment),
+        provisional_first_due_date=first_due_date.isoformat(),
+        provisional_final_due_date=result.final_due_date.isoformat(),
+        installments=[
+            BorrowerLoanQuoteInstallment(
+                installment_number=inst.installment_number,
+                due_date=inst.due_date.isoformat(),
+                payment_amount=str(inst.payment_amount),
+                interest_amount=str(inst.interest_amount),
+                principal_amount=str(inst.principal_amount),
+                remaining_principal=str(inst.remaining_principal),
+            )
+            for inst in result.installments
+        ],
+    )
