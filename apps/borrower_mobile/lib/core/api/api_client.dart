@@ -54,6 +54,15 @@ class ApiClient {
     }
   }
 
+  Future<List<dynamic>> getList(String path) async {
+    try {
+      final response = await _dio.get(path);
+      return response.data as List<dynamic>;
+    } on DioException catch (e) {
+      throw ApiError.fromDioException(e);
+    }
+  }
+
   Future<void> delete(String path) async {
     try {
       await _dio.delete(path);

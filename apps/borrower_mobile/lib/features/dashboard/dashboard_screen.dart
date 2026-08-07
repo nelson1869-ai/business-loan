@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:borrower_mobile/core/auth/auth_notifier.dart';
 import 'package:borrower_mobile/features/dashboard/providers/dashboard_provider.dart';
 import 'package:borrower_mobile/features/loans/loan_request_modal.dart';
+import 'package:borrower_mobile/features/notifications/providers/notifications_provider.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -17,10 +18,21 @@ class DashboardScreen extends ConsumerWidget {
     final dateFormat = DateFormat('MMM dd, yyyy');
     final timeFormat = DateFormat('MMM dd, h:mm a');
 
+    final unreadCount = ref.watch(unreadNotificationCountProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Borrower Portal'),
         actions: [
+          IconButton(
+            icon: Badge(
+              isLabelVisible: unreadCount > 0,
+              label: Text(unreadCount > 99 ? '99+' : '$unreadCount'),
+              child: const Icon(Icons.notifications_outlined),
+            ),
+            tooltip: 'Notifications',
+            onPressed: () => context.push('/notifications'),
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Logout',
@@ -40,6 +52,7 @@ class DashboardScreen extends ConsumerWidget {
           context,
           ref,
           state,
+          unreadCount,
           currencyFormat,
           dateFormat,
           timeFormat,
@@ -52,6 +65,7 @@ class DashboardScreen extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     DashboardState state,
+    int unreadCount,
     NumberFormat currencyFormat,
     DateFormat dateFormat,
     DateFormat timeFormat,
@@ -478,7 +492,30 @@ class DashboardScreen extends ConsumerWidget {
                     color: Colors.amber),
                 title: const Text('Notifications'),
                 subtitle: const Text('Reminders and account alerts'),
-                trailing: const Icon(Icons.chevron_right),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (unreadCount > 0)
+                      Container(
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primary,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          unreadCount > 99 ? '99+' : '$unreadCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.chevron_right),
+                  ],
+                ),
                 onTap: () => context.push('/notifications'),
               ),
               const Divider(height: 1),

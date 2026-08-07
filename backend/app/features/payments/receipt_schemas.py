@@ -4,6 +4,8 @@ from datetime import date, datetime
 from decimal import Decimal
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.core.schemas.common import to_camel
+
 
 class PaymentReceiptResponse(BaseModel):
     """Full deterministic receipt snapshot response model."""
@@ -75,7 +77,7 @@ class AIExplanationResponse(BaseModel):
 class BorrowerNotificationResponse(BaseModel):
     """In-app notification response model."""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, from_attributes=True)
 
     id: str
     borrower_id: str
@@ -85,3 +87,12 @@ class BorrowerNotificationResponse(BaseModel):
     metadata_json: str | None = None
     is_read: bool
     created_at: datetime
+
+
+class BorrowerUnreadCountResponse(BaseModel):
+    """Unread count response schema."""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    unread_count: int
+

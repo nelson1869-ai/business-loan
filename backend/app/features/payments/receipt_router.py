@@ -3,8 +3,8 @@
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -16,6 +16,7 @@ from app.features.payments.models import PaymentReceipt
 from app.features.payments.receipt_schemas import (
     AIExplanationResponse,
     BorrowerNotificationResponse,
+    BorrowerUnreadCountResponse,
     PaymentReceiptResponse,
     PublicReceiptVerificationResponse,
 )
@@ -193,16 +194,64 @@ async def request_ai_explanation(
 async def list_borrower_notifications(
     db: DbSession,
     current_account: ActiveBorrowerAccount,
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
 ) -> list[BorrowerNotificationResponse]:
-    """Fetch borrower in-app notifications."""
+    """Fetch borrower in-app notifications sorted newest first with limit/offset pagination."""
     stmt = (
         select(BorrowerNotification)
         .where(BorrowerNotification.borrower_id == current_account.borrower_id)
-        .order_by(BorrowerNotification.created_at.desc())
+        .order_by(BorrowerNotification.created_at.desc(), BorrowerNotification.id.desc())
+        .offset(offset)
+        .limit(limit)
     )
     res = await db.execute(stmt)
     notifications = list(res.scalars().all())
     return [BorrowerNotificationResponse.model_validate(n) for n in notifications]
+
+
+@client_receipt_router.get(
+    "/notifications/unread-count",
+    response_model=BorrowerUnreadCountResponse,
+)
+async def get_unread_notification_count(
+    db: DbSession,
+    current_account: ActiveBorrowerAccount,
+) -> BorrowerUnreadCountResponse:
+    """Get the unread notification count for the authenticated borrower."""
+    stmt = (
+        select(func.count())
+        .select_from(BorrowerNotification)
+        .where(
+            BorrowerNotification.borrower_id == current_account.borrower_id,
+            BorrowerNotification.is_read.is_(False),
+        )
+    )
+    res = await db.execute(stmt)
+    count = res.scalar_one() or 0
+    return BorrowerUnreadCountResponse(unread_count=count)
+
+
+@client_receipt_router.post(
+    "/notifications/read-all",
+    status_code=status.HTTP_200_OK,
+)
+async def mark_all_notifications_read(
+    db: DbSession,
+    current_account: ActiveBorrowerAccount,
+) -> dict[str, str]:
+    """Mark all unread in-app notifications as read for the authenticated borrower."""
+    stmt = (
+        update(BorrowerNotification)
+        .where(
+            BorrowerNotification.borrower_id == current_account.borrower_id,
+            BorrowerNotification.is_read.is_(False),
+        )
+        .values(is_read=True)
+    )
+    await db.execute(stmt)
+    await db.commit()
+    return {"message": "All notifications marked as read"}
 
 
 @client_receipt_router.post("/notifications/{notification_id}/read")
@@ -211,16 +260,20 @@ async def mark_notification_read(
     db: DbSession,
     current_account: ActiveBorrowerAccount,
 ) -> dict[str, str]:
-    """Mark an in-app notification as read."""
+    """Mark an in-app notification as read for the authenticated borrower."""
     stmt = select(BorrowerNotification).where(
         BorrowerNotification.id == notification_id,
         BorrowerNotification.borrower_id == current_account.borrower_id,
     )
     res = await db.execute(stmt)
     notification = res.scalar_one_or_none()
-    if notification:
-        notification.is_read = True
-        await db.commit()
+    if not notification:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Notification not found",
+        )
+    notification.is_read = True
+    await db.commit()
     return {"message": "Notification marked as read"}
 
 

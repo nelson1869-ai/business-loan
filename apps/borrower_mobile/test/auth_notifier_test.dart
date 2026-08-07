@@ -84,6 +84,11 @@ class FakeApiClient implements ApiClient {
   }
 
   @override
+  Future<List<dynamic>> getList(String path) async {
+    return [];
+  }
+
+  @override
   Future<void> delete(String path) async {
     throw const ApiError(message: 'Not implemented', statusCode: 500);
   }

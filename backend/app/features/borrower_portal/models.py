@@ -394,6 +394,9 @@ class BorrowerNotification(Base):
         String(50), nullable=False, default="payment_receipt", index=True
     )
     metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    deduplication_key: Mapped[str | None] = mapped_column(
+        String(120), nullable=True, unique=True, index=True
+    )
     is_read: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false", index=True
     )

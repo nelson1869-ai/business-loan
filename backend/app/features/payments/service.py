@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from app.features.admin_assistant.models import AuditLog
 from app.features.borrower_portal.models import BorrowerNotification
+from app.features.notifications.service import create_borrower_notification
 from app.features.borrowers.models import Borrower
 from app.features.collection.models import CollectionSession
 from app.features.loans.calculator import (
@@ -281,16 +282,17 @@ async def reverse_latest_payment(
 
     receipt = await update_receipt_for_reversal(db, original.id, reversal, payload.reason)
     rev_num = receipt.receipt_number if receipt else "N/A"
-    notification = BorrowerNotification(
-        id=str(uuid4()),
+    await create_borrower_notification(
+        db,
         borrower_id=loan.borrower_id,
+        notification_type="payment_reversal",
         title="Payment Reversed",
         message=f"Payment of ₱{original.amount:,.2f} (Receipt {rev_num}) was reversed. Reason: {payload.reason}.",
-        notification_type="payment_reversal",
-        metadata_json=json.dumps({"receipt_id": receipt.id if receipt else None, "payment_id": original.id}),
-        is_read=False,
+        entity_type="payment",
+        entity_id=original.id,
+        metadata={"receipt_id": receipt.id if receipt else None, "payment_id": original.id},
+        deduplication_key=f"payment_reversed:{original.id}",
     )
-    db.add(notification)
 
     await db.flush()
     return reversal
@@ -587,16 +589,17 @@ async def record_payment(
     receipt = await create_payment_receipt_snapshot(
         db, payment, payment.allocation, loan, user, external_ref=payload.receipt_number
     )
-    notification = BorrowerNotification(
-        id=str(uuid4()),
+    await create_borrower_notification(
+        db,
         borrower_id=loan.borrower_id,
+        notification_type="payment_receipt",
         title="Payment Received",
         message=f"We received your payment of ₱{payment.amount:,.2f}. Receipt {receipt.receipt_number} is now available.",
-        notification_type="payment_receipt",
-        metadata_json=json.dumps({"receipt_id": receipt.id, "payment_id": payment.id}),
-        is_read=False,
+        entity_type="receipt",
+        entity_id=receipt.id,
+        metadata={"receipt_id": receipt.id, "payment_id": payment.id},
+        deduplication_key=f"payment_received:{payment.id}",
     )
-    db.add(notification)
 
     await db.flush()
     return payment

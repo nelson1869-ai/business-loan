@@ -12,6 +12,7 @@ from sqlalchemy.orm import selectinload
 
 from app.features.admin_assistant.models import AuditLog
 from app.features.loan_policies.models import LoanPolicyVersion
+from app.features.notifications.service import create_borrower_notification
 from app.features.loan_policies.service import policy_snapshot
 from app.features.loans.calculator import build_installment_schedule
 from app.features.loans.models import Installment, Loan
@@ -360,5 +361,19 @@ async def transition_loan(
             ),
         )
     )
+
+    if loan.status == "Active":
+        await create_borrower_notification(
+            db,
+            borrower_id=loan.borrower_id,
+            notification_type="loan_activated",
+            title="Loan Activated",
+            message=f"Your loan ({loan.id[:8]}) of ₱{loan.principal_amount:,.2f} is now active.",
+            entity_type="loan",
+            entity_id=loan.id,
+            metadata={"loan_id": loan.id},
+            deduplication_key=f"loan_activated:{loan.id}",
+        )
+
     await db.flush()
     return loan, now

@@ -35,6 +35,7 @@ from app.features.borrower_portal.models import (
 from app.features.borrower_portal.schemas import BorrowerProfileResponse
 from app.features.borrowers import service as borrower_service
 from app.features.borrowers.models import Borrower
+from app.features.notifications.service import create_borrower_notification
 from app.features.users.models import User
 
 logger = logging.getLogger(__name__)
@@ -377,6 +378,19 @@ async def approve_borrower_registration(
         created_at=now,
     )
     db.add(activation)
+
+    await create_borrower_notification(
+        db,
+        borrower_id=borrower.id,
+        notification_type="registration_approved",
+        title="Registration Approved",
+        message="Your borrower registration has been approved. Contact owner for your activation code.",
+        entity_type="registration",
+        entity_id=reg.id,
+        metadata={"registration_id": reg.id},
+        deduplication_key=f"registration_approved:{borrower.id}",
+    )
+
     await db.flush()
 
     return OwnerApproveRegistrationResponse(
@@ -526,6 +540,17 @@ async def verify_activation_code_and_activate(
             device.push_token_updated_at = now
     await db.flush()
 
+    await create_borrower_notification(
+        db,
+        borrower_id=account.borrower_id,
+        notification_type="account_activated",
+        title="Account Activated",
+        message="Your borrower account has been successfully activated.",
+        entity_type="borrower_account",
+        entity_id=account.id,
+        deduplication_key=f"account_activated:{account.id}",
+    )
+
     # Issue tokens
     settings = get_settings()
     access_token = create_borrower_access_token(account, settings)
@@ -663,6 +688,19 @@ async def submit_borrower_loan_request(
         updated_at=now,
     )
     db.add(req)
+
+    await create_borrower_notification(
+        db,
+        borrower_id=current_account.borrower_id,
+        notification_type="loan_request_submitted",
+        title="Loan Request Submitted",
+        message=f"Your loan request for ₱{req.requested_amount:,.2f} was submitted for owner review.",
+        entity_type="loan_request",
+        entity_id=req.id,
+        metadata={"request_id": req.id},
+        deduplication_key=f"loan_request_submitted:{req.id}",
+    )
+
     await db.flush()
     return req
 
@@ -707,6 +745,26 @@ async def review_borrower_loan_request(
     req.owner_notes = owner_notes
     req.reviewed_at = now
     req.updated_at = now
+
+    notif_type = "loan_request_approved" if action == "approve" else "loan_request_declined"
+    title = "Loan Request Approved" if action == "approve" else "Loan Request Declined"
+    msg = (
+        f"Your loan request for ₱{req.requested_amount:,.2f} has been approved."
+        if action == "approve"
+        else f"Your loan request for ₱{req.requested_amount:,.2f} was declined."
+    )
+    await create_borrower_notification(
+        db,
+        borrower_id=req.borrower_id,
+        notification_type=notif_type,
+        title=title,
+        message=msg,
+        entity_type="loan_request",
+        entity_id=req.id,
+        metadata={"request_id": req.id},
+        deduplication_key=f"{notif_type}:{req.id}",
+    )
+
     await db.flush()
     return req
 
@@ -754,15 +812,16 @@ async def request_pin_reset(
             created_at=now,
         )
         db.add(audit)
-        notif = BorrowerNotification(
-            id=secrets.token_hex(18),
+        await create_borrower_notification(
+            db,
             borrower_id=account.borrower_id,
+            notification_type="pin_reset_requested",
             title="PIN Reset Requested",
             message="A PIN reset request was submitted. Contact owner to obtain your 6-digit reset code.",
-            notification_type="pin_reset_requested",
-            created_at=now,
+            entity_type="borrower_account",
+            entity_id=account.id,
+            deduplication_key=f"pin_reset_requested:{account.id}:{now.isoformat()}",
         )
-        db.add(notif)
         await db.flush()
 
     return True, "If the account exists, the owner has been notified of your PIN reset request."
