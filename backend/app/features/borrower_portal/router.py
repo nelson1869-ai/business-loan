@@ -526,7 +526,9 @@ async def issue_reset_code_endpoint(
     if current_user.role != "owner":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Owner privilege required")
     try:
-        reset_rec, raw_code = await issue_pin_reset_code(db, account_id, current_user)
+        activation, raw_code = await generate_new_activation_code(
+            db, account_id, current_user
+        )
         await db.commit()
     except ValueError as error:
         await db.rollback()
@@ -535,9 +537,9 @@ async def issue_reset_code_endpoint(
             detail=str(error),
         ) from error
     return IssueResetCodeResponse(
-        account_id=reset_rec.borrower_account_id,
+        account_id=activation.borrower_account_id,
         reset_code=raw_code,
-        expires_at=reset_rec.expires_at,
+        expires_at=activation.expires_at,
     )
 
 

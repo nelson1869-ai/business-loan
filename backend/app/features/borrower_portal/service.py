@@ -628,10 +628,16 @@ async def verify_activation_code_and_activate(
     """Redeem 6-digit Activation Code, enforce PIN creation if missing, set status to Activated, and issue JWT token pair."""
     now = datetime.now(UTC)
     norm_phone = normalize_ph_phone_number(payload.phone_number)
+    raw_phone = payload.phone_number.strip()
 
     res = await db.execute(
         select(BorrowerAccount).where(
-            BorrowerAccount.phone_number_normalized == norm_phone
+            or_(
+                BorrowerAccount.phone_number_normalized == norm_phone,
+                BorrowerAccount.phone_number_normalized == raw_phone,
+                BorrowerAccount.phone_number == raw_phone,
+                BorrowerAccount.phone_number == norm_phone,
+            )
         )
     )
     account = res.scalar_one_or_none()

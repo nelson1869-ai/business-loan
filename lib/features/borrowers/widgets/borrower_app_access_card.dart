@@ -168,7 +168,12 @@ class _BorrowerAppAccessCardState
           children: const [
             Icon(Icons.vpn_key, color: Color(0xFF0D9488)),
             SizedBox(width: 8),
-            Text('Borrower App Activation Code'),
+            Expanded(
+              child: Text(
+                'Borrower App Activation Code',
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
         content: Column(
