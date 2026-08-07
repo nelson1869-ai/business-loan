@@ -4,6 +4,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException
 
+from app.core.authorization import require_owner
 from app.core.dependencies import CurrentUser, DbSession
 from app.features.admin_assistant.models import AuditLog
 from app.features.business_settings.models import BusinessSetting
@@ -20,7 +21,7 @@ _SETTINGS_ID = "default"
 async def get_business_settings(
     db: DbSession, current_user: CurrentUser
 ) -> BusinessSetting:
-    del current_user
+    require_owner(current_user)
     settings = await db.get(BusinessSetting, _SETTINGS_ID)
     if settings is None:
         raise HTTPException(status_code=404, detail="Business settings not initialized")
@@ -33,8 +34,7 @@ async def update_business_settings(
     db: DbSession,
     current_user: CurrentUser,
 ) -> BusinessSetting:
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Administrator access required")
+    require_owner(current_user)
     settings = await db.get(BusinessSetting, _SETTINGS_ID)
     if settings is None:
         raise HTTPException(status_code=404, detail="Business settings not initialized")

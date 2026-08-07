@@ -21,7 +21,6 @@ from app.features.loans.schemas import LoanQuoteRequest
 from app.features.loans.service import build_quote
 from app.main import app
 
-
 # ---------------------------------------------------------------------------
 # Group A: Pydantic validation (pure unit tests, no DB)
 # ---------------------------------------------------------------------------
@@ -111,8 +110,12 @@ def _make_mock_session(estimate_rate=None):
     settings_mock = MagicMock(spec=BusinessSetting)
     settings_mock.default_monthly_estimate_rate = estimate_rate
 
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = None
+
     db = AsyncMock()
     db.get = AsyncMock(return_value=settings_mock)
+    db.execute = AsyncMock(return_value=mock_result)
     return db
 
 
@@ -129,7 +132,9 @@ class TestBorrowerLoanQuoteEndpointMocked(unittest.IsolatedAsyncioTestCase):
 
     async def _post_quote(self, payload: dict, session_mock):
         from app.core.database import get_db
-        from app.features.borrower_portal.dependencies import ActiveBorrowerAccount
+        from app.features.borrower_portal.dependencies import (
+            require_active_borrower_account,
+        )
 
         async def override_db():
             yield session_mock
@@ -138,7 +143,7 @@ class TestBorrowerLoanQuoteEndpointMocked(unittest.IsolatedAsyncioTestCase):
             return _make_active_account()
 
         app.dependency_overrides[get_db] = override_db
-        app.dependency_overrides[ActiveBorrowerAccount] = override_account
+        app.dependency_overrides[require_active_borrower_account] = override_account
         try:
             async with AsyncClient(
                 transport=ASGITransport(app=app), base_url="http://test"
@@ -150,7 +155,7 @@ class TestBorrowerLoanQuoteEndpointMocked(unittest.IsolatedAsyncioTestCase):
                 )
         finally:
             app.dependency_overrides.pop(get_db, None)
-            app.dependency_overrides.pop(ActiveBorrowerAccount, None)
+            app.dependency_overrides.pop(require_active_borrower_account, None)
         return resp
 
     # 1. No configured rate → available=false

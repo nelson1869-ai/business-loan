@@ -49,8 +49,15 @@ class AdminSecurityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(raised.exception.status_code, 400)
         self.assertIn("owner account cannot be reassigned", raised.exception.detail)
 
-    async def test_officer_cannot_update_business_settings(self) -> None:
-        with self.assertRaises(HTTPException) as raised:
+    async def test_non_owner_cannot_access_business_settings(self) -> None:
+        non_owner = SimpleNamespace(id="user-1", role="borrower")
+        with self.assertRaises(HTTPException) as raised_get:
+            await business_settings.get_business_settings(
+                SimpleNamespace(), non_owner
+            )
+        self.assertEqual(raised_get.exception.status_code, 403)
+
+        with self.assertRaises(HTTPException) as raised_put:
             await business_settings.update_business_settings(
                 BusinessSettingUpdate(
                     businessName="Lending Nelson",
@@ -58,9 +65,9 @@ class AdminSecurityTests(unittest.IsolatedAsyncioTestCase):
                     receiptFooter="",
                 ),
                 SimpleNamespace(),
-                SimpleNamespace(id="officer-1", role="officer"),
+                non_owner,
             )
-        self.assertEqual(raised.exception.status_code, 403)
+        self.assertEqual(raised_put.exception.status_code, 403)
 
 
 if __name__ == "__main__":
