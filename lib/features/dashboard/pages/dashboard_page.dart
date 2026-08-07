@@ -33,7 +33,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(dashboardProvider);
-    final session = ref.watch(officerSessionProvider).valueOrNull;
+    final session = ref.watch(ownerSessionProvider).valueOrNull;
     final theme = Theme.of(context);
 
     ref.listen(dashboardProvider, (prev, next) {

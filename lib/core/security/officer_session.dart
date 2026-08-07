@@ -8,8 +8,8 @@ import '../network/api_client.dart';
 ///
 /// Every request is still authorized by the backend. JWT signatures are not
 /// validated on-device because this parser never grants server access.
-class OfficerSession {
-  const OfficerSession({
+class OwnerSession {
+  const OwnerSession({
     required this.userId,
     required this.username,
     required this.role,
@@ -23,7 +23,7 @@ class OfficerSession {
 
   bool can(String permission) => permissions.contains(permission);
 
-  static OfficerSession? fromAccessToken(String token) {
+  static OwnerSession? fromAccessToken(String token) {
     try {
       final parts = token.split('.');
       if (parts.length != 3) return null;
@@ -36,7 +36,7 @@ class OfficerSession {
       final username = claims['username'] as String?;
       final role = claims['role'] as String?;
       if (userId == null || username == null || role == null) return null;
-      return OfficerSession(userId: userId, username: username, role: role);
+      return OwnerSession(userId: userId, username: username, role: role);
     } on FormatException {
       return null;
     }
@@ -96,12 +96,12 @@ const _rolePermissions = <String, Set<String>>{
   'read_only_support': {'report.view'},
 };
 
-/// Current officer identity and UI permission hints read from secure storage.
-final officerSessionProvider = FutureProvider.autoDispose<OfficerSession?>((
+/// Current owner identity and UI permission hints read from secure storage.
+final ownerSessionProvider = FutureProvider.autoDispose<OwnerSession?>((
   ref,
 ) async {
   final token = await ref
       .watch(secureStorageProvider)
       .read(key: TokenStorageKeys.accessToken);
-  return token == null ? null : OfficerSession.fromAccessToken(token);
+  return token == null ? null : OwnerSession.fromAccessToken(token);
 });

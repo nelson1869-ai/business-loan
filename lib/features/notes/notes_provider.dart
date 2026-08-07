@@ -6,7 +6,7 @@ import 'officer_note.dart';
 typedef NotesScope = ({String borrowerId, String? loanId});
 
 final notesProvider = FutureProvider.autoDispose
-    .family<List<OfficerNote>, NotesScope>((ref, scope) {
+    .family<List<Note>, NotesScope>((ref, scope) {
       return ref
           .watch(notesRepositoryProvider)
           .list(scope.borrowerId, loanId: scope.loanId);

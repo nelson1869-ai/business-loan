@@ -98,6 +98,11 @@ def require_any_permission(user: object, permissions: Iterable[str]) -> None:
         raise HTTPException(status_code=403, detail="Required permission not granted")
 
 
-def require_distinct_checker(*, maker_user_id: str, checker_user_id: str, user_role: str = "") -> None:
-    if maker_user_id == checker_user_id and user_role not in {"admin", "owner"}:
-        raise HTTPException(status_code=403, detail="Maker cannot approve own action")
+def require_owner(user: object) -> None:
+    """Enforce that the authenticated user possesses the owner role."""
+    role = str(getattr(user, "role", "")).lower()
+    if role != "owner":
+        raise HTTPException(
+            status_code=403, detail="Owner authorization required"
+        )
+

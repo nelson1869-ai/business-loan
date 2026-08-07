@@ -108,7 +108,7 @@ class RemotePaymentRepository {
     required String requestId,
     required String effectiveDate,
     required String reason,
-    required String approvalRequestId,
+    String? approvalRequestId,
   }) async {
     try {
       final response = await _dio.post<Map<String, dynamic>>(

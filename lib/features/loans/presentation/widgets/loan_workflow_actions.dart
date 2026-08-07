@@ -28,7 +28,7 @@ class LoanWorkflowActions extends ConsumerWidget {
       return const SizedBox.shrink();
     }
 
-    final session = ref.watch(officerSessionProvider).valueOrNull;
+    final session = ref.watch(ownerSessionProvider).valueOrNull;
     final online = ref.watch(backendOnlineProvider);
     final canManage = session?.can('loan.approve') == true ||
         session?.can('loan.create') == true ||

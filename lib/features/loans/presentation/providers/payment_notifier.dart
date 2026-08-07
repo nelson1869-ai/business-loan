@@ -134,7 +134,7 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
     required String paymentId,
     required String effectiveDate,
     required String reason,
-    required String approvalRequestId,
+    String? approvalRequestId,
   }) async {
     final fingerprint = '$paymentId|$effectiveDate|$reason';
     if (_reversalFingerprint != fingerprint) {

@@ -4,14 +4,14 @@ import 'package:go_router/go_router.dart';
 
 import '../data/admin_assistant_repository.dart';
 
-class AdminAssistantPage extends ConsumerStatefulWidget {
-  const AdminAssistantPage({super.key});
+class OwnerAssistantPage extends ConsumerStatefulWidget {
+  const OwnerAssistantPage({super.key});
 
   @override
-  ConsumerState<AdminAssistantPage> createState() => _AdminAssistantPageState();
+  ConsumerState<OwnerAssistantPage> createState() => _OwnerAssistantPageState();
 }
 
-class _AdminAssistantPageState extends ConsumerState<AdminAssistantPage> {
+class _OwnerAssistantPageState extends ConsumerState<OwnerAssistantPage> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
   final _messages = <_ChatMessage>[
@@ -137,7 +137,7 @@ class _AdminAssistantPageState extends ConsumerState<AdminAssistantPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Admin Assistant'),
+        title: const Text('Owner Assistant'),
         actions: [
           IconButton(
             tooltip: 'Clear conversation',

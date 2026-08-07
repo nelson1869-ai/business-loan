@@ -18,7 +18,7 @@ class NotesRepository {
   String _key(String borrowerId, String? loanId) =>
       'notes:$borrowerId:${loanId ?? ''}';
 
-  Future<List<OfficerNote>> list(String borrowerId, {String? loanId}) async {
+  Future<List<Note>> list(String borrowerId, {String? loanId}) async {
     final key = _key(borrowerId, loanId);
     final cached = await _cache.read(key);
     unawaited(_refresh(borrowerId, loanId));
@@ -29,7 +29,7 @@ class NotesRepository {
     return (cached is List ? cached : const <dynamic>[])
         .cast<Map<String, dynamic>>()
         .where((row) => !deletedIds.contains(row['id']))
-        .map(OfficerNote.fromJson)
+        .map(Note.fromJson)
         .toList();
   }
 
@@ -62,7 +62,7 @@ class NotesRepository {
       'id': localId,
       'borrowerId': borrowerId,
       'loanId': loanId,
-      'authorName': 'Current officer',
+      'authorName': 'Owner',
       'category': category,
       'content': content.trim(),
       'createdAt': DateTime.now().toUtc().toIso8601String(),

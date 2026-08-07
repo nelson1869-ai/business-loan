@@ -75,8 +75,12 @@ final appRouter = GoRouter(
       builder: (context, state) => const ReportsAnalyticsPage(),
     ),
     GoRoute(
+      path: '/owner-assistant',
+      builder: (context, state) => const OwnerAssistantPage(),
+    ),
+    GoRoute(
       path: '/admin-assistant',
-      builder: (context, state) => const AdminAssistantPage(),
+      redirect: (context, state) => '/owner-assistant',
     ),
     GoRoute(
       path: '/operations',

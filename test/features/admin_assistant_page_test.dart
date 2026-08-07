@@ -179,14 +179,14 @@ void main() {
             ).copyWith(textScaler: const TextScaler.linear(2)),
             child: child!,
           ),
-          home: const AdminAssistantPage(),
+          home: const OwnerAssistantPage(),
         ),
       ),
     );
     await tester.pump();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Admin Assistant'), findsOneWidget);
+    expect(find.text('Owner Assistant'), findsOneWidget);
   });
 }
 
@@ -203,7 +203,7 @@ Future<void> _pumpWithRepository(
       overrides: [
         adminAssistantRepositoryProvider.overrideWithValue(repository),
       ],
-      child: const MaterialApp(home: AdminAssistantPage()),
+      child: const MaterialApp(home: OwnerAssistantPage()),
     ),
   );
 }

@@ -10,9 +10,7 @@ import '../../../core/network/server_health_service.dart';
 import '../../../core/presentation/design_system/design_system.dart';
 import '../../auth/data/auth_repository.dart';
 import '../widgets/settings/business_loan_config_sheet.dart';
-import '../widgets/settings/roles_permissions_sheet.dart';
 import '../widgets/settings/security_backup_sheet.dart';
-import '../widgets/settings/user_management_sheet.dart';
 
 /// Modernized Settings & Enterprise Administration Hub.
 class SettingsPage extends ConsumerStatefulWidget {
@@ -118,52 +116,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   ],
                 ),
               ),
-
-            // 3. Users & Access Management Section
-            if (_query.isEmpty ||
-                'users access roles permissions staff branch'.contains(
-                  _query.toLowerCase(),
-                ))
-              AppSectionCard(
-                title: 'Users & Access Control',
-                icon: Icons.admin_panel_settings_outlined,
-                children: [
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.people_outline),
-                    title: const Text('User Management'),
-                    subtitle: const Text(
-                      'Persistent staff accounts and enforced system roles',
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () {
-                      showModalBottomSheet<void>(
-                        context: context,
-                        isScrollControlled: true,
-                        builder: (_) => const UserManagementSheet(),
-                      );
-                    },
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.shield_outlined),
-                    title: const Text('Roles & Permission Matrix'),
-                    subtitle: const Text(
-                      'View the roles currently enforced by the backend',
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () {
-                      showModalBottomSheet<void>(
-                        context: context,
-                        isScrollControlled: true,
-                        builder: (_) => const RolesPermissionsSheet(),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            const SizedBox(height: 16),
 
             // 4. Business & Lending Settings
             if (_query.isEmpty ||

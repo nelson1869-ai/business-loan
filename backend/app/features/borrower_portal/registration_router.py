@@ -5,7 +5,7 @@ from typing import Annotated, Any, cast
 from fastapi import APIRouter, HTTPException, Query, Request
 from sqlalchemy.exc import IntegrityError
 
-from app.core.authorization import require_permission
+from app.core.authorization import require_owner
 from app.core.config import get_settings
 from app.core.dependencies import CurrentUser, DbSession
 from app.core.masking import mask_national_id, mask_phone
@@ -111,7 +111,7 @@ async def list_registrations(
     offset: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
 ) -> list[RegistrationListItem]:
-    require_permission(current_user, "borrower_registration.review")
+    require_owner(current_user)
     return [
         _item(row)
         for row in await service.list_requests(db, requested_status, offset, limit)
@@ -124,7 +124,7 @@ async def list_registrations(
 async def registration_detail(
     request_id: str, db: DbSession, current_user: CurrentUser
 ) -> RegistrationListItem:
-    require_permission(current_user, "borrower_registration.review")
+    require_owner(current_user)
     row = await db.get(BorrowerRegistrationRequest, request_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Registration request not found")
@@ -141,7 +141,7 @@ async def approve_registration(
     db: DbSession,
     current_user: CurrentUser,
 ) -> AccountActionResponse:
-    require_permission(current_user, "borrower_registration.review")
+    require_owner(current_user)
     try:
         account = await service.approve(
             db, request_id, payload.borrower_id, current_user, payload.review_notes
@@ -172,8 +172,7 @@ async def create_and_approve_registration(
     db: DbSession,
     current_user: CurrentUser,
 ) -> AccountActionResponse:
-    require_permission(current_user, "borrower_registration.review")
-    require_permission(current_user, "borrower.create")
+    require_owner(current_user)
     try:
         account = await service.create_and_approve(
             db,
@@ -211,7 +210,7 @@ async def reject_registration(
     db: DbSession,
     current_user: CurrentUser,
 ) -> None:
-    require_permission(current_user, "borrower_registration.review")
+    require_owner(current_user)
     try:
         item = await service.reject(db, request_id, payload.reason, current_user)
         if item is None:
@@ -232,7 +231,7 @@ async def _account_action(
     user: CurrentUser,
     borrower_id: str | None = None,
 ) -> AccountActionResponse:
-    require_permission(user, "borrower_account.manage")
+    require_owner(user)
     try:
         account = await service.account_action(
             db, account_id, action, user, payload.reason, borrower_id

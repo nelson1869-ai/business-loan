@@ -9,7 +9,6 @@ import '../../../core/network/api_error_mapper.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/security/device_identifier.dart';
 import '../../../core/security/officer_session.dart';
-import '../../approvals/data/approval_repository.dart';
 import '../../collection_sessions/data/collection_session_repository.dart';
 import '../../collection_sessions/presentation/collection_session_provider.dart';
 import '../domain/models/payment.dart';
@@ -104,7 +103,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   }
 
   Future<void> _autoOpenCollectionSession() async {
-    final session = ref.read(officerSessionProvider).valueOrNull;
+    final session = ref.read(ownerSessionProvider).valueOrNull;
     if (session == null) return;
     try {
       final newSession = await ref
@@ -198,7 +197,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
     final collectionSessions =
         ref.read(collectionSessionsProvider).valueOrNull ?? const [];
-    final session = ref.read(officerSessionProvider).valueOrNull;
+    final session = ref.read(ownerSessionProvider).valueOrNull;
     final activeSessions = collectionSessions.where(
       (item) =>
           item.collectorUserId == session?.userId &&
@@ -277,36 +276,6 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       builder: (_) => PaymentReversalDialog(paymentDate: paymentDate),
     );
     if (result == null || !mounted) return;
-    final approvals = await ref.read(approvalRepositoryProvider).list();
-    final session = await ref.read(officerSessionProvider.future);
-    if (!mounted || session == null) return;
-    final approved = approvals.where(
-      (request) =>
-          request.action == 'payment.reverse' &&
-          request.entityType == 'payment' &&
-          request.entityId == payment.id &&
-          request.makerUserId == session.userId &&
-          request.status == 'approved',
-    );
-    if (approved.isEmpty) {
-      await ref
-          .read(approvalRepositoryProvider)
-          .create(
-            action: 'payment.reverse',
-            entityType: 'payment',
-            entityId: payment.id,
-            reason: result.$1,
-          );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Reversal approval requested. A different authorized user must approve it before reversal.',
-          ),
-        ),
-      );
-      return;
-    }
     await ref
         .read(paymentNotifierProvider.notifier)
         .reversePayment(
@@ -314,7 +283,6 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           paymentId: payment.id,
           effectiveDate: formatDateOnly(result.$2),
           reason: result.$1,
-          approvalRequestId: approved.last.id,
         );
     if (!mounted) return;
     if (ref.read(paymentNotifierProvider).error != null) return;
@@ -351,7 +319,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     final loanAsync = ref.watch(loanDetailProvider(widget.loanId));
     final working = paymentState.working;
     final theme = Theme.of(context);
-    final session = ref.watch(officerSessionProvider).valueOrNull;
+    final session = ref.watch(ownerSessionProvider).valueOrNull;
     final canCollect = session?.can('payment.collect') ?? false;
     final canRequestReversal = session?.can('payment.collect') ?? false;
     final collectionSessions = ref.watch(collectionSessionsProvider);

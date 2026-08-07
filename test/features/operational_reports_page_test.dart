@@ -50,7 +50,7 @@ void main() {
           loanPoliciesProvider.overrideWith(
             (ref) async => const <LoanPolicy>[],
           ),
-          officerSessionProvider.overrideWith((ref) async => null),
+          ownerSessionProvider.overrideWith((ref) async => null),
           backendOnlineProvider.overrideWithValue(false),
         ],
         child: const MaterialApp(home: LoanPolicyPage()),
@@ -74,7 +74,7 @@ void main() {
           collectionSessionsProvider.overrideWith(
             (ref) async => const <CollectionSession>[],
           ),
-          officerSessionProvider.overrideWith((ref) async => null),
+          ownerSessionProvider.overrideWith((ref) async => null),
           backendOnlineProvider.overrideWithValue(false),
         ],
         child: const MaterialApp(home: CollectionSessionsPage()),
@@ -127,7 +127,7 @@ void main() {
           loanPoliciesProvider.overrideWith(
             (ref) async => const <LoanPolicy>[],
           ),
-          officerSessionProvider.overrideWith((ref) async => null),
+          ownerSessionProvider.overrideWith((ref) async => null),
           backendOnlineProvider.overrideWithValue(false),
         ],
         child: const MaterialApp(home: LoanPolicyPage()),

@@ -15,7 +15,7 @@ class LoanPolicyPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final session = ref.watch(officerSessionProvider).valueOrNull;
+    final session = ref.watch(ownerSessionProvider).valueOrNull;
     final policies = ref.watch(loanPoliciesProvider);
     return Scaffold(
       appBar: AppBar(
@@ -105,7 +105,7 @@ class LoanPolicyPage extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     LoanPolicy policy,
-    OfficerSession? session,
+    OwnerSession? session,
   ) async {
     final reason = TextEditingController();
     final canApprove =

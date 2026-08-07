@@ -10,15 +10,15 @@ void main() {
       'username': 'cashier',
       'role': 'cashier',
     });
-    final session = OfficerSession.fromAccessToken(token);
+    final session = OwnerSession.fromAccessToken(token);
     expect(session?.userId, 'user-1');
     expect(session?.can('accounting.view'), isTrue);
     expect(session?.can('policy.approve'), isFalse);
   });
 
   test('rejects malformed access-token payloads', () {
-    expect(OfficerSession.fromAccessToken('invalid'), isNull);
-    expect(OfficerSession.fromAccessToken(_token({'sub': 'user-1'})), isNull);
+    expect(OwnerSession.fromAccessToken('invalid'), isNull);
+    expect(OwnerSession.fromAccessToken(_token({'sub': 'user-1'})), isNull);
   });
 }
 

@@ -11,7 +11,7 @@ class OperationsHubPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final session = ref.watch(officerSessionProvider).valueOrNull;
+    final session = ref.watch(ownerSessionProvider).valueOrNull;
     final items = <_OperationItem>[
       if (session?.can('borrower_registration.review') == true)
         const _OperationItem(

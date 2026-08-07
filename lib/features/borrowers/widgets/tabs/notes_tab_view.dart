@@ -118,7 +118,7 @@ class _AddNoteDialogState extends State<_AddNoteDialog> {
 
 class _NotesList extends ConsumerWidget {
   const _NotesList({required this.items, required this.scope});
-  final List<OfficerNote> items;
+  final List<Note> items;
   final NotesScope scope;
 
   @override

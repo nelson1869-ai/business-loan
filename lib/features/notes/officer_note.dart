@@ -1,5 +1,5 @@
-class OfficerNote {
-  const OfficerNote({
+class Note {
+  const Note({
     required this.id,
     required this.borrowerId,
     required this.authorName,
@@ -19,7 +19,7 @@ class OfficerNote {
   final DateTime createdAt;
   final bool canDelete;
 
-  factory OfficerNote.fromJson(Map<String, dynamic> json) => OfficerNote(
+  factory Note.fromJson(Map<String, dynamic> json) => Note(
     id: json['id'] as String,
     borrowerId: json['borrowerId'] as String,
     loanId: json['loanId'] as String?,

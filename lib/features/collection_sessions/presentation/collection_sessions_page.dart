@@ -16,7 +16,7 @@ class CollectionSessionsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final session = ref.watch(officerSessionProvider).valueOrNull;
+    final session = ref.watch(ownerSessionProvider).valueOrNull;
     final sessions = ref.watch(collectionSessionsProvider);
     final online = ref.watch(backendOnlineProvider);
     return Scaffold(
@@ -109,7 +109,7 @@ class CollectionSessionsPage extends ConsumerWidget {
   Future<void> _open(
     BuildContext context,
     WidgetRef ref,
-    OfficerSession session,
+    OwnerSession session,
   ) async {
     final opening = await _prompt(context, 'Opening cash', 'Amount');
     if (opening == null || opening.isEmpty || !context.mounted) return;
@@ -124,7 +124,7 @@ class CollectionSessionsPage extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     CollectionSession item,
-    OfficerSession? officer,
+    OwnerSession? officer,
   ) async {
     final ownSession = officer?.userId == item.collectorUserId;
     final canSubmit = officer?.can('reconciliation.submit') == true;

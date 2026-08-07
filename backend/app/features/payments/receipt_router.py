@@ -8,6 +8,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.authorization import require_owner
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser
 from app.features.borrower_portal.dependencies import ActiveBorrowerAccount
@@ -29,7 +30,7 @@ from app.features.payments.receipt_service import (
 
 public_router = APIRouter(prefix="/api/v1/public/receipts", tags=["Public Receipt Verification"])
 client_receipt_router = APIRouter(prefix="/api/v1/client/me", tags=["Borrower Client Receipts"])
-officer_receipt_router = APIRouter(prefix="/api/v1/payments/receipts", tags=["Officer Receipts"])
+owner_receipt_router = APIRouter(prefix="/api/v1/owner/receipts", tags=["Owner Receipts"])
 
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 
@@ -277,21 +278,17 @@ async def mark_notification_read(
     return {"message": "Notification marked as read"}
 
 
-@officer_receipt_router.get(
+@owner_receipt_router.get(
     "/by-payment/{payment_id}",
     response_model=PaymentReceiptResponse,
 )
-async def get_officer_receipt_by_payment(
+async def get_owner_receipt_by_payment(
     payment_id: str,
     db: DbSession,
     current_user: CurrentUser,
 ) -> PaymentReceiptResponse:
-    """Owner/Officer endpoint to view receipt snapshot by payment UUID."""
-    if current_user.role not in ("admin", "owner", "manager", "officer"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions",
-        )
+    """Owner endpoint to view receipt snapshot by payment UUID."""
+    require_owner(current_user)
     stmt = select(PaymentReceipt).where(PaymentReceipt.payment_id == payment_id)
     res = await db.execute(stmt)
     receipt = res.scalar_one_or_none()
@@ -304,19 +301,15 @@ async def get_officer_receipt_by_payment(
     return PaymentReceiptResponse.model_validate(receipt)
 
 
-@officer_receipt_router.get("/{receipt_id}/pdf")
-async def get_officer_receipt_pdf(
+@owner_receipt_router.get("/{receipt_id}/pdf")
+async def get_owner_receipt_pdf(
     receipt_id: str,
     request: Request,
     db: DbSession,
     current_user: CurrentUser,
 ) -> Response:
-    """Owner/Officer endpoint to download PDF receipt by receipt ID or payment ID."""
-    if current_user.role not in ("admin", "owner", "manager", "officer"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions",
-        )
+    """Owner endpoint to download PDF receipt by receipt ID or payment ID."""
+    require_owner(current_user)
     stmt = select(PaymentReceipt).where(PaymentReceipt.id == receipt_id)
     res = await db.execute(stmt)
     receipt = res.scalar_one_or_none()

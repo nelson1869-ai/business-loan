@@ -15,7 +15,6 @@ from app.features.accounting.service import (
     write_off_lines,
 )
 from app.features.admin_assistant.models import AuditLog
-from app.features.approvals.service import consume_approved_request
 from app.features.loans.models import Loan
 from app.features.users.models import User
 from app.features.write_offs.models import LoanWriteOff, WriteOffRecovery
@@ -32,14 +31,6 @@ async def write_off_loan(
         raise ValueError("Loan is not eligible for write-off")
     if payload.amount != loan.outstanding_principal:
         raise ValueError("Write-off must equal the full outstanding principal")
-    await consume_approved_request(
-        db,
-        request_id=payload.approval_request_id,
-        action="loan.write_off",
-        entity_type="loan",
-        entity_id=loan.id,
-        maker=user,
-    )
     write_off = LoanWriteOff(
         id=str(uuid4()),
         loan_id=loan.id,
@@ -60,7 +51,7 @@ async def write_off_loan(
         posted_at=posted_at,
         source_type="loan_write_off",
         source_record_id=write_off.id,
-        idempotency_key=f"loan-write-off:{payload.approval_request_id}",
+        idempotency_key=f"loan-write-off:{write_off.id}",
         description=f"Loan {loan.id} principal write-off",
         lines=write_off_lines(payload.amount),
     )

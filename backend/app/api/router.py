@@ -5,7 +5,6 @@ from fastapi import FastAPI
 from app.core import health
 from app.features.accounting import router as accounting
 from app.features.admin_assistant import router as admin_assistant
-from app.features.approvals import router as approvals
 from app.features.auth import router as auth
 from app.features.automation import router as automation
 from app.features.borrower_portal import registration_router
@@ -22,7 +21,6 @@ from app.features.payments import receipt_router, router as payments
 from app.features.projections import router as projections
 from app.features.reports import router as reports
 from app.features.sync import router as sync
-from app.features.users import router as users
 from app.features.write_offs import router as write_offs
 
 
@@ -31,7 +29,6 @@ def register_routers(application: FastAPI) -> None:
     for api_router in (
         auth.router,
         accounting.router,
-        approvals.router,
         admin_assistant.router,
         automation.router,
         borrowers.router,
@@ -50,12 +47,12 @@ def register_routers(application: FastAPI) -> None:
         payments.router,
         receipt_router.public_router,
         receipt_router.client_receipt_router,
-        receipt_router.officer_receipt_router,
+        receipt_router.owner_receipt_router,
         projections.router,
         reports.router,
         sync.router,
-        users.router,
         write_offs.router,
         health.router,
     ):
         application.include_router(api_router)
+

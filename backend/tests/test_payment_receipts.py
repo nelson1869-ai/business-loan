@@ -201,9 +201,9 @@ async def test_payment_receipt_end_to_end(client: AsyncClient, officer_token: st
     assert pmt_resp.status_code == 201, f"Pmt create failed: {pmt_resp.text}"
     pmt_id = pmt_resp.json()["id"]
 
-    # 5. Fetch Officer receipt snapshot
+    # 5. Fetch Owner receipt snapshot
     rcpt_resp = await client.get(
-        f"/api/v1/payments/receipts/by-payment/{pmt_id}",
+        f"/api/v1/owner/receipts/by-payment/{pmt_id}",
         headers=headers,
     )
     assert rcpt_resp.status_code == 200
@@ -221,7 +221,7 @@ async def test_payment_receipt_end_to_end(client: AsyncClient, officer_token: st
     assert pub_data["amount_received"] == "2500.00"
 
     # 7. Download PDF
-    pdf_resp = await client.get(f"/api/v1/payments/receipts/{rcpt_data['id']}/pdf", headers=headers)
+    pdf_resp = await client.get(f"/api/v1/owner/receipts/{rcpt_data['id']}/pdf", headers=headers)
     assert pdf_resp.status_code == 200
     assert pdf_resp.headers["content-type"] == "application/pdf"
     assert pdf_resp.content.startswith(b"%PDF")

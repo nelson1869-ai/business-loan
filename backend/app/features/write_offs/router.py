@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
-from app.core.authorization import require_permission
+from app.core.authorization import require_owner
 from app.core.dependencies import CurrentUser, DbSession
 from app.features.write_offs import service
 from app.features.write_offs.models import LoanWriteOff, WriteOffRecovery
@@ -23,7 +23,7 @@ router = APIRouter(prefix="/api/v1/loans/{loan_id}", tags=["Write-offs"])
 async def execute_write_off(
     loan_id: str, payload: WriteOffCreate, db: DbSession, current_user: CurrentUser
 ) -> LoanWriteOff | None:
-    require_permission(current_user, "loan.write_off")
+    require_owner(current_user)
     try:
         write_off = await service.write_off_loan(db, loan_id, payload, current_user)
         await db.commit()
@@ -53,7 +53,7 @@ async def execute_write_off(
 async def create_recovery(
     loan_id: str, payload: RecoveryCreate, db: DbSession, current_user: CurrentUser
 ) -> WriteOffRecovery:
-    require_permission(current_user, "payment.collect")
+    require_owner(current_user)
     try:
         recovery = await service.record_recovery(db, loan_id, payload, current_user)
         await db.commit()

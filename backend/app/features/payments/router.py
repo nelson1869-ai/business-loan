@@ -6,14 +6,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 
-from app.core.authorization import require_any_permission, require_permission
-from app.core.dependencies import CurrentUser, DbSession
-from app.features.accounting.service import (
-    post_journal,
-    repayment_lines,
-    reversing_lines,
-)
-from app.features.approvals.service import consume_approved_request
+from app.core.authorization import require_owner, require_permission
 from app.features.automation.outbox import process_outbox_batch, publish_outbox_event
 from app.features.automation.schemas import DomainEventEnvelope, EventActor, EventEntity
 from app.features.loans import service as loan_service
@@ -194,7 +187,7 @@ async def reverse_one_payment(
     current_user: CurrentUser,
 ) -> PaymentReversalResponse:
     """Reverse the latest payment without deleting its ledger history."""
-    require_any_permission(current_user, {"payment.collect", "payment.reverse"})
+    require_owner(current_user)
     existing = await payment_service.get_payment_by_request_id(db, payload.request_id)
     if existing is not None:
         if not payment_service.reversal_matches_request(
@@ -205,20 +198,7 @@ async def reverse_one_payment(
                 detail="Request ID was already used for a different entry",
             )
         return PaymentReversalResponse.model_validate(existing)
-    if payload.approval_request_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="An approved maker-checker request is required",
-        )
     try:
-        await consume_approved_request(
-            db,
-            request_id=payload.approval_request_id,
-            action="payment.reverse",
-            entity_type="payment",
-            entity_id=payment_id,
-            maker=current_user,
-        )
         reversal = await payment_service.reverse_latest_payment(
             db, loan_id, payment_id, payload, current_user
         )
