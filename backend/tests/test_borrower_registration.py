@@ -26,6 +26,7 @@ class TestRegistrationPublicSchema(unittest.TestCase):
             "lastName": "Santos",
             "nationalId": "TEST-2026-0001",
             "phoneNumber": "09171234567",
+            "address": "123 Main Street, Bacolod City",
             "dateOfBirth": "1990-04-12",
             "email": "maria@example.com",
             "privacyAccepted": True,
@@ -37,6 +38,19 @@ class TestRegistrationPublicSchema(unittest.TestCase):
         self.assertEqual(value.phone_number, "+639171234567")
         self.assertEqual(value.date_of_birth, date(1990, 4, 12))
         self.assertEqual(value.national_id, "TEST-2026-0001")
+        self.assertEqual(value.address, "123 Main Street, Bacolod City")
+
+    def test_rejects_empty_or_whitespace_address(self) -> None:
+        for empty_val in ("", "   "):
+            payload = self.payload() | {"address": empty_val}
+            with self.subTest(val=empty_val), self.assertRaises(ValidationError):
+                RegistrationCreate.model_validate(payload)
+
+    def test_rejects_short_national_id(self) -> None:
+        for short_id in ("123", "  12  "):
+            payload = self.payload() | {"nationalId": short_id}
+            with self.subTest(val=short_id), self.assertRaises(ValidationError):
+                RegistrationCreate.model_validate(payload)
 
     def test_rejects_malformed_mobile_number(self) -> None:
         payload = self.payload() | {"phoneNumber": "123"}
@@ -61,6 +75,8 @@ class TestRegistrationPublicSchema(unittest.TestCase):
             "officerId",
             "adminRole",
             "status",
+            "pinOrPassword",
+            "extraUnallowedField",
         ):
             with self.subTest(field=field), self.assertRaises(ValidationError):
                 RegistrationCreate.model_validate(self.payload() | {field: "attacker"})

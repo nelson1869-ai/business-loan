@@ -11,9 +11,24 @@ class ApiError implements Exception {
     if (error.response != null && error.response?.data is Map) {
       final data = error.response?.data as Map;
       final detail = data['detail'] ?? data['message'];
-      if (detail is String) {
+      if (detail is String && detail.isNotEmpty) {
         return ApiError(
           message: detail,
+          statusCode: error.response?.statusCode,
+        );
+      }
+      if (detail is List && detail.isNotEmpty) {
+        final messages = detail.map((e) {
+          if (e is Map && e['msg'] != null) {
+            final field = (e['loc'] is List && (e['loc'] as List).isNotEmpty)
+                ? (e['loc'] as List).last
+                : '';
+            return field.isNotEmpty ? '$field: ${e['msg']}' : '${e['msg']}';
+          }
+          return e.toString();
+        }).join('; ');
+        return ApiError(
+          message: messages,
           statusCode: error.response?.statusCode,
         );
       }

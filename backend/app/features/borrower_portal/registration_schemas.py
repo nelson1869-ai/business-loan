@@ -31,12 +31,29 @@ class RegistrationCreate(StrictSchema):
     suffix: str | None = Field(default=None, max_length=30)
     national_id: str = Field(min_length=4, max_length=100)
     phone_number: str = Field(min_length=7, max_length=32)
+    address: str = Field(min_length=1, max_length=500)
     date_of_birth: date
     email: str | None = Field(
         default=None, max_length=254, pattern=r"^[^\s@]+@[^\s@]+\.[^\s@]+$"
     )
     privacy_accepted: bool
     terms_accepted: bool
+
+    @field_validator("first_name", "last_name")
+    @classmethod
+    def normalize_names(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Name cannot be empty")
+        return normalized
+
+    @field_validator("address")
+    @classmethod
+    def normalize_address(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Full address is required")
+        return normalized
 
     @field_validator("phone_number")
     @classmethod

@@ -183,6 +183,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                 if (required && x.isEmpty) {
                   return '$label is required';
                 }
+                if (label == 'National ID' && x.isNotEmpty && x.length < 4) {
+                  return 'National ID must be at least 4 characters';
+                }
                 if (phone &&
                     x.isNotEmpty &&
                     !RegExp(r'^(?:\+?63|0)?9\d{9}$')

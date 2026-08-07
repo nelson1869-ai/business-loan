@@ -93,6 +93,7 @@ async def submit(
         phone_number=payload.phone_number,
         phone_number_normalized=payload.phone_number,
         date_of_birth=payload.date_of_birth,
+        address=payload.address.strip() if payload.address else None,
         email=str(payload.email).lower() if payload.email else None,
         status="pending",
         status_token_hash=hash_secret(raw_token),
