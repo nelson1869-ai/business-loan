@@ -28,7 +28,7 @@ class _LoanRequestModalState extends ConsumerState<LoanRequestModal> {
   final _purposeCtrl = TextEditingController();
   int _termMonths = 1;
   String _paymentFrequency = 'monthly';
-  String _repaymentStructure = 'principal_plus_interest';
+  static const String _repaymentStructure = 'principal_plus_interest';
   bool _working = false;
 
   // ---- Quote / estimate state ----
@@ -262,24 +262,6 @@ class _LoanRequestModalState extends ConsumerState<LoanRequestModal> {
                       onChanged: (val) {
                         if (val != null) {
                           setState(() => _paymentFrequency = val);
-                          _invalidateQuote();
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      initialValue: _repaymentStructure,
-                      decoration: const InputDecoration(
-                        labelText: 'Repayment Structure',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: const [
-                        DropdownMenuItem(value: 'principal_plus_interest', child: Text('Principal + Interest')),
-                        DropdownMenuItem(value: 'interest_only', child: Text('Interest Only')),
-                      ],
-                      onChanged: (val) {
-                        if (val != null) {
-                          setState(() => _repaymentStructure = val);
                           _invalidateQuote();
                         }
                       },
