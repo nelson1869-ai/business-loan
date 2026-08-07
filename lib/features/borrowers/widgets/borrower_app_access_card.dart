@@ -288,13 +288,16 @@ class _BorrowerAppAccessCardState
             children: [
               const Icon(Icons.phonelink_lock, color: Color(0xFF64748B)),
               const SizedBox(width: 8),
-              Text(
-                'Borrower App Access',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
+              Expanded(
+                child: Text(
+                  'Borrower App Access',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               Chip(
                 label: const Text('Not Enabled'),
                 labelStyle: const TextStyle(fontSize: 11, color: Colors.white),
@@ -342,13 +345,16 @@ class _BorrowerAppAccessCardState
             children: [
               const Icon(Icons.mark_email_read, color: Color(0xFFD97706)),
               const SizedBox(width: 8),
-              Text(
-                'Borrower App Access',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
+              Expanded(
+                child: Text(
+                  'Borrower App Access',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               Chip(
                 label: const Text('Awaiting Activation'),
                 labelStyle: const TextStyle(fontSize: 11, color: Colors.white),
@@ -404,13 +410,16 @@ class _BorrowerAppAccessCardState
             children: [
               const Icon(Icons.verified_user, color: Color(0xFF0D9488)),
               const SizedBox(width: 8),
-              Text(
-                'Borrower App Access',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
+              Expanded(
+                child: Text(
+                  'Borrower App Access',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               Chip(
                 label: const Text('Active'),
                 labelStyle: const TextStyle(fontSize: 11, color: Colors.white),
@@ -475,13 +484,16 @@ class _BorrowerAppAccessCardState
           children: [
             const Icon(Icons.warning, color: Colors.red),
             const SizedBox(width: 8),
-            Text(
-              'Borrower App Access',
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.bold,
+            Expanded(
+              child: Text(
+                'Borrower App Access',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-            const Spacer(),
+            const SizedBox(width: 8),
             Chip(
               label: Text(st == 'suspended' ? 'Suspended' : 'Disabled'),
               labelStyle: const TextStyle(fontSize: 11, color: Colors.white),
