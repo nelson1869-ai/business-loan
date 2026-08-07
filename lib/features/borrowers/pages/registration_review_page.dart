@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
@@ -370,8 +371,14 @@ class __ApplicantReviewModalState extends ConsumerState<_ApplicantReviewModal> {
 
       final data = response.data ?? {};
       final accountStatus = data['accountStatus'] as String? ?? '';
-      // Show result
-      _showApprovalResultDialog(accountStatus);
+      final activationCode = data['activationCode'] as String?;
+      final expiresAt = data['expiresAt'] as String?;
+      // Show result with activation code
+      _showApprovalResultDialog(
+        accountStatus,
+        activationCode: activationCode,
+        expiresAt: expiresAt,
+      );
     } catch (error) {
       if (mounted) {
         setState(() => _working = false);
@@ -430,7 +437,11 @@ class __ApplicantReviewModalState extends ConsumerState<_ApplicantReviewModal> {
     }
   }
 
-  void _showApprovalResultDialog(String accountStatus) {
+  void _showApprovalResultDialog(
+    String accountStatus, {
+    String? activationCode,
+    String? expiresAt,
+  }) {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -452,17 +463,71 @@ class __ApplicantReviewModalState extends ConsumerState<_ApplicantReviewModal> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'The registration has been approved. The borrower will receive their activation code via the portal.',
+              'The registration application has been approved.',
               style: TextStyle(fontSize: 13),
             ),
+            if (activationCode != null && activationCode.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              const Text(
+                'Borrower App Activation Code:',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFCBD5E1)),
+                ),
+                child: Center(
+                  child: SelectableText(
+                    activationCode,
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 6,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                ),
+              ),
+              if (expiresAt != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'Expires: $expiresAt',
+                  style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                ),
+              ],
+              const SizedBox(height: 8),
+              const Text(
+                'Give this code to the borrower. Plaintext code will NOT be shown again after closing.',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontStyle: FontStyle.italic,
+                  color: Color(0xFFD97706),
+                ),
+              ),
+            ],
             if (accountStatus.isNotEmpty) ...[
               const SizedBox(height: 12),
               Text('Account status: ${accountStatus.toUpperCase()}',
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
             ],
           ],
         ),
         actions: [
+          if (activationCode != null && activationCode.isNotEmpty)
+            TextButton.icon(
+              icon: const Icon(Icons.copy, size: 16),
+              label: const Text('Copy Code'),
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: activationCode));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Activation code copied to clipboard.')),
+                );
+              },
+            ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx),
             style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0D9488)),
@@ -487,7 +552,13 @@ class __ApplicantReviewModalState extends ConsumerState<_ApplicantReviewModal> {
 
       final data = response.data ?? {};
       final accountStatus = data['accountStatus'] as String? ?? '';
-      _showApprovalResultDialog(accountStatus);
+      final activationCode = data['activationCode'] as String?;
+      final expiresAt = data['expiresAt'] as String?;
+      _showApprovalResultDialog(
+        accountStatus,
+        activationCode: activationCode,
+        expiresAt: expiresAt,
+      );
     } catch (error) {
       if (mounted) {
         setState(() => _working = false);

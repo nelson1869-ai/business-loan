@@ -167,7 +167,7 @@ async def approve(
     borrower_id: str,
     reviewer: User,
     notes: str | None,
-) -> BorrowerAccount | None:
+) -> tuple[BorrowerAccount, str, datetime] | None:
     item = await get_locked(db, request_id)
     if item is None:
         return None
@@ -230,7 +230,13 @@ async def approve(
         {"borrower_id": borrower.id},
     )
     await db.flush()
-    return account
+
+    from app.features.borrower_portal.service import generate_new_activation_code
+
+    activation, raw_code = await generate_new_activation_code(
+        db, account, reviewer
+    )
+    return account, raw_code, activation.expires_at
 
 
 async def create_and_approve(
@@ -239,7 +245,7 @@ async def create_and_approve(
     national_id: str | None,
     reviewer: User,
     notes: str | None,
-) -> BorrowerAccount | None:
+) -> tuple[BorrowerAccount, str, datetime] | None:
     """Create a borrower from a locked request and approve it atomically."""
     item = await get_locked(db, request_id)
     if item is None:

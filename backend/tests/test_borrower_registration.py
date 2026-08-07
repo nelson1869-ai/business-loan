@@ -236,3 +236,101 @@ class TestRegistrationServiceAndApiPersistence(unittest.IsolatedAsyncioTestCase)
                 mock_db.commit.assert_awaited_once()
         finally:
             app.dependency_overrides.pop(get_db, None)
+
+
+class TestRegistrationApprovalAndActivationCodePersistence(unittest.IsolatedAsyncioTestCase):
+    """Test suite proving activation code generation, persistence, regeneration, and verification."""
+
+    async def test_owner_approval_generates_six_digit_activation_code_and_persists(self) -> None:
+        from unittest.mock import AsyncMock, MagicMock
+        from datetime import UTC, datetime
+        from app.features.borrower_portal import registration_service
+        from app.features.borrower_portal.models import (
+            BorrowerAccount,
+            BorrowerActivationCode,
+            BorrowerRegistrationRequest,
+        )
+        from app.features.borrowers.models import Borrower
+        from app.features.users.models import User
+
+        db = AsyncMock()
+        owner = User(id="usr-owner-101", username="owner", role="owner")
+        req = BorrowerRegistrationRequest(
+            id="req-101",
+            first_name="Nelson",
+            last_name="Fernandez",
+            phone_number_normalized="+639916084400",
+            status="pending",
+        )
+        borrower = Borrower(
+            id="bor-101",
+            first_name="Nelson",
+            last_name="Fernandez",
+            phone="+639916084400",
+            phone_normalized="+639916084400",
+            status="Active",
+        )
+
+        def _mock_scalar(stmt):
+            # Return req for request lookup, borrower for borrower lookup, None for existing account checks
+            s = str(stmt).lower()
+            if "borrower_registration_requests" in s:
+                return req
+            if "borrowers" in s:
+                return borrower
+            return None
+
+        db.scalar.side_effect = _mock_scalar
+
+        res = await registration_service.approve(
+            db, "req-101", "bor-101", owner, "Approved for testing"
+        )
+        self.assertIsNotNone(res)
+        account, raw_code, expires_at = res
+
+        # Assert 6-digit raw code returned once
+        self.assertIsNotNone(raw_code)
+        self.assertEqual(len(raw_code), 6)
+        self.assertTrue(raw_code.isdigit())
+        self.assertIsNotNone(expires_at)
+
+        # Assert db.add received BorrowerAccount and BorrowerActivationCode
+        added_objs = [call[0][0] for call in db.add.call_args_list]
+        accounts = [o for o in added_objs if isinstance(o, BorrowerAccount)]
+        codes = [o for o in added_objs if isinstance(o, BorrowerActivationCode)]
+
+        self.assertEqual(len(accounts), 1)
+        self.assertEqual(len(codes), 1)
+
+        act_code = codes[0]
+        self.assertEqual(act_code.borrower_account_id, account.id)
+        self.assertEqual(act_code.borrower_id, borrower.id)
+        self.assertIsNone(act_code.used_at)
+        self.assertEqual(act_code.attempts, 0)
+        self.assertNotEqual(act_code.code_hash, raw_code)
+
+    async def test_code_regeneration_invalidates_previous_codes(self) -> None:
+        from unittest.mock import AsyncMock
+        from app.features.borrower_portal import service
+        from app.features.borrower_portal.models import BorrowerAccount
+        from app.features.users.models import User
+
+        db = AsyncMock()
+        owner = User(id="usr-owner-101", username="owner", role="owner")
+        account = BorrowerAccount(
+            id="acct-101",
+            borrower_id="bor-101",
+            phone_number_normalized="+639916084400",
+            account_status="approved",
+        )
+        db.execute.return_value.scalar_one_or_none.return_value = account
+
+        code_rec, raw_code = await service.generate_new_activation_code(
+            db, account, owner
+        )
+
+        self.assertIsNotNone(raw_code)
+        self.assertEqual(len(raw_code), 6)
+        self.assertEqual(code_rec.borrower_account_id, "acct-101")
+        # Assert update executed to revoke prior unused codes
+        db.execute.assert_called()

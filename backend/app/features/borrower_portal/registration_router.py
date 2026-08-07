@@ -145,13 +145,14 @@ async def approve_registration(
 ) -> AccountActionResponse:
     require_owner(current_user)
     try:
-        account = await service.approve(
+        result = await service.approve(
             db, request_id, payload.borrower_id, current_user, payload.review_notes
         )
-        if account is None:
+        if result is None:
             raise HTTPException(
                 status_code=404, detail="Registration request not found"
             )
+        account, activation_code, expires_at = result
         await db.commit()
     except (service.RegistrationConflict, IntegrityError) as error:
         await db.rollback()
@@ -160,6 +161,8 @@ async def approve_registration(
         account_id=account.id,
         account_status=account.account_status,
         borrower_id=account.borrower_id,
+        activation_code=activation_code,
+        expires_at=expires_at,
     )
 
 
@@ -176,17 +179,18 @@ async def create_and_approve_registration(
 ) -> AccountActionResponse:
     require_owner(current_user)
     try:
-        account = await service.create_and_approve(
+        result = await service.create_and_approve(
             db,
             request_id,
             payload.national_id,
             current_user,
             payload.review_notes,
         )
-        if account is None:
+        if result is None:
             raise HTTPException(
                 status_code=404, detail="Registration request not found"
             )
+        account, activation_code, expires_at = result
         await db.commit()
     except (service.RegistrationConflict, IntegrityError) as error:
         await db.rollback()
@@ -200,6 +204,8 @@ async def create_and_approve_registration(
         account_id=account.id,
         account_status=account.account_status,
         borrower_id=account.borrower_id,
+        activation_code=activation_code,
+        expires_at=expires_at,
     )
 
 

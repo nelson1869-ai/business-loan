@@ -163,3 +163,6 @@ class AccountActionResponse(StrictSchema):
     account_id: str
     account_status: str
     borrower_id: str
+    activation_code: str | None = None
+    expires_at: datetime | None = None
+

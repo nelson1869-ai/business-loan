@@ -367,23 +367,10 @@ async def approve_borrower_registration(
     reg.reviewed_at = now
     reg.reviewed_by_user_id = owner_user.id
 
-    # 4. Generate 6-digit Activation Code
-    raw_code = f"{secrets.randbelow(1000000):06d}"
-    code_hash = hash_secret(raw_code)
-    expires_at = now + timedelta(hours=24)
-
-    activation = BorrowerActivationCode(
-        id=secrets.token_hex(18),
-        borrower_id=borrower.id,
-        borrower_account_id=account.id,
-        code_hash=code_hash,
-        expires_at=expires_at,
-        attempts=0,
-        max_attempts=5,
-        created_by_user_id=owner_user.id,
-        created_at=now,
+    # 4. Generate 6-digit Activation Code via canonical generator
+    activation, raw_code = await generate_new_activation_code(
+        db, account.id, owner_user
     )
-    db.add(activation)
 
     await create_borrower_notification(
         db,
@@ -404,7 +391,7 @@ async def approve_borrower_registration(
         borrower_id=borrower.id,
         borrower_account_id=account.id,
         activation_code=raw_code,
-        expires_at=expires_at,
+        expires_at=activation.expires_at,
     )
 
 
@@ -573,17 +560,20 @@ async def get_borrower_app_access_status(
 
 async def generate_new_activation_code(
     db: AsyncSession,
-    account_id: str,
+    account_id: str | BorrowerAccount,
     owner_user: User,
 ) -> tuple[BorrowerActivationCode, str]:
     """Owner endpoint to invalidate prior code and generate a fresh 6-digit Activation Code."""
     now = datetime.now(UTC)
-    res = await db.execute(
-        select(BorrowerAccount).where(BorrowerAccount.id == account_id)
-    )
-    account = res.scalar_one_or_none()
-    if account is None:
-        raise ValueError("Borrower account not found")
+    if isinstance(account_id, BorrowerAccount):
+        account = account_id
+    else:
+        res = await db.execute(
+            select(BorrowerAccount).where(BorrowerAccount.id == account_id)
+        )
+        account = res.scalar_one_or_none()
+        if account is None:
+            raise ValueError("Borrower account not found")
 
     # Revoke prior unused codes
     await db.execute(
@@ -599,9 +589,10 @@ async def generate_new_activation_code(
     code_hash = hash_secret(raw_code)
     expires_at = now + timedelta(hours=24)
 
+    borrower_id = getattr(account, "borrower_id", None)
     activation = BorrowerActivationCode(
         id=secrets.token_hex(18),
-        borrower_id=account.borrower_id,
+        borrower_id=borrower_id,
         borrower_account_id=account.id,
         code_hash=code_hash,
         expires_at=expires_at,
@@ -614,7 +605,7 @@ async def generate_new_activation_code(
     await db.flush()
 
     # If account was Pending/Approved, ensure status is Approved
-    if account.account_status in ("pending", "approved"):
+    if getattr(account, "account_status", "approved") in ("pending", "approved"):
         account.account_status = "approved"
 
     _audit_portal_event(
@@ -623,7 +614,7 @@ async def generate_new_activation_code(
         "borrower_activation_code",
         activation.id,
         owner_user,
-        {"borrower_id": account.borrower_id, "borrower_account_id": account.id},
+        {"borrower_id": borrower_id, "borrower_account_id": account.id},
     )
 
     return activation, raw_code
@@ -650,12 +641,12 @@ async def verify_activation_code_and_activate(
     if account.account_status in ("suspended", "disabled"):
         raise ValueError(f"Account is currently {account.account_status}")
 
-    # Fetch active unexpired activation code
+    # Fetch active unexpired activation code for this account
     code_hash = hash_secret(payload.activation_code)
     stmt = (
         select(BorrowerActivationCode)
         .where(
-            BorrowerActivationCode.borrower_id == account.borrower_id,
+            BorrowerActivationCode.borrower_account_id == account.id,
             BorrowerActivationCode.used_at.is_(None),
         )
         .order_by(BorrowerActivationCode.created_at.desc())
