@@ -18,7 +18,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       _nationalId = TextEditingController(),
       _address = TextEditingController(),
       _phone = TextEditingController(),
-      _pin = TextEditingController(),
       _email = TextEditingController();
   DateTime? _birthDate;
   bool _privacy = false, _terms = false;
@@ -33,7 +32,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       _nationalId,
       _address,
       _phone,
-      _pin,
       _email,
     ]) {
       c.dispose();
@@ -73,7 +71,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       'nationalId': _nationalId.text.trim(),
       'address': _address.text.trim(),
       'phoneNumber': _phone.text.trim(),
-      'pinOrPassword': _pin.text.trim(),
       'dateOfBirth': _birthDate!.toIso8601String().split('T').first,
       'email': _email.text.trim().isEmpty ? null : _email.text.trim(),
       'privacyAccepted': _privacy,
@@ -124,7 +121,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                 _field(_nationalId, 'National ID', required: true),
                 _field(_address, 'Full Address', required: true),
                 _field(_phone, 'Mobile number', required: true, phone: true),
-                _field(_pin, 'Desired PIN / Password', required: true, obscure: true),
                 _field(_email, 'Email (optional)', email: true)
               ],
               ListTile(

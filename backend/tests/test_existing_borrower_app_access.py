@@ -443,3 +443,34 @@ async def test_owner_endpoint_enable_access_requires_owner(
         assert resp_owner.status_code == 404
 
     app.dependency_overrides.clear()
+
+
+def test_no_duplicate_registration_routes() -> None:
+    """Requirement 17: Inspect FastAPI routes to ensure exactly ONE POST /api/v1/client/auth/register route exists."""
+    all_routes: list[tuple[str, set[str]]] = []
+    for route in app.routes:
+        if hasattr(route, "path") and hasattr(route, "methods"):
+            all_routes.append((route.path, route.methods))
+        elif hasattr(route, "original_router") and hasattr(route, "include_context"):
+            prefix = route.include_context.prefix or ""
+            for sub in route.original_router.routes:
+                if hasattr(sub, "path") and hasattr(sub, "methods"):
+                    all_routes.append((prefix + sub.path, sub.methods))
+
+    register_routes = [
+        path
+        for path, methods in all_routes
+        if path == "/api/v1/client/auth/register" and "POST" in methods
+    ]
+    assert len(register_routes) == 1, (
+        f"Expected exactly 1 route for POST /api/v1/client/auth/register, found {len(register_routes)}: {register_routes}"
+    )
+
+    status_routes = [
+        path
+        for path, methods in all_routes
+        if path == "/api/v1/client/auth/registration-status" and "POST" in methods
+    ]
+    assert len(status_routes) == 1, (
+        f"Expected exactly 1 route for POST /api/v1/client/auth/registration-status, found {len(status_routes)}: {status_routes}"
+    )

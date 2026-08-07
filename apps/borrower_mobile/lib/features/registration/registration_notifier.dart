@@ -36,10 +36,15 @@ class RegistrationNotifier extends StateNotifier<RegistrationState> {
       // Backend returns `registrationToken` (or `registration_token`).
       // Save this token to query `/registration-status` later.
       final token = response['registrationToken'] as String? ??
-          response['registration_token'] as String? ??
-          response['id'] as String?;
-      if (token != null) {
+          response['registration_token'] as String?;
+      if (token != null && token.isNotEmpty) {
         await _storage.save(token);
+      } else {
+        state = const RegistrationState(
+          error:
+              'Registration was submitted, but status tracking could not be initialized. Please contact the lender.',
+        );
+        return false;
       }
       state = RegistrationState(
           status: response['status'] as String? ?? 'pending',

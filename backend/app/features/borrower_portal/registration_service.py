@@ -55,6 +55,18 @@ async def submit(
     db: AsyncSession, payload: Any
 ) -> tuple[BorrowerRegistrationRequest, str]:
     now = datetime.now(UTC)
+
+    # Protection: check if phone is already linked to an active BorrowerAccount
+    acct = await db.scalar(
+        select(BorrowerAccount).where(
+            BorrowerAccount.phone_number_normalized == payload.phone_number
+        )
+    )
+    if acct is not None:
+        raise RegistrationConflict(
+            "An account already exists for this mobile number. Please use Login or contact the lender."
+        )
+
     existing = await db.scalar(
         select(BorrowerRegistrationRequest)
         .where(

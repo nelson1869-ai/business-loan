@@ -299,43 +299,7 @@ async def remove_borrower_device(
         await db.commit()
 
 
-# ── Single-Owner Registration, Activation & Loan Request Routes ───────────────
-
-
-@client_router.post(
-    "/auth/register",
-    response_model=BorrowerRegistrationItemResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def register_borrower_client(
-    payload: BorrowerRegistrationSubmitRequest,
-    db: DbSession,
-) -> BorrowerRegistrationItemResponse:
-    """Public sign-up endpoint for borrowers (Status = Pending)."""
-    try:
-        req = await submit_borrower_registration(db, payload)
-        await db.commit()
-    except ValueError as error:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(error),
-        ) from error
-
-    return BorrowerRegistrationItemResponse(
-        id=req.id,
-        first_name=req.first_name,
-        last_name=req.last_name,
-        phone_number=req.phone_number,
-        address=req.address,
-        date_of_birth=req.date_of_birth.isoformat(),
-        national_id=req.national_id,
-        id_photo_url=req.id_photo_url,
-        selfie_url=req.selfie_url,
-        status=req.status,
-        rejection_reason=req.rejection_reason,
-        submitted_at=req.submitted_at,
-    )
+# ── Single-Owner Activation & Loan Request Routes ───────────────────────────
 
 
 @client_router.post("/auth/activate", response_model=BorrowerTokenResponse)
