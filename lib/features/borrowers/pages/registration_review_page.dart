@@ -439,7 +439,12 @@ class __ApplicantReviewModalState extends ConsumerState<_ApplicantReviewModal> {
           children: [
             Icon(Icons.check_circle_outline, color: Color(0xFF0D9488)),
             SizedBox(width: 10),
-            Text('Registration Approved'),
+            Expanded(
+              child: Text(
+                'Registration Approved',
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
         content: Column(
@@ -530,12 +535,15 @@ class __ApplicantReviewModalState extends ConsumerState<_ApplicantReviewModal> {
                         Icon(Icons.warning_amber_rounded,
                             size: 18, color: Colors.amber),
                         SizedBox(width: 6),
-                        Text(
-                          'Possible Existing Borrower Match',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                            color: Color(0xFF78350F),
+                        Expanded(
+                          child: Text(
+                            'Possible Existing Borrower Match',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                              color: Color(0xFF78350F),
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
