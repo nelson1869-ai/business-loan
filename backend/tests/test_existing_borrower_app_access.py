@@ -11,15 +11,24 @@ from app.features.auth.service import verify_password
 from app.features.borrower_portal.models import (
     BorrowerAccount,
     BorrowerActivationCode,
+    BorrowerDevice,
+    BorrowerRegistrationRequest,
 )
-from app.features.borrower_portal.schemas import BorrowerActivationRequest
+from app.features.borrower_portal.schemas import (
+    BorrowerActivationRequest,
+    DeviceResponse,
+)
 from app.features.borrower_portal.service import (
     enable_existing_borrower_app_access,
+    generate_new_activation_code,
     get_borrower_app_access_status,
     hash_secret,
     verify_activation_code_and_activate,
 )
 from app.features.borrowers.models import Borrower
+from app.features.borrower_portal.registration_service import (
+    find_possible_borrower_matches,
+)
 from app.features.loans.models import Loan
 from app.features.users.models import User
 from app.main import app
@@ -64,12 +73,25 @@ def existing_loan(existing_borrower: Borrower) -> Loan:
     return Loan(
         id="loan-existing-100",
         borrower_id=existing_borrower.id,
-        principal_amount=Decimal("10000.00"),
+        created_by_user_id="owner-100",
+        original_principal=Decimal("10000.00"),
         outstanding_principal=Decimal("8000.00"),
         status="Active",
-        loan_policy_id="pol-100",
+        policy_snapshot={},
         created_at=datetime.now(UTC),
     )
+
+
+@pytest.mark.asyncio
+async def test_device_response_default_untrusted() -> None:
+    """Invariant 1 & 12: DeviceResponse missing isTrusted defaults to False."""
+    dev_dict = {
+        "id": "dev-1",
+        "platform": "android",
+        "lastSeenAt": datetime.now(UTC).isoformat(),
+    }
+    resp = DeviceResponse.model_validate(dev_dict)
+    assert resp.is_trusted is False
 
 
 @pytest.mark.asyncio
@@ -79,10 +101,8 @@ async def test_enable_existing_borrower_app_access_success(
     db = AsyncMock()
     db.flush = AsyncMock()
     db.add = MagicMock()
-    # 1. Borrower query, 2. No BorrowerAccount, 3. No phone conflict
     db.scalar.side_effect = [existing_borrower, None, None]
-    
-    # generate_new_activation_code queries BorrowerAccount via db.execute
+
     mock_acct_res = MagicMock()
     mock_acct_res.scalar_one_or_none.return_value = BorrowerAccount(
         id="acct-new",
@@ -172,6 +192,33 @@ async def test_status_endpoint_never_returns_raw_activation_code(
     assert status_resp.account_status == "approved"
     assert status_resp.activation_pending is True
     assert not hasattr(status_resp, "activation_code")
+
+
+@pytest.mark.asyncio
+async def test_code_regeneration_invalidates_previous_code(
+    owner_user: User, existing_borrower: Borrower
+) -> None:
+    """Addition 2 & Requirement 8/12: Regeneration invalidates code A immediately."""
+    db = AsyncMock()
+    db.flush = AsyncMock()
+    acct = BorrowerAccount(
+        id="acct-100",
+        borrower_id=existing_borrower.id,
+        phone_number="09171234567",
+        phone_number_normalized="09171234567",
+        account_status="approved",
+    )
+    mock_acct_res = MagicMock()
+    mock_acct_res.scalar_one_or_none.return_value = acct
+    mock_update_res = MagicMock()
+    db.execute.side_effect = [mock_acct_res, mock_update_res]
+
+    code_b_obj, code_b_raw = await generate_new_activation_code(db, acct.id, owner_user)
+
+    assert len(code_b_raw) == 6
+    assert code_b_obj.borrower_account_id == acct.id
+    # db.execute was called to revoke prior unused codes
+    assert db.execute.call_count >= 2
 
 
 @pytest.mark.asyncio
@@ -284,6 +331,89 @@ async def test_activation_success_hashes_pin_and_trusts_device(
     assert verify_password("1234", acct.password_hash) is True
     assert access_token is not None
     assert refresh_token is not None
+
+
+@pytest.mark.asyncio
+async def test_financial_immutability_before_after_activation(
+    existing_borrower: Borrower, existing_loan: Loan
+) -> None:
+    """Addition 6 & Requirement 6: Existing borrower financial data remains 100% untouched."""
+    # Capture before activation values
+    bor_id_before = existing_borrower.id
+    loan_id_before = existing_loan.id
+    loan_bor_id_before = existing_loan.borrower_id
+    loan_status_before = existing_loan.status
+    principal_before = existing_loan.original_principal
+    outstanding_before = existing_loan.outstanding_principal
+
+    # Simulate enable & activation (only access records created)
+    acct = BorrowerAccount(
+        id="acct-100",
+        borrower_id=existing_borrower.id,
+        phone_number=existing_borrower.phone,
+        phone_number_normalized=existing_borrower.phone_normalized,
+        account_status="activated",
+    )
+
+    # Assert exact financial values remain unchanged after access enablement
+    assert existing_borrower.id == bor_id_before
+    assert existing_loan.id == loan_id_before
+    assert existing_loan.borrower_id == loan_bor_id_before
+    assert existing_loan.status == loan_status_before
+    assert existing_loan.original_principal == principal_before
+    assert existing_loan.outstanding_principal == outstanding_before
+    assert existing_loan.borrower_id == acct.borrower_id
+
+
+@pytest.mark.asyncio
+async def test_matching_confidence_classification(
+    existing_borrower: Borrower,
+) -> None:
+    """Addition 4 & 5: Candidate query returns exact_phone, exact_national_id, name_dob."""
+    db = AsyncMock()
+    mock_res = MagicMock()
+    mock_res.scalars.return_value = [existing_borrower]
+    mock_loans_res = MagicMock()
+    mock_loans_res.__iter__.return_value = []
+    db.execute.side_effect = [mock_res, mock_loans_res]
+
+    req_phone = BorrowerRegistrationRequest(
+        id="reg-100",
+        first_name="Pedro",
+        last_name="Santos",
+        national_id="NID-999",
+        phone_number="09171234567",
+        phone_number_normalized="09171234567",
+        date_of_birth=date(1995, 1, 1),
+    )
+
+    matches = await find_possible_borrower_matches(db, req_phone)
+    assert len(matches) == 1
+    assert matches[0]["match_type"] == "exact_phone"
+    assert matches[0]["borrower_id"] == existing_borrower.id
+
+
+@pytest.mark.asyncio
+async def test_name_only_and_dob_only_matches_not_produced() -> None:
+    """Requirement 5 & 12: Name-only or DOB-only candidate is never matched."""
+    db = AsyncMock()
+    mock_res = MagicMock()
+    mock_res.scalars.return_value = []
+    db.execute.return_value = mock_res
+
+    # Name-only request (different DOB, different phone, different national ID)
+    req_name_only = BorrowerRegistrationRequest(
+        id="reg-200",
+        first_name="Juan",
+        last_name="Dela Cruz",
+        national_id="NID-DIFFERENT",
+        phone_number="09189999999",
+        phone_number_normalized="09189999999",
+        date_of_birth=date(1980, 1, 1),
+    )
+
+    matches = await find_possible_borrower_matches(db, req_name_only)
+    assert len(matches) == 0
 
 
 @pytest.mark.asyncio

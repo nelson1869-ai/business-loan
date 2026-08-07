@@ -52,7 +52,7 @@ class DeviceResponse(BaseSchema):
     device_name: str | None = Field(None, alias="deviceName")
     model: str | None = Field(None)
     app_version: str | None = Field(None, alias="appVersion")
-    is_trusted: bool = Field(True, alias="isTrusted")
+    is_trusted: bool = Field(False, alias="isTrusted")
     is_active: bool = Field(True, alias="isActive")
     first_seen_at: datetime | None = Field(None, alias="firstSeenAt")
     last_seen_at: datetime = Field(..., alias="lastSeenAt")

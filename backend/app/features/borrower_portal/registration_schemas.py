@@ -90,6 +90,7 @@ class PossibleBorrowerMatch(StrictSchema):
     active_loans_count: int
     current_balance: str
     match_reason: str
+    match_type: str = Field(default="exact_phone")
 
 
 class RegistrationListItem(StrictSchema):

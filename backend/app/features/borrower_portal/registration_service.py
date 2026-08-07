@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import or_, select, update
+from sqlalchemy import and_, case, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.masking import mask_national_id as mask_national_id
@@ -392,46 +392,125 @@ async def account_action(
 async def find_possible_borrower_matches(
     db: AsyncSession, request: BorrowerRegistrationRequest
 ) -> list[dict[str, Any]]:
-    """Search Borrower database for potential existing borrower matches."""
+    """Search Borrower database for potential existing borrower matches using targeted candidate queries."""
+    candidate_conditions = []
+
+    # 1. Exact normalized phone candidate condition
+    if request.phone_number_normalized:
+        candidate_conditions.append(
+            or_(
+                Borrower.phone_normalized == request.phone_number_normalized,
+                Borrower.phone == request.phone_number_normalized,
+            )
+        )
+
+    # 2. Exact national ID candidate condition
+    if request.national_id and request.national_id.strip():
+        candidate_conditions.append(
+            func.lower(Borrower.national_id) == request.national_id.strip().lower()
+        )
+
+    # 3. DOB + name candidate condition
+    if request.date_of_birth and (request.first_name or request.last_name):
+        name_conds = []
+        if request.first_name:
+            name_conds.append(func.lower(Borrower.first_name) == request.first_name.strip().lower())
+        if request.last_name:
+            name_conds.append(func.lower(Borrower.last_name) == request.last_name.strip().lower())
+        candidate_conditions.append(
+            and_(
+                Borrower.date_of_birth == request.date_of_birth,
+                or_(*name_conds),
+            )
+        )
+
+    if not candidate_conditions:
+        return []
+
+    # Query targeted candidate borrowers only
+    stmt = select(Borrower).where(
+        Borrower.status != "Deleted",
+        or_(*candidate_conditions),
+    )
+    res = await db.execute(stmt)
+    borrowers = list(res.scalars())
+
+    if not borrowers:
+        return []
+
+    borrower_ids = [b.id for b in borrowers]
+
+    # Single bulk aggregation query for loan counts and active balances
+    loans_stmt = select(
+        Loan.borrower_id,
+        func.count(Loan.id).label("total_loans"),
+        func.count(
+            case((Loan.status.in_(["Active", "Overdue"]), 1), else_=None)
+        ).label("active_loans"),
+        func.coalesce(
+            func.sum(
+                case(
+                    (Loan.status.in_(["Active", "Overdue"]), Loan.outstanding_principal),
+                    else_=Decimal("0.00"),
+                )
+            ),
+            Decimal("0.00"),
+        ).label("active_balance"),
+    ).where(
+        Loan.borrower_id.in_(borrower_ids)
+    ).group_by(Loan.borrower_id)
+
+    loans_res = await db.execute(loans_stmt)
+    loan_stats = {
+        row.borrower_id: {
+            "total": row.total_loans,
+            "active": row.active_loans,
+            "balance": row.active_balance,
+        }
+        for row in loans_res
+    }
+
     matches: list[dict[str, Any]] = []
     seen_ids: set[str] = set()
 
-    res = await db.execute(select(Borrower).where(Borrower.status != "Deleted"))
-    borrowers = list(res.scalars())
-
     for b in borrowers:
+        if b.id in seen_ids:
+            continue
+
         reason: str | None = None
+        match_type: str | None = None
         norm_phone = b.phone_normalized or normalize_ph_phone_number(b.phone)
 
-        # 1. Exact phone match
+        # Classify candidate match
         if norm_phone == request.phone_number_normalized:
             reason = "Exact phone match"
-        # 2. Exact national ID match
+            match_type = "exact_phone"
         elif request.national_id and b.national_id and b.national_id.strip().lower() == request.national_id.strip().lower():
             reason = "Exact national ID match"
-        # 3. Name + DOB match
+            match_type = "exact_national_id"
         elif (
             b.date_of_birth == request.date_of_birth
-            and (b.first_name.strip().lower() == request.first_name.strip().lower() or b.last_name.strip().lower() == request.last_name.strip().lower())
+            and (
+                (request.first_name and b.first_name.strip().lower() == request.first_name.strip().lower())
+                or (request.last_name and b.last_name.strip().lower() == request.last_name.strip().lower())
+            )
         ):
             reason = "Matching name and date of birth"
+            match_type = "name_dob"
 
-        if reason and b.id not in seen_ids:
+        if reason and match_type:
             seen_ids.add(b.id)
-            loans_res = await db.execute(select(Loan).where(Loan.borrower_id == b.id))
-            loans = list(loans_res.scalars())
-            active_loans = [l for l in loans if l.status in ("Active", "Overdue")]
-            balance = sum((Decimal(l.outstanding_principal) for l in active_loans), Decimal("0.00"))
-
+            stats = loan_stats.get(b.id, {"total": 0, "active": 0, "balance": Decimal("0.00")})
             matches.append({
                 "borrower_id": b.id,
                 "full_name": f"{b.first_name} {b.last_name}".strip(),
                 "masked_phone": mask_phone(norm_phone),
                 "masked_national_id": mask_national_id(b.national_id),
-                "existing_loans_count": len(loans),
-                "active_loans_count": len(active_loans),
-                "current_balance": f"{balance:.2f}",
+                "existing_loans_count": stats["total"],
+                "active_loans_count": stats["active"],
+                "current_balance": f"{stats['balance']:.2f}",
                 "match_reason": reason,
+                "match_type": match_type,
             })
 
     return matches

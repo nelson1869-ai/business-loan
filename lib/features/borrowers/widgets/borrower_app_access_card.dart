@@ -135,7 +135,7 @@ class _BorrowerAppAccessCardState
     setState(() => _working = true);
     try {
       final dio = ref.read(apiClientProvider);
-      await dio.post(
+      await dio.post<void>(
         '/api/v1/borrower-accounts/$accountId/$action',
         data: {'reason': reason},
       );
@@ -160,7 +160,7 @@ class _BorrowerAppAccessCardState
   }
 
   void _showOneTimeCodeDialog(String code, String expiresAt) {
-    showDialog(
+    showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
