@@ -57,16 +57,16 @@ async def test_single_owner_registration_and_activation_flow(
         "firstName": "Maria",
         "lastName": "Santos",
         "phoneNumber": phone,
-        "address": "123 Main Street, Manila",
         "dateOfBirth": "1992-05-15",
         "nationalId": nat_id,
-        "pinOrPassword": "123456Password!",
+        "privacyAccepted": True,
+        "termsAccepted": True,
     }
     resp = await client.post("/api/v1/client/auth/register", json=reg_payload)
     assert resp.status_code == 201, f"Registration failed: {resp.text}"
     reg_data = resp.json()
     assert reg_data["status"] == "pending"
-    registration_id = reg_data["id"]
+    registration_id = reg_data["requestId"]
 
     # 2. Owner lists registrations and approves applicant
     headers = {"Authorization": f"Bearer {owner_token}"}

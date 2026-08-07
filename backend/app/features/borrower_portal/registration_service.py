@@ -124,12 +124,12 @@ async def status_for_token(db: AsyncSession, raw_token: str) -> tuple[str, str]:
             )
         )
         status = (
-            "activated" if account and account.account_status == "activated" else "approved"
+            "active" if account and account.account_status == "activated" else "approved"
         )
     messages = {
         "pending": "Your registration is pending review.",
-        "approved": "Your registration is approved. Verify your mobile number to continue.",
-        "activated": "Your account is activated. Proceed to login.",
+        "approved": "Your registration is approved. Use your activation code to activate your account.",
+        "active": "Your account is activated and ready for login.",
         "rejected": "Your registration was not approved. Contact the lender for assistance.",
         "cancelled": "This registration was cancelled.",
         "expired": "This registration has expired.",

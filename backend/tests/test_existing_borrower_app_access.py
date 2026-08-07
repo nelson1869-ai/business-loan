@@ -26,8 +26,12 @@ from app.features.borrower_portal.service import (
     verify_activation_code_and_activate,
 )
 from app.features.borrowers.models import Borrower
+from app.features.borrower_portal.registration_schemas import (
+    RegistrationStatusResponse,
+)
 from app.features.borrower_portal.registration_service import (
     find_possible_borrower_matches,
+    status_for_token,
 )
 from app.features.loans.models import Loan
 from app.features.users.models import User
@@ -474,3 +478,42 @@ def test_no_duplicate_registration_routes() -> None:
     assert len(status_routes) == 1, (
         f"Expected exactly 1 route for POST /api/v1/client/auth/registration-status, found {len(status_routes)}: {status_routes}"
     )
+
+
+@pytest.mark.asyncio
+async def test_registration_status_contract_active_not_activated() -> None:
+    """Requirement 1 & 5: Activated BorrowerAccount returns status 'active' (not 'activated')."""
+    db = AsyncMock()
+    req = BorrowerRegistrationRequest(
+        id="reg-300",
+        linked_borrower_id="bor-300",
+        status="approved",
+        status_token_hash=hash_secret("token-secret-123"),
+    )
+    acct = BorrowerAccount(
+        id="acct-300",
+        borrower_id="bor-300",
+        account_status="activated",
+    )
+
+    db.scalar.side_effect = [req, acct]
+
+    status_str, message = await status_for_token(db, "token-secret-123")
+    assert status_str == "active"
+    assert status_str != "activated"
+    assert message == "Your account is activated and ready for login."
+
+    # Validate against RegistrationStatusResponse Pydantic schema
+    response_model = RegistrationStatusResponse(status=status_str, message=message)
+    assert response_model.status == "active"
+
+
+def test_registration_status_schema_rejects_activated() -> None:
+    """Requirement 3 & 6: RegistrationStatusResponse allows 'active' and rejects 'activated'."""
+    valid_res = RegistrationStatusResponse(
+        status="active", message="Your account is activated and ready for login."
+    )
+    assert valid_res.status == "active"
+
+    with pytest.raises(Exception):
+        RegistrationStatusResponse(status="activated", message="Invalid status")
