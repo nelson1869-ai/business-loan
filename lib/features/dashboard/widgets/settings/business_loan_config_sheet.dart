@@ -83,7 +83,7 @@ class _BusinessLoanConfigSheetState
           else if (settingsAsync.hasError)
             AppErrorState(
               error:
-                  'Administrator access is required to save changes. Check your connection and try again.',
+                  'Owner authorization is required to save changes. Check your connection and try again.',
               onRetry: () => ref.invalidate(businessSettingProvider),
             )
           else ...[
