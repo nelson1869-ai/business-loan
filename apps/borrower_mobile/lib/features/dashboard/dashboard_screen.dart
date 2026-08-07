@@ -462,10 +462,7 @@ class DashboardScreen extends ConsumerWidget {
                 subtitle: const Text('Submit a loan application to lender'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () {
-                  showDialog<void>(
-                    context: context,
-                    builder: (_) => const LoanRequestModal(),
-                  );
+                  LoanRequestModal.show(context);
                 },
               ),
               const Divider(height: 1),

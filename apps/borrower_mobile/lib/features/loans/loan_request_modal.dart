@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:borrower_mobile/core/api/api_error.dart';
 import 'package:borrower_mobile/core/auth/auth_notifier.dart';
@@ -6,6 +6,17 @@ import 'package:dio/dio.dart';
 
 class LoanRequestModal extends ConsumerStatefulWidget {
   const LoanRequestModal({super.key});
+
+  /// Launch the loan request modal as a modern bottom sheet.
+  static Future<bool?> show(BuildContext context) {
+    return showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const LoanRequestModal(),
+    );
+  }
 
   @override
   ConsumerState<LoanRequestModal> createState() => _LoanRequestModalState();
@@ -137,180 +148,230 @@ class _LoanRequestModalState extends ConsumerState<LoanRequestModal> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
-    return AlertDialog(
-      title: const Row(
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: EdgeInsets.only(
+        top: 12,
+        left: 20,
+        right: 20,
+        bottom: bottomInset + 16,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Icon(Icons.request_quote_outlined, color: Color(0xFF0D9488)),
-          SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Submit Loan Request',
-              overflow: TextOverflow.ellipsis,
+          // Drag handle
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
           ),
-        ],
-      ),
-      content: SingleChildScrollView(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          const SizedBox(height: 12),
+          // Title row
+          Row(
             children: [
-              const Text(
-                'Request a new loan for review by the lender. Official loan terms will be determined upon approval.',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _amountCtrl,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(
-                  labelText: 'Requested Amount (PHP)',
-                  prefixText: 'PHP ',
-                  border: OutlineInputBorder(),
-                ),
-                onChanged: (_) => _invalidateQuote(),
-                validator: (val) {
-                  if (val == null || val.trim().isEmpty) return 'Enter amount';
-                  final parsed = double.tryParse(val.trim());
-                  if (parsed == null || parsed <= 0) return 'Enter a valid amount';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<int>(
-                initialValue: _termMonths,
-                decoration: const InputDecoration(
-                  labelText: 'Loan Duration',
-                  border: OutlineInputBorder(),
-                ),
-                items: [1, 2, 3, 6].map((m) {
-                  return DropdownMenuItem(
-                    value: m,
-                    child: Text('$m ${m == 1 ? "Month" : "Months"}'),
-                  );
-                }).toList(),
-                onChanged: (val) {
-                  if (val != null) {
-                    setState(() => _termMonths = val);
-                    _invalidateQuote();
-                  }
-                },
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                initialValue: _paymentFrequency,
-                decoration: const InputDecoration(
-                  labelText: 'Payment Frequency',
-                  border: OutlineInputBorder(),
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'monthly', child: Text('Monthly')),
-                  DropdownMenuItem(value: 'twice_a_month', child: Text('Twice a Month')),
-                ],
-                onChanged: (val) {
-                  if (val != null) {
-                    setState(() => _paymentFrequency = val);
-                    _invalidateQuote();
-                  }
-                },
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                initialValue: _repaymentStructure,
-                decoration: const InputDecoration(
-                  labelText: 'Repayment Structure',
-                  border: OutlineInputBorder(),
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'principal_plus_interest', child: Text('Principal + Interest')),
-                  DropdownMenuItem(value: 'interest_only', child: Text('Interest Only')),
-                ],
-                onChanged: (val) {
-                  if (val != null) {
-                    setState(() => _repaymentStructure = val);
-                    _invalidateQuote();
-                  }
-                },
-              ),
-
-              // ---- Estimate section ----
-              const SizedBox(height: 20),
-              const Divider(),
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: (_quoteLoading || _working) ? null : _calculateEstimate,
-                icon: _quoteLoading
-                    ? const SizedBox.square(
-                        dimension: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.calculate_outlined),
-                label: Text(_quoteLoading ? 'Calculating...' : 'Calculate Estimate'),
-              ),
-
-              if (_quoteIsStale && _quoteResult == null) ...[
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.amber.shade300),
+              const Icon(Icons.request_quote_outlined, color: Color(0xFF0D9488), size: 24),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Submit Loan Request',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
                   ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline, size: 16, color: Colors.amber.shade800),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Form values changed. Recalculate estimate.',
-                          style: TextStyle(fontSize: 12, color: Colors.amber.shade900),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: _working ? null : () => Navigator.pop(context),
+              ),
+            ],
+          ),
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+
+          Flexible(
+            child: SingleChildScrollView(
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'Request a new loan for review by the lender. Official loan terms will be determined upon approval.',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _amountCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'Requested Amount (PHP)',
+                        prefixText: 'PHP ',
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (_) => _invalidateQuote(),
+                      validator: (val) {
+                        if (val == null || val.trim().isEmpty) return 'Enter amount';
+                        final parsed = double.tryParse(val.trim());
+                        if (parsed == null || parsed <= 0) return 'Enter a valid amount';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<int>(
+                      initialValue: _termMonths,
+                      decoration: const InputDecoration(
+                        labelText: 'Loan Duration',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: [1, 2, 3, 6].map((m) {
+                        return DropdownMenuItem(
+                          value: m,
+                          child: Text('$m ${m == 1 ? "Month" : "Months"}'),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() => _termMonths = val);
+                          _invalidateQuote();
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      initialValue: _paymentFrequency,
+                      decoration: const InputDecoration(
+                        labelText: 'Payment Frequency',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'monthly', child: Text('Monthly')),
+                        DropdownMenuItem(value: 'twice_a_month', child: Text('Twice a Month')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() => _paymentFrequency = val);
+                          _invalidateQuote();
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      initialValue: _repaymentStructure,
+                      decoration: const InputDecoration(
+                        labelText: 'Repayment Structure',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'principal_plus_interest', child: Text('Principal + Interest')),
+                        DropdownMenuItem(value: 'interest_only', child: Text('Interest Only')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() => _repaymentStructure = val);
+                          _invalidateQuote();
+                        }
+                      },
+                    ),
+
+                    // ---- Estimate section ----
+                    const SizedBox(height: 20),
+                    const Divider(),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: (_quoteLoading || _working) ? null : _calculateEstimate,
+                      icon: _quoteLoading
+                          ? const SizedBox.square(
+                              dimension: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.calculate_outlined),
+                      label: Text(_quoteLoading ? 'Calculating...' : 'Calculate Estimate'),
+                    ),
+
+                    if (_quoteIsStale && _quoteResult == null) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.amber.shade300),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, size: 16, color: Colors.amber.shade800),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Form values changed. Recalculate estimate.',
+                                style: TextStyle(fontSize: 12, color: Colors.amber.shade900),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
-                  ),
+
+                    if (_quoteResult != null) ...[
+                      const SizedBox(height: 12),
+                      _buildQuoteResult(theme),
+                    ],
+
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _purposeCtrl,
+                      maxLines: 2,
+                      decoration: const InputDecoration(
+                        labelText: 'Purpose / Notes (Optional)',
+                        hintText: 'e.g. Business expansion, tuition',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-
-              if (_quoteResult != null) ...[
-                const SizedBox(height: 12),
-                _buildQuoteResult(theme),
-              ],
-
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _purposeCtrl,
-                maxLines: 2,
-                decoration: const InputDecoration(
-                  labelText: 'Purpose / Notes (Optional)',
-                  hintText: 'e.g. Business expansion, tuition',
-                  border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Action Buttons
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _working ? null : () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: FilledButton(
+                  onPressed: _working ? null : _submit,
+                  style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0D9488)),
+                  child: _working
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Submit Request'),
                 ),
               ),
             ],
           ),
-        ),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: _working ? null : () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: _working ? null : _submit,
-          style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0D9488)),
-          child: _working
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
-              : const Text('Submit Request'),
-        ),
-      ],
     );
   }
 
