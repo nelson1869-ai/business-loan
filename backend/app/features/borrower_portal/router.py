@@ -532,10 +532,9 @@ async def issue_reset_code_endpoint(
     current_user: CurrentUser,
 ) -> IssueResetCodeResponse:
     """Owner endpoint to issue a 6-digit PIN reset code for a borrower account."""
-    if current_user.role != "owner":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Owner privilege required")
+    require_owner(current_user)
     try:
-        activation, raw_code = await generate_new_activation_code(
+        reset_rec, raw_code = await issue_pin_reset_code(
             db, account_id, current_user
         )
         await db.commit()
@@ -546,9 +545,9 @@ async def issue_reset_code_endpoint(
             detail=str(error),
         ) from error
     return IssueResetCodeResponse(
-        account_id=activation.borrower_account_id,
+        account_id=reset_rec.borrower_account_id,
         reset_code=raw_code,
-        expires_at=activation.expires_at,
+        expires_at=reset_rec.expires_at,
     )
 
 

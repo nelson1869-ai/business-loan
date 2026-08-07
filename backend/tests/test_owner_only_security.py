@@ -23,14 +23,14 @@ async def test_non_owner_roles_denied_owner_receipts() -> None:
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://testserver"
     ) as client:
-        # 1. Admin role -> Denied (403)
+        # 1. Manager role -> Denied (403)
         app.dependency_overrides[get_current_user] = lambda: User(
-            id="admin-100", username="admin", role="admin", hashed_password="dummy"
+            id="mgr-100", username="manager", role="manager", hashed_password="dummy"
         )
-        resp_admin = await client.get(
+        resp_mgr = await client.get(
             "/api/v1/owner/receipts/by-payment/dummy-pmt-id"
         )
-        assert resp_admin.status_code == 403
+        assert resp_mgr.status_code == 403
 
         # 2. Officer role -> Denied (403)
         app.dependency_overrides[get_current_user] = lambda: User(

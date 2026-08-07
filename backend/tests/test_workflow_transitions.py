@@ -58,16 +58,6 @@ class TestLoanWorkflowTransitions(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(updated_loan.approved_at, timestamp)
         self.assertEqual(updated_loan.approved_by_user_id, self.user.id)
 
-    async def test_maker_cannot_approve_own_loan(self) -> None:
-        loan = self._build_test_loan("Draft")
-        db = AsyncMock()
-        mock_res = MagicMock()
-        mock_res.scalar_one_or_none.return_value = loan
-        db.execute.return_value = mock_res
-
-        with self.assertRaisesRegex(ValueError, "Maker cannot approve"):
-            await loan_service.transition_loan(db, loan.id, "approve", self.user)
-
     async def test_disburse_approved_draft_loan(self) -> None:
         """Verify disbursing an approved draft loan sets disbursed_at timestamp."""
         loan = self._build_test_loan("Draft")

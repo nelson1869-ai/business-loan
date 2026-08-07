@@ -38,6 +38,11 @@ async def officer_token():
         hashed_password=hash_password("OwnerPass123!"),
         role="owner",
     )
+    async with AsyncSessionFactory() as db:
+        existing = await db.get(User, "receipt-owner-uuid")
+        if existing is None:
+            db.add(user)
+            await db.commit()
     return create_token(user, "access")
 
 

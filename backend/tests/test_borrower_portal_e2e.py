@@ -151,6 +151,7 @@ class TestBorrowerPortalMockedApiLifecycle(unittest.IsolatedAsyncioTestCase):
             return res
 
         mock_db.execute = AsyncMock(side_effect=mock_execute)
+        mock_db.scalar = AsyncMock(return_value=None)
         mock_db.commit = AsyncMock()
         mock_db.rollback = AsyncMock()
         mock_db.flush = AsyncMock()
@@ -178,12 +179,13 @@ class TestBorrowerPortalMockedApiLifecycle(unittest.IsolatedAsyncioTestCase):
                         "address": "123 Main Street",
                         "dateOfBirth": "1992-05-15",
                         "nationalId": "PH-NEW-999",
-                        "pinOrPassword": "123456Password!",
+                        "privacyAccepted": True,
+                        "termsAccepted": True,
                     },
                 )
                 self.assertEqual(reg_res.status_code, 201)
                 reg_data = reg_res.json()
-                reg_id = reg_data["id"]
+                reg_id = reg_data["requestId"]
 
                 # 2. Owner approves registration
                 approve_res = await client.post(
@@ -201,6 +203,8 @@ class TestBorrowerPortalMockedApiLifecycle(unittest.IsolatedAsyncioTestCase):
                     json={
                         "phoneNumber": phone_num,
                         "activationCode": raw_act_code,
+                        "newPin": "123456",
+                        "confirmPin": "123456",
                         "deviceIdentifier": "device_e2e_uuid_99",
                     },
                 )

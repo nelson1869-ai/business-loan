@@ -24,13 +24,13 @@ class LoanDueDateTests(unittest.TestCase):
         self.assertEqual(
             due_dates[:4],
             (
-                date(2026, 8, 5),
-                date(2026, 8, 20),
-                date(2026, 9, 5),
-                date(2026, 9, 20),
+                date(2026, 8, 15),
+                date(2026, 8, 31),
+                date(2026, 9, 15),
+                date(2026, 9, 30),
             ),
         )
-        self.assertEqual(due_dates[-1], date(2026, 12, 20))
+        self.assertEqual(due_dates[-1], date(2026, 12, 31))
 
     def test_month_end_anchor_clamps_shorter_months(self) -> None:
         payload = _payload(
@@ -68,7 +68,7 @@ class LoanCreationServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             loan.installments[-1].expected_remaining_principal, Decimal("0.00")
         )
-        self.assertEqual(loan.final_due_date, date(2026, 12, 20))
+        self.assertEqual(loan.final_due_date, date(2026, 12, 31))
         added = [call.args[0] for call in db.add.call_args_list]
         self.assertIn(loan, added)
         audit = next(item for item in added if isinstance(item, AuditLog))

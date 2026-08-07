@@ -19,7 +19,10 @@ from app.features.borrower_portal.models import (
     BorrowerAccount,
     BorrowerActivationCode,
     BorrowerDevice,
+    BorrowerPinReset,
     BorrowerRefreshToken,
+    BorrowerRegistrationAudit,
+    BorrowerRegistrationRequest,
 )
 from app.features.borrower_portal.service import hash_secret
 from app.features.borrowers.models import Borrower
@@ -58,9 +61,10 @@ class TestBorrowerPortalRealDatabaseIntegration(unittest.IsolatedAsyncioTestCase
             await db.execute(delete(Payment))
             await db.execute(delete(Installment))
             await db.execute(delete(Loan))
-            await db.execute(delete(Payment))
-            await db.execute(delete(Installment))
-            await db.execute(delete(Loan))
+            await db.execute(delete(BorrowerRegistrationAudit))
+            await db.execute(delete(BorrowerPinReset))
+            await db.execute(delete(BorrowerActivationCode))
+            await db.execute(delete(BorrowerRegistrationRequest))
             await db.execute(delete(BorrowerRefreshToken))
             await db.execute(delete(BorrowerDevice))
             await db.execute(delete(BorrowerAccount))
@@ -156,6 +160,8 @@ class TestBorrowerPortalRealDatabaseIntegration(unittest.IsolatedAsyncioTestCase
                 json={
                     "phoneNumber": phone_num,
                     "activationCode": raw_act_code,
+                    "newPin": "123456",
+                    "confirmPin": "123456",
                     "deviceIdentifier": "real_device_id_uuid_1",
                 },
             )
@@ -295,7 +301,7 @@ class TestBorrowerPortalRealDatabaseIntegration(unittest.IsolatedAsyncioTestCase
                 "/api/v1/client/me",
                 headers={"Authorization": f"Bearer {access_token}"},
             )
-            self.assertEqual(suspended_res.status_code, 401)
+            self.assertEqual(suspended_res.status_code, 403)
 
             # 30. Confirm transaction rollback does not leave partial account data
             async with self.session_factory() as db:

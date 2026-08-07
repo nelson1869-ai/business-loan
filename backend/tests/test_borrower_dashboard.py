@@ -35,6 +35,7 @@ class TestBorrowerDashboardApi(unittest.IsolatedAsyncioTestCase):
         )
 
         async with self.session_factory() as db:
+            await db.execute(delete(Payment))
             await db.execute(delete(Installment))
             await db.execute(delete(Loan))
             await db.execute(delete(BorrowerRefreshToken))
@@ -53,6 +54,7 @@ class TestBorrowerDashboardApi(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self) -> None:
         app.dependency_overrides.pop(get_db, None)
         async with self.session_factory() as db:
+            await db.execute(delete(Payment))
             await db.execute(delete(Installment))
             await db.execute(delete(Loan))
             await db.execute(delete(BorrowerRefreshToken))
@@ -97,7 +99,7 @@ class TestBorrowerDashboardApi(unittest.IsolatedAsyncioTestCase):
                 borrower_id=bor_id,
                 phone_number=f"0917{suffix[:7]}",
                 phone_number_normalized=f"+63917{suffix[:7]}",
-                account_status="active",
+                account_status="activated",
             )
             db.add(account)
 
@@ -225,7 +227,7 @@ class TestBorrowerDashboardApi(unittest.IsolatedAsyncioTestCase):
                 borrower_id=bor_id,
                 phone_number=f"0918{suffix[:7]}",
                 phone_number_normalized=f"+63918{suffix[:7]}",
-                account_status="active",
+                account_status="activated",
             )
             db.add(account)
             await db.commit()
@@ -285,7 +287,7 @@ class TestBorrowerDashboardApi(unittest.IsolatedAsyncioTestCase):
                 borrower_id=bor_id,
                 phone_number=f"0919{suffix[:7]}",
                 phone_number_normalized=f"+63919{suffix[:7]}",
-                account_status="active",
+                account_status="activated",
             )
             db.add(account)
 

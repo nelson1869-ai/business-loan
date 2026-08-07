@@ -90,9 +90,11 @@ class TestOwnerLoanApprovalWorkflow(unittest.IsolatedAsyncioTestCase):
             first_due_date=date(2026, 2, 1),
             repayment_structure="principal_plus_interest",
         )
-        return await loan_service.create_loan(
+        loan = await loan_service.create_loan(
             self.db, payload, self.owner, initial_status="Draft"
         )
+        await self.db.commit()
+        return loan
 
     # 1. Owner can approve own Draft
     async def test_owner_can_approve_own_draft(self) -> None:

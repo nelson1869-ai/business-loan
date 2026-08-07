@@ -40,9 +40,23 @@ def owner_token():
     return create_token(owner, "access")
 
 
+from app.core.dependencies import get_current_user
+
 async def test_single_owner_registration_and_activation_flow(
     client: AsyncClient, owner_token: str
 ):
+    owner = User(
+        id="owner-test-uuid",
+        username="owner_test",
+        hashed_password=hash_password("OwnerSecret123!"),
+        role="owner",
+    )
+    async with AsyncSessionFactory() as db:
+        existing = await db.get(User, "owner-test-uuid")
+        if existing is None:
+            db.add(owner)
+            await db.commit()
+    app.dependency_overrides[get_current_user] = lambda: owner
     """Test full workflow: Public Registration -> Owner Approval -> 6-Digit Activation Code -> Activation Redemption -> PIN Login."""
     from uuid import uuid4
 
@@ -59,6 +73,7 @@ async def test_single_owner_registration_and_activation_flow(
         "phoneNumber": phone,
         "dateOfBirth": "1992-05-15",
         "nationalId": nat_id,
+        "address": "123 Main Street",
         "privacyAccepted": True,
         "termsAccepted": True,
     }
@@ -88,6 +103,8 @@ async def test_single_owner_registration_and_activation_flow(
     act_payload = {
         "phoneNumber": phone,
         "activationCode": activation_code,
+        "newPin": "123456Password!",
+        "confirmPin": "123456Password!",
         "deviceIdentifier": f"test_android_device_{uid}",
     }
     resp = await client.post("/api/v1/client/auth/activate", json=act_payload)
@@ -121,3 +138,4 @@ async def test_single_owner_registration_and_activation_flow(
     loan_req_data = resp.json()
     assert loan_req_data["status"] == "submitted"
     assert loan_req_data["requestedAmount"] == "15000.00"
+    app.dependency_overrides.clear()

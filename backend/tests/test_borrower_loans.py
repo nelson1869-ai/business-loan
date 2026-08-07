@@ -97,7 +97,7 @@ class TestBorrowerLoansApi(unittest.IsolatedAsyncioTestCase):
                 borrower_id=bor_id,
                 phone_number=f"0920{suffix[:7]}",
                 phone_number_normalized=f"+63920{suffix[:7]}",
-                account_status="active",
+                account_status="activated",
             )
             db.add(account)
 
@@ -185,7 +185,7 @@ class TestBorrowerLoansApi(unittest.IsolatedAsyncioTestCase):
                 borrower_id=bor_id,
                 phone_number=f"0921{suffix[:7]}",
                 phone_number_normalized=f"+63921{suffix[:7]}",
-                account_status="active",
+                account_status="activated",
             )
             db.add(account)
             await db.commit()
@@ -237,7 +237,7 @@ class TestBorrowerLoansApi(unittest.IsolatedAsyncioTestCase):
                 borrower_id=bor_id,
                 phone_number=f"0922{suffix[:7]}",
                 phone_number_normalized=f"+63922{suffix[:7]}",
-                account_status="active",
+                account_status="activated",
             )
             db.add(account)
 
@@ -330,7 +330,7 @@ class TestBorrowerLoansApi(unittest.IsolatedAsyncioTestCase):
                 borrower_id=bor_id,
                 phone_number=f"0923{suffix[:7]}",
                 phone_number_normalized=f"+63923{suffix[:7]}",
-                account_status="active",
+                account_status="activated",
             )
             db.add(account)
             await db.commit()
@@ -380,7 +380,7 @@ class TestBorrowerLoansApi(unittest.IsolatedAsyncioTestCase):
                 borrower_id=bor_id,
                 phone_number=f"0924{suffix[:7]}",
                 phone_number_normalized=f"+63924{suffix[:7]}",
-                account_status="active",
+                account_status="activated",
             )
             db.add(account)
 
@@ -484,7 +484,7 @@ class TestBorrowerLoansApi(unittest.IsolatedAsyncioTestCase):
                 borrower_id=bor_a.id,
                 phone_number=f"0925{suffix_a[:7]}",
                 phone_number_normalized=f"+63925{suffix_a[:7]}",
-                account_status="active",
+                account_status="activated",
             )
             db.add(acct_a)
 
@@ -526,7 +526,7 @@ class TestBorrowerLoansApi(unittest.IsolatedAsyncioTestCase):
                 borrower_id=bor_b.id,
                 phone_number=f"0926{suffix_b[:7]}",
                 phone_number_normalized=f"+63926{suffix_b[:7]}",
-                account_status="active",
+                account_status="activated",
             )
             db.add(acct_b)
             await db.commit()
@@ -620,7 +620,7 @@ class TestBorrowerLoansApi(unittest.IsolatedAsyncioTestCase):
                 borrower_id=bor_id,
                 phone_number=f"0927{suffix[:7]}",
                 phone_number_normalized=f"+63927{suffix[:7]}",
-                account_status="active",
+                account_status="activated",
             )
             db.add(account)
 
@@ -734,7 +734,7 @@ class TestBorrowerLoansApi(unittest.IsolatedAsyncioTestCase):
                 borrower_id=bor_id,
                 phone_number=f"0928{suffix[:7]}",
                 phone_number_normalized=f"+63928{suffix[:7]}",
-                account_status="active",
+                account_status="activated",
             )
             db.add(account)
 
@@ -811,7 +811,7 @@ class TestBorrowerLoansApi(unittest.IsolatedAsyncioTestCase):
                 borrower_id=bor_id,
                 phone_number=f"0929{suffix[:7]}",
                 phone_number_normalized=f"+63929{suffix[:7]}",
-                account_status="active",
+                account_status="activated",
             )
             db.add(account)
 
@@ -924,7 +924,7 @@ class TestBorrowerLoansApi(unittest.IsolatedAsyncioTestCase):
                 borrower_id=bor_id2,
                 phone_number=f"0931{suffix[:7]}",
                 phone_number_normalized=f"+63931{suffix[:7]}",
-                account_status="active",
+                account_status="activated",
             )
             db.add(account2)
 
@@ -983,7 +983,7 @@ class TestBorrowerLoansApi(unittest.IsolatedAsyncioTestCase):
                 borrower_id=bor_id,
                 phone_number=f"0940{suffix[:7]}",
                 phone_number_normalized=f"+63940{suffix[:7]}",
-                account_status="active",
+                account_status="activated",
             )
             db.add(account)
             await db.commit()
@@ -1035,7 +1035,7 @@ class TestBorrowerLoansApi(unittest.IsolatedAsyncioTestCase):
                 borrower_id=bor_id,
                 phone_number=f"0941{suffix[:7]}",
                 phone_number_normalized=f"+63941{suffix[:7]}",
-                account_status="active",
+                account_status="activated",
             )
             db.add(account)
             await db.commit()

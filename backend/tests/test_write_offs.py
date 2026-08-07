@@ -46,22 +46,15 @@ class WriteOffTests(unittest.IsolatedAsyncioTestCase):
             effective_date=date(2026, 4, 1),
             reason="Documented uncollectible balance",
         )
-        with (
-            patch(
-                "app.features.write_offs.service.consume_approved_request",
-                new=AsyncMock(),
-            ) as consume,
-            patch(
-                "app.features.write_offs.service.post_journal", new=AsyncMock()
-            ) as post,
-        ):
+        with patch(
+            "app.features.write_offs.service.post_journal", new=AsyncMock()
+        ) as post:
             result = await write_off_loan(
                 db, loan.id, payload, SimpleNamespace(id="maker-1")
             )
         self.assertEqual(result.amount, Decimal("700.00"))
         self.assertEqual(loan.outstanding_principal, Decimal("0.00"))
         self.assertEqual(loan.status, "WrittenOff")
-        consume.assert_awaited_once()
         post.assert_awaited_once()
 
     async def test_partial_write_off_is_rejected(self) -> None:

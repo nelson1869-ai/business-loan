@@ -83,6 +83,7 @@ def _loan() -> Loan:
         start_date=date(2026, 8, 1),
         first_due_date=date(2026, 9, 1),
         final_due_date=date(2026, 9, 1),
+        repayment_structure="principal_plus_interest",
         status="Active",
         created_at=datetime(2026, 8, 1, tzinfo=timezone.utc),
     )

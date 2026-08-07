@@ -38,6 +38,15 @@ class FinancialDatabaseGuardTests(unittest.IsolatedAsyncioTestCase):
                     "WHERE status = 'open' ORDER BY start_date LIMIT 1"
                 )
             )
+            if period_id is None:
+                period_id = str(uuid4())
+                await db.execute(
+                    text(
+                        "INSERT INTO accounting_periods (id, start_date, end_date, status) "
+                        "VALUES (:id, '2026-01-01', '2026-12-31', 'open')"
+                    ),
+                    {"id": period_id},
+                )
             cash_account_id = await db.scalar(
                 text("SELECT id FROM accounts WHERE code = '1000'")
             )

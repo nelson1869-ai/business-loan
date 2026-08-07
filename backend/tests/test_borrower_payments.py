@@ -101,7 +101,7 @@ class TestBorrowerPaymentsApi(unittest.IsolatedAsyncioTestCase):
                 borrower_id=bor_id,
                 phone_number=f"0940{suffix[:7]}",
                 phone_number_normalized=f"+63940{suffix[:7]}",
-                account_status="active",
+                account_status="activated",
             )
             db.add(account)
 
@@ -207,7 +207,7 @@ class TestBorrowerPaymentsApi(unittest.IsolatedAsyncioTestCase):
                 borrower_id=bor_id,
                 phone_number=f"0941{suffix[:7]}",
                 phone_number_normalized=f"+63941{suffix[:7]}",
-                account_status="active",
+                account_status="activated",
             )
             db.add(account)
 
@@ -322,7 +322,7 @@ class TestBorrowerPaymentsApi(unittest.IsolatedAsyncioTestCase):
                 borrower_id=bor_id2,
                 phone_number=f"0943{suffix[:7]}",
                 phone_number_normalized=f"+63943{suffix[:7]}",
-                account_status="active",
+                account_status="activated",
             )
             db.add(account2)
 
