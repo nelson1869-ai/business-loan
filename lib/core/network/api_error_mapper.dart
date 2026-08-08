@@ -6,7 +6,10 @@ class ApiErrorMapper {
 
   static String message(Object error) {
     if (error is! DioException) {
-      return 'Something went wrong. Please try again.';
+      final str = error.toString().replaceAll('Exception: ', '').trim();
+      return str.isNotEmpty && !str.startsWith('Instance of ')
+          ? str
+          : 'Something went wrong. Please try again.';
     }
     if (error.type == DioExceptionType.connectionError) {
       return 'No server connection. This action requires an online connection.';
@@ -19,7 +22,7 @@ class ApiErrorMapper {
     return switch (error.response?.statusCode) {
       400 => _safeDetail(error) ?? 'The request could not be processed.',
       401 => 'Your session has expired. Please sign in again.',
-      403 => 'You do not have permission to perform this action.',
+      403 => _safeDetail(error) ?? 'You do not have permission to perform this action.',
       404 =>
         _safeDetail(error) ??
             'I could not find a matching record. Try a name or another request.',
@@ -28,8 +31,8 @@ class ApiErrorMapper {
       422 => _safeDetail(error) ?? 'Check the entered values and try again.',
       429 => 'Too many requests. Wait a moment and try again.',
       final code when code != null && code >= 500 =>
-        'The server could not complete the request. Please try again.',
-      _ => 'Something went wrong. Please try again.',
+        _safeDetail(error) ?? 'The server could not complete the request. Please try again.',
+      _ => _safeDetail(error) ?? 'Something went wrong. Please try again.',
     };
   }
 
@@ -48,9 +51,14 @@ class ApiErrorMapper {
 
   static String? _safeDetail(DioException error) {
     final data = error.response?.data;
+    if (data is String && data.trim().isNotEmpty && data.length <= 300) {
+      return data.trim();
+    }
     if (data is! Map) return null;
     final detail = data['detail'];
-    if (detail is String && detail.length <= 200) return detail;
+    if (detail is String && detail.trim().isNotEmpty && detail.length <= 300) {
+      return detail.trim();
+    }
     if (detail is List && detail.isNotEmpty) {
       final first = detail.first;
       if (first is Map && first['msg'] is String) {

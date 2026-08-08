@@ -11,6 +11,10 @@ class LoanPaymentStatusBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (loan.status == 'Draft' || loan.status == 'Cancelled') {
+      return const SizedBox.shrink();
+    }
+
     final theme = Theme.of(context);
     final isFullyPaid =
         loan.status == 'Paid' ||

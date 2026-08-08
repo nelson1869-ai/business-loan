@@ -29,41 +29,18 @@ class LoanQuoteTests(unittest.TestCase):
         self.assertEqual(len(quote.installments), 10)
         self.assertEqual(quote.installments[-1].remaining_principal, Decimal("0.00"))
 
-    def test_interest_only_quote_calculates_interim_interest_and_bullet_final_repayment(
-        self,
-    ) -> None:
-        quote = build_quote(
+    def test_interest_only_quote_request_is_rejected(self) -> None:
+        from pydantic import ValidationError
+
+        with self.assertRaises(ValidationError):
             LoanQuoteRequest(
-                original_principal="1000.00",
-                monthly_rate="0.05",
+                original_principal=Decimal("1000.00"),
+                monthly_rate=Decimal("0.05"),
                 term_months=3,
                 payments_per_month=1,
                 first_due_date=date(2026, 8, 1),
-                repayment_structure="interest_only",
+                repayment_structure="interest_only",  # type: ignore[arg-type]
             )
-        )
-
-        self.assertEqual(quote.repayment_structure, "interest_only")
-        self.assertEqual(quote.regular_payment_amount, Decimal("50.00"))
-        self.assertEqual(quote.total_interest, Decimal("150.00"))
-        self.assertEqual(quote.total_repayment, Decimal("1150.00"))
-        self.assertEqual(len(quote.installments), 3)
-
-        # Interim installment 1
-        self.assertEqual(quote.installments[0].payment_amount, Decimal("50.00"))
-        self.assertEqual(quote.installments[0].interest_amount, Decimal("50.00"))
-        self.assertEqual(quote.installments[0].principal_amount, Decimal("0.00"))
-        self.assertEqual(
-            quote.installments[0].remaining_principal, Decimal("1000.00")
-        )
-
-        # Final bullet installment 3
-        self.assertEqual(quote.installments[2].payment_amount, Decimal("1050.00"))
-        self.assertEqual(quote.installments[2].interest_amount, Decimal("50.00"))
-        self.assertEqual(quote.installments[2].principal_amount, Decimal("1000.00"))
-        self.assertEqual(
-            quote.installments[2].remaining_principal, Decimal("0.00")
-        )
 
 
 class CalendarDueDatesTests(unittest.TestCase):

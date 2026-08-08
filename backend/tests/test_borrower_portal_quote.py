@@ -47,9 +47,11 @@ class TestBorrowerLoanQuoteRequestValidation(unittest.TestCase):
         req = self._valid(requestedPaymentFrequency="twice_a_month")
         self.assertEqual(req.requested_payment_frequency, "twice_a_month")
 
-    def test_valid_interest_only(self) -> None:
-        req = self._valid(requestedRepaymentStructure="interest_only")
-        self.assertEqual(req.requested_repayment_structure, "interest_only")
+    def test_rejects_interest_only(self) -> None:
+        from pydantic import ValidationError
+
+        with self.assertRaises(ValidationError):
+            self._valid(requestedRepaymentStructure="interest_only")
 
     def test_valid_term_boundaries(self) -> None:
         for term in [1, 2, 3, 6, 12, 120]:
@@ -225,8 +227,8 @@ class TestBorrowerLoanQuoteEndpointMocked(unittest.IsolatedAsyncioTestCase):
         last = body["installments"][-1]
         self.assertEqual(Decimal(last["remainingPrincipal"]), Decimal("0.00"))
 
-    # 6. Interest Only — interim installments have principal == 0
-    async def test_interest_only_interim_principal_is_zero(self) -> None:
+    # 6. Interest Only — rejected with 422
+    async def test_interest_only_rejected_with_422(self) -> None:
         db = _make_mock_session(estimate_rate=Decimal("0.10000000"))
         resp = await self._post_quote(
             {"requestedAmount": "10000.00", "requestedTermMonths": 2,
@@ -234,22 +236,7 @@ class TestBorrowerLoanQuoteEndpointMocked(unittest.IsolatedAsyncioTestCase):
              "requestedRepaymentStructure": "interest_only"},
             db,
         )
-        body = resp.json()
-        interim = body["installments"][0]
-        self.assertEqual(Decimal(interim["principalAmount"]), Decimal("0.00"))
-
-    # 7. Interest Only — final installment carries full principal
-    async def test_interest_only_final_installment_carries_principal(self) -> None:
-        db = _make_mock_session(estimate_rate=Decimal("0.10000000"))
-        resp = await self._post_quote(
-            {"requestedAmount": "10000.00", "requestedTermMonths": 2,
-             "requestedPaymentFrequency": "monthly",
-             "requestedRepaymentStructure": "interest_only"},
-            db,
-        )
-        body = resp.json()
-        final = body["installments"][-1]
-        self.assertGreater(Decimal(final["principalAmount"]), Decimal("0.00"))
+        self.assertEqual(resp.status_code, 422)
 
     # 8. Weekly frequency rejected with 422
     async def test_weekly_frequency_rejected(self) -> None:
@@ -383,7 +370,7 @@ class TestBuildQuoteDirectly(unittest.TestCase):
         self.assertEqual(result.total_repayment, Decimal("11000.00"))
         self.assertEqual(result.installments[0].remaining_principal, Decimal("0.00"))
 
-    def test_twice_a_month_1month_interest_only(self) -> None:
+    def test_twice_a_month_1month_reducing_balance(self) -> None:
         result = build_quote(
             LoanQuoteRequest(
                 original_principal="10000.00",
@@ -391,13 +378,9 @@ class TestBuildQuoteDirectly(unittest.TestCase):
                 term_months=1,
                 payments_per_month=2,
                 first_due_date=date(2026, 9, 15),
-                repayment_structure="interest_only",
             )
         )
         self.assertEqual(result.number_of_payments, 2)
-        # Interim: principal = 0
-        self.assertEqual(result.installments[0].principal_amount, Decimal("0.00"))
-        # Final: remaining = 0
         self.assertEqual(result.installments[-1].remaining_principal, Decimal("0.00"))
 
     def test_6month_payment_count(self) -> None:

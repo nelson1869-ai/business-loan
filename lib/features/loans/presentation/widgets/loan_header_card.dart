@@ -74,8 +74,8 @@ class LoanHeaderCard extends StatelessWidget {
                 Expanded(
                   child: _InfoRow(
                     icon: Icons.calendar_today_outlined,
-                    label: 'Disbursed',
-                    value: formatDateShort(loan.startDate),
+                    label: loan.disbursedAt != null ? 'Disbursed' : 'Start Date',
+                    value: formatDateShort(loan.disbursedAt ?? loan.startDate),
                   ),
                 ),
                 Expanded(

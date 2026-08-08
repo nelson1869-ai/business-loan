@@ -38,7 +38,6 @@ class _LoanCreateScreenState extends ConsumerState<LoanCreateScreen> {
   final _rateController = TextEditingController(text: '10');
   final _termController = TextEditingController(text: '1');
   int _paymentsPerMonth = 1;
-  String _repaymentStructure = 'principal_plus_interest';
   DateTime _startDate = DateTime.now();
   late DateTime _firstDueDate = _defaultFirstDueDate(_startDate, _paymentsPerMonth);
 
@@ -113,7 +112,6 @@ class _LoanCreateScreenState extends ConsumerState<LoanCreateScreen> {
           paymentsPerMonth: _paymentsPerMonth,
           startDate: _startDate,
           firstDueDate: _firstDueDate,
-          repaymentStructure: _repaymentStructure,
         );
 
     if (!mounted) return;
@@ -139,7 +137,6 @@ class _LoanCreateScreenState extends ConsumerState<LoanCreateScreen> {
           termMonths: int.parse(_termController.text.trim()),
           paymentsPerMonth: _paymentsPerMonth,
           firstDueDate: _firstDueDate,
-          repaymentStructure: _repaymentStructure,
         );
     if (!mounted) return;
     final error = ref.read(loanCreateNotifierProvider).error;
@@ -258,23 +255,6 @@ class _LoanCreateScreenState extends ConsumerState<LoanCreateScreen> {
                     _paymentsPerMonth = v;
                     _firstDueDate = _defaultFirstDueDate(_startDate, _paymentsPerMonth);
                   });
-                }
-              },
-            ),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              initialValue: _repaymentStructure,
-              decoration: const InputDecoration(
-                labelText: 'Repayment Structure',
-                prefixIcon: Icon(Icons.account_balance_outlined),
-              ),
-              items: const [
-                DropdownMenuItem(value: 'principal_plus_interest', child: Text('Principal + Interest')),
-                DropdownMenuItem(value: 'interest_only', child: Text('Interest Only')),
-              ],
-              onChanged: (v) {
-                if (v != null) {
-                  setState(() => _repaymentStructure = v);
                 }
               },
             ),

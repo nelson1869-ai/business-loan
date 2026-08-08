@@ -43,6 +43,13 @@ class LoanCreate(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
+    @field_validator("repayment_structure")
+    @classmethod
+    def reject_interest_only(cls, value: str) -> str:
+        if value == "interest_only":
+            raise ValueError("Interest-only loans are no longer available.")
+        return value
+
     @field_validator("original_principal", "monthly_rate", mode="before")
     @classmethod
     def reject_float_money_and_rates(cls, value: Any) -> Any:
@@ -84,6 +91,13 @@ class LoanQuoteRequest(BaseModel):
     repayment_structure: RepaymentStructure = "principal_plus_interest"
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    @field_validator("repayment_structure")
+    @classmethod
+    def reject_interest_only(cls, value: str) -> str:
+        if value == "interest_only":
+            raise ValueError("Interest-only loans are no longer available.")
+        return value
 
     @field_validator("original_principal", "monthly_rate", mode="before")
     @classmethod

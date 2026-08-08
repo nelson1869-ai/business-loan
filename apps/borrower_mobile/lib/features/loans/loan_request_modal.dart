@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:borrower_mobile/core/api/api_error.dart';
 import 'package:borrower_mobile/core/auth/auth_notifier.dart';
@@ -28,7 +28,6 @@ class _LoanRequestModalState extends ConsumerState<LoanRequestModal> {
   final _purposeCtrl = TextEditingController();
   int _termMonths = 1;
   String _paymentFrequency = 'monthly';
-  static const String _repaymentStructure = 'principal_plus_interest';
   bool _working = false;
 
   // ---- Quote / estimate state ----
@@ -73,7 +72,6 @@ class _LoanRequestModalState extends ConsumerState<LoanRequestModal> {
           'requestedAmount': amountText,
           'requestedTermMonths': _termMonths,
           'requestedPaymentFrequency': _paymentFrequency,
-          'requestedRepaymentStructure': _repaymentStructure,
         },
       );
       if (mounted) {
@@ -103,7 +101,6 @@ class _LoanRequestModalState extends ConsumerState<LoanRequestModal> {
           'requestedAmount': _amountCtrl.text.trim(),
           'requestedTermMonths': _termMonths,
           'requestedPaymentFrequency': _paymentFrequency,
-          'requestedRepaymentStructure': _repaymentStructure,
           'purpose': _purposeCtrl.text.trim().isEmpty ? null : _purposeCtrl.text.trim(),
         },
       );
@@ -394,7 +391,7 @@ class _LoanRequestModalState extends ConsumerState<LoanRequestModal> {
     final firstDue = quote['provisionalFirstDueDate'] as String? ?? '';
     final finalDue = quote['provisionalFinalDueDate'] as String? ?? '';
     final disclaimer = quote['disclaimer'] as String? ??
-        'Estimate only. Final interest, payment dates, fees, and approved terms are determined by the lender.';
+        'Estimate only. Future interest may decrease when you pay principal earlier. Final approved terms are determined by the lender.';
 
     return Card(
       elevation: 0,

@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class BaseSchema(BaseModel):
@@ -202,6 +202,13 @@ class BorrowerLoanRequestSubmit(BaseSchema):
     )
     purpose: str | None = Field(None, alias="purpose", max_length=500)
 
+    @field_validator("requested_repayment_structure")
+    @classmethod
+    def reject_interest_only(cls, value: str) -> str:
+        if value == "interest_only":
+            raise ValueError("Interest-only loans are no longer available.")
+        return value
+
 
 class BorrowerLoanRequestResponse(BaseSchema):
     """Loan request response object."""
@@ -248,8 +255,15 @@ class BorrowerLoanQuoteRequest(BaseSchema):
         ..., alias="requestedPaymentFrequency"
     )
     requested_repayment_structure: RequestedRepaymentStructure = Field(
-        ..., alias="requestedRepaymentStructure"
+        "principal_plus_interest", alias="requestedRepaymentStructure"
     )
+
+    @field_validator("requested_repayment_structure")
+    @classmethod
+    def reject_interest_only(cls, value: str) -> str:
+        if value == "interest_only":
+            raise ValueError("Interest-only loans are no longer available.")
+        return value
 
 
 class BorrowerLoanQuoteUnavailableResponse(BaseSchema):
@@ -279,8 +293,8 @@ class BorrowerLoanQuoteAvailableResponse(BaseSchema):
     available: Literal[True] = True
     estimated_monthly_rate: str = Field(..., alias="estimatedMonthlyRate")
     disclaimer: str = (
-        "Estimate only. Final interest, payment dates, fees, and "
-        "approved terms are determined by the lender."
+        "Estimate only. Future interest may decrease when you pay principal earlier. "
+        "Final approved terms are determined by the lender."
     )
     number_of_payments: int = Field(..., alias="numberOfPayments")
     regular_payment_amount: str = Field(..., alias="regularPaymentAmount")

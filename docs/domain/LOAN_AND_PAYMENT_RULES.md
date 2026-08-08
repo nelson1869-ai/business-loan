@@ -379,14 +379,16 @@ then make the last payment only the exact principal and accrued interest still
 owed. Create unapplied borrower credit only if money remains after all accrued
 interest and outstanding principal have been cleared.
 
-## 6. Interest-only payment
+## 6. Flexible reducing-balance & interest payments
 
-If the borrower pays exactly the accrued interest:
+All new loans use the single canonical Flexible Reducing-Balance Repayment model. Interest-Only loan mode is no longer selectable for new loans.
+
+If the borrower pays exactly the accrued interest on a flexible loan:
 
 - interest due becomes zero;
 - principal stays unchanged;
 - the loan remains active; and
-- interest continues accruing on the same principal.
+- interest continues accruing on the same principal for the next period.
 
 Example for a 30-day cycle:
 

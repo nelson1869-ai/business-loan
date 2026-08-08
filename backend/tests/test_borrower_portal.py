@@ -180,7 +180,6 @@ class TestBorrowerLoanRequestValidation(unittest.TestCase):
             requestedAmount="5000.00",
             requestedTermMonths=3,
             requestedPaymentFrequency="twice_a_month",
-            requestedRepaymentStructure="interest_only",
         )
         self.assertEqual(req.requested_payment_frequency, "twice_a_month")
 
@@ -210,13 +209,13 @@ class TestBorrowerLoanRequestValidation(unittest.TestCase):
             req.requested_repayment_structure, "principal_plus_interest"
         )
 
-    def test_interest_only_accepted(self) -> None:
-        req = BorrowerLoanRequestSubmit(
-            requestedAmount="5000.00",
-            requestedTermMonths=3,
-            requestedRepaymentStructure="interest_only",
-        )
-        self.assertEqual(req.requested_repayment_structure, "interest_only")
+    def test_interest_only_rejected(self) -> None:
+        with self.assertRaises(ValidationError):
+            BorrowerLoanRequestSubmit(
+                requestedAmount="5000.00",
+                requestedTermMonths=3,
+                requestedRepaymentStructure="interest_only",
+            )
 
     def test_arbitrary_repayment_structure_rejected(self) -> None:
         with self.assertRaises(ValidationError):
