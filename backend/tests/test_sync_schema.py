@@ -44,6 +44,12 @@ class SyncQueueItemSchemaTests(unittest.TestCase):
             with self.subTest(endpoint=endpoint):
                 self.assertEqual(self._item(endpoint, method).endpoint, endpoint)
 
+    def test_accepts_business_settings_offline_route(self) -> None:
+        """The business-settings PUT enqueued by the settings sheet must be accepted."""
+        item = self._item("/api/v1/business-settings", method="PUT")
+        self.assertEqual(item.endpoint, "/api/v1/business-settings")
+        self.assertEqual(item.method, "PUT")
+
     def test_rejects_unlisted_or_malformed_routes(self) -> None:
         for endpoint in (
             "/api/v1/users",

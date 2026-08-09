@@ -13,10 +13,15 @@ import 'package:borrower_mobile/features/loans/loan_request_modal.dart';
 // ---------------------------------------------------------------------------
 
 class _FakeApiClient implements ApiClient {
-  _FakeApiClient({required this.quoteResponse, this.shouldThrow = false});
+  _FakeApiClient({
+    required this.quoteResponse,
+    this.shouldThrow = false,
+    this.submitShouldThrow = false,
+  });
 
   final Map<String, dynamic> quoteResponse;
   final bool shouldThrow;
+  final bool submitShouldThrow;
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
@@ -26,7 +31,14 @@ class _FakeApiClient implements ApiClient {
         if (shouldThrow) throw const ApiError(message: 'Network error');
         return Future.value(quoteResponse);
       }
-      return Future.value(<String, dynamic>{});
+      if (path.contains('/loan-requests')) {
+        if (submitShouldThrow) {
+          throw const ApiError(
+            message: 'You already have a loan request awaiting review.',
+          );
+        }
+        return Future.value(<String, dynamic>{});
+      }
     }
     return super.noSuchMethod(invocation);
   }
@@ -77,11 +89,19 @@ final _availableResponse = <String, dynamic>{
   ],
 };
 
-Widget _buildModal({required Map<String, dynamic> quoteResponse, bool shouldThrow = false}) {
+Widget _buildModal({
+  required Map<String, dynamic> quoteResponse,
+  bool shouldThrow = false,
+  bool submitShouldThrow = false,
+}) {
   return ProviderScope(
     overrides: [
       apiClientProvider.overrideWithValue(
-        _FakeApiClient(quoteResponse: quoteResponse, shouldThrow: shouldThrow),
+        _FakeApiClient(
+          quoteResponse: quoteResponse,
+          shouldThrow: shouldThrow,
+          submitShouldThrow: submitShouldThrow,
+        ),
       ),
     ],
     child: const MaterialApp(
@@ -231,14 +251,15 @@ void main() {
       expect(find.text('Estimated Loan Preview'), findsNothing);
     });
 
-    testWidgets('14. Quote API error shows SnackBar, Submit still enabled', (tester) async {
+    testWidgets('14. Quote API error shows inline banner, Submit still enabled', (tester) async {
       await tester.pumpWidget(_buildModal(quoteResponse: _unavailableResponse, shouldThrow: true));
       await tester.enterText(find.byType(TextFormField).first, '10000');
       await tester.pump();
       await _tapButton(tester, find.text('Calculate Estimate'));
       await tester.pumpAndSettle();
 
-      expect(find.byType(SnackBar), findsOneWidget);
+      expect(find.text('Network error'), findsOneWidget);
+      expect(find.byType(SnackBar), findsNothing);
 
       final submitFinder = find.text('Submit Request');
       expect(submitFinder, findsOneWidget);
@@ -260,6 +281,68 @@ void main() {
         find.ancestor(of: submitFinder, matching: find.byType(FilledButton)),
       );
       expect(submitButton.onPressed, isNotNull);
+    });
+
+    testWidgets('16. Submit API error shows inline banner inside modal', (tester) async {
+      await tester.pumpWidget(
+        _buildModal(quoteResponse: _unavailableResponse, submitShouldThrow: true),
+      );
+
+      await tester.enterText(find.byType(TextFormField).first, '10000');
+      await tester.pump();
+      await _tapButton(tester, find.text('Submit Request'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('You already have a loan request awaiting review.'), findsOneWidget);
+      expect(find.byType(SnackBar), findsNothing);
+
+      final submitFinder = find.text('Submit Request');
+      expect(submitFinder, findsOneWidget);
+      final submitButton = tester.widget<FilledButton>(
+        find.ancestor(of: submitFinder, matching: find.byType(FilledButton)),
+      );
+      expect(submitButton.onPressed, isNotNull);
+    });
+
+    testWidgets('17. Submitting valid request closes modal with success', (tester) async {
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
+          apiClientProvider.overrideWithValue(
+            _FakeApiClient(quoteResponse: _unavailableResponse),
+          ),
+        ],
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) =>
+                          const Scaffold(body: LoanRequestModal()),
+                    ),
+                  ),
+                  child: const Text('open'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ));
+
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextFormField).first, '10000');
+      await tester.pump();
+      await _tapButton(tester, find.text('Submit Request'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SnackBar), findsOneWidget);
+      expect(
+        find.text('Loan request submitted successfully! Your lender will review it.'),
+        findsOneWidget,
+      );
     });
   });
 }

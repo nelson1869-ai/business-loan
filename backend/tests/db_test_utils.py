@@ -50,14 +50,20 @@ def get_verified_test_db_url() -> str:
 
 
 async def clean_db_tables(db) -> None:
-    """Safely truncate test database tables in strict foreign key order."""
-    from sqlalchemy import delete
+    """Safely truncate test database tables via TRUNCATE ... CASCADE.
+
+    Uses TRUNCATE instead of DELETE because row-level BEFORE DELETE triggers
+    on journal_entries/journal_lines (migration 023) reject deletion of posted
+    journals, while TRUNCATE bypasses row triggers.
+    """
+    from sqlalchemy import text
     from app.features.accounting.models import JournalEntry, JournalLine
     from app.features.admin_assistant.models import AuditLog
     from app.features.borrower_portal.models import (
         BorrowerAccount,
         BorrowerActivationCode,
         BorrowerDevice,
+        BorrowerLoanRequest,
         BorrowerNotification,
         BorrowerPinReset,
         BorrowerRefreshToken,
@@ -69,23 +75,28 @@ async def clean_db_tables(db) -> None:
     from app.features.payments.models import Payment, PaymentAllocation, PaymentReceipt
     from app.features.users.models import User
 
-    await db.execute(delete(JournalLine))
-    await db.execute(delete(JournalEntry))
-    await db.execute(delete(AuditLog))
-    await db.execute(delete(BorrowerNotification))
-    await db.execute(delete(PaymentReceipt))
-    await db.execute(delete(PaymentAllocation))
-    await db.execute(delete(Payment))
-    await db.execute(delete(Installment))
-    await db.execute(delete(Loan))
-    await db.execute(delete(BorrowerRegistrationAudit))
-    await db.execute(delete(BorrowerPinReset))
-    await db.execute(delete(BorrowerActivationCode))
-    await db.execute(delete(BorrowerRegistrationRequest))
-    await db.execute(delete(BorrowerRefreshToken))
-    await db.execute(delete(BorrowerDevice))
-    await db.execute(delete(BorrowerAccount))
-    await db.execute(delete(Borrower))
-    await db.execute(delete(User))
+    tables = [
+        JournalLine,
+        JournalEntry,
+        AuditLog,
+        BorrowerNotification,
+        PaymentReceipt,
+        PaymentAllocation,
+        Payment,
+        Installment,
+        Loan,
+        BorrowerRegistrationAudit,
+        BorrowerPinReset,
+        BorrowerActivationCode,
+        BorrowerRegistrationRequest,
+        BorrowerLoanRequest,
+        BorrowerRefreshToken,
+        BorrowerDevice,
+        BorrowerAccount,
+        Borrower,
+        User,
+    ]
+    names = ", ".join(f'"{t.__tablename__}"' for t in tables)
+    await db.execute(text(f"TRUNCATE {names} CASCADE"))
     await db.commit()
 

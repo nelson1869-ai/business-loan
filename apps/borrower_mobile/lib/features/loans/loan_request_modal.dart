@@ -29,6 +29,7 @@ class _LoanRequestModalState extends ConsumerState<LoanRequestModal> {
   int _termMonths = 1;
   String _paymentFrequency = 'monthly';
   bool _working = false;
+  String? _submitError;
 
   // ---- Quote / estimate state ----
   Map<String, dynamic>? _quoteResult;
@@ -43,11 +44,16 @@ class _LoanRequestModalState extends ConsumerState<LoanRequestModal> {
   }
 
   void _invalidateQuote() {
-    if (_quoteResult == null && !_quoteIsStale) return;
+    if (_quoteResult == null && !_quoteIsStale && _submitError == null) return;
     setState(() {
       _quoteResult = null;
       _quoteIsStale = true;
+      _submitError = null;
     });
+  }
+
+  void _setError(String text) {
+    setState(() => _submitError = text);
   }
 
   Future<void> _calculateEstimate() async {
@@ -55,13 +61,14 @@ class _LoanRequestModalState extends ConsumerState<LoanRequestModal> {
 
     final amountText = _amountCtrl.text.trim();
     if (amountText.isEmpty || double.tryParse(amountText) == null) {
-      _showMessage('Enter a valid requested amount before calculating an estimate.');
+      _setError('Enter a valid requested amount before calculating an estimate.');
       return;
     }
 
     setState(() {
       _quoteLoading = true;
       _quoteIsStale = false;
+      _submitError = null;
     });
 
     try {
@@ -80,10 +87,14 @@ class _LoanRequestModalState extends ConsumerState<LoanRequestModal> {
           _quoteIsStale = false;
         });
       }
-    } on DioException catch (e) {
-      if (mounted) _showMessage(ApiError.fromDioException(e).message);
-    } catch (_) {
-      if (mounted) _showMessage('Unable to calculate estimate. Please try again.');
+    } catch (e) {
+      if (mounted) {
+        _setError(e is ApiError
+            ? e.message
+            : (e is DioException
+                ? ApiError.fromDioException(e).message
+                : 'Unable to calculate estimate. Please try again.'));
+      }
     } finally {
       if (mounted) setState(() => _quoteLoading = false);
     }
@@ -91,7 +102,10 @@ class _LoanRequestModalState extends ConsumerState<LoanRequestModal> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() => _working = true);
+    setState(() {
+      _working = true;
+      _submitError = null;
+    });
 
     final api = ref.read(apiClientProvider);
     try {
@@ -114,17 +128,14 @@ class _LoanRequestModalState extends ConsumerState<LoanRequestModal> {
       );
     } catch (e) {
       if (mounted) {
-        setState(() => _working = false);
-        final String message = e is DioException
-            ? ApiError.fromDioException(e).message
-            : (e is ApiError ? e.message : 'Unable to submit your loan request. Please try again.');
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+        setState(() {
+          _working = false;
+          _submitError = e is DioException
+              ? ApiError.fromDioException(e).message
+              : (e is ApiError ? e.message : 'Unable to submit your loan request. Please try again.');
+        });
       }
     }
-  }
-
-  void _showMessage(String text) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 
   String _formatPercentage(String decimalStr) {
@@ -324,6 +335,30 @@ class _LoanRequestModalState extends ConsumerState<LoanRequestModal> {
             ),
           ),
           const SizedBox(height: 16),
+          if (_submitError != null) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.shade200),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.error_outline, color: Colors.red.shade700, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _submitError!,
+                      style: TextStyle(fontSize: 12, color: Colors.red.shade900),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           // Action Buttons
           Row(
             children: [

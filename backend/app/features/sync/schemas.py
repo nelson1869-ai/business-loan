@@ -25,7 +25,8 @@ class SyncQueueItem(BaseModel):
             r"|documents/[0-9a-fA-F-]{36}"
             r"|collection-tasks(?:/[0-9a-fA-F-]{36}"
             r"/(?:complete|promise-status)|/[0-9a-fA-F-]{36}/[0-9]+/complete)?"
-            r"|notifications/(?:read-all|[0-9a-fA-F-]{36}/read))$"
+            r"|notifications/(?:read-all|[0-9a-fA-F-]{36}/read)"
+            r"|business-settings)$"
         )
     )
     method: Literal["POST", "PUT", "PATCH", "DELETE"]

@@ -8,6 +8,7 @@ import '../../../core/network/api_error_mapper.dart';
 import '../data/borrower_repository.dart';
 import '../providers/borrowers_state.dart';
 import '../widgets/borrower_card.dart';
+import 'loan_request_review_page.dart';
 import 'registration_review_page.dart';
 
 class BorrowerListPage extends ConsumerStatefulWidget {
@@ -57,6 +58,15 @@ class _BorrowerListPageState extends ConsumerState<BorrowerListPage> {
               );
             },
             tooltip: 'Registration Applications',
+          ),
+          IconButton(
+            icon: const Icon(Icons.request_page_outlined),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const LoanRequestReviewPage()),
+              );
+            },
+            tooltip: 'Loan Requests',
           ),
           IconButton(
             icon: const Icon(Icons.person_add_alt_1),

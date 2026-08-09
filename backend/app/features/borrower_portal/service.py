@@ -15,6 +15,7 @@ from jwt.exceptions import PyJWTError
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.config import Settings, get_settings
 from app.core.phone_numbers import normalize_ph_phone_number
@@ -951,6 +952,22 @@ async def list_borrower_loan_requests(
         .where(BorrowerLoanRequest.borrower_id == current_account.borrower_id)
         .order_by(BorrowerLoanRequest.created_at.desc())
     )
+    res = await db.execute(stmt)
+    return list(res.scalars())
+
+
+async def list_all_loan_requests(
+    db: AsyncSession,
+    status_filter: str | None = None,
+) -> list[BorrowerLoanRequest]:
+    """Owner endpoint: list borrower loan requests across all borrowers."""
+    stmt = (
+        select(BorrowerLoanRequest)
+        .options(selectinload(BorrowerLoanRequest.borrower))
+        .order_by(BorrowerLoanRequest.created_at.desc())
+    )
+    if status_filter:
+        stmt = stmt.where(BorrowerLoanRequest.status == status_filter)
     res = await db.execute(stmt)
     return list(res.scalars())
 

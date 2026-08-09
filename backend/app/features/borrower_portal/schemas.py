@@ -237,6 +237,28 @@ class ReviewBorrowerLoanRequestPayload(BaseSchema):
     owner_notes: str | None = Field(None, alias="ownerNotes")
 
 
+class OwnerLoanRequestItemResponse(BaseSchema):
+    """Owner-facing borrower loan request item (name + masked phone)."""
+
+    id: str
+    borrower_id: str = Field(..., alias="borrowerId")
+    borrower_full_name: str = Field(..., alias="borrowerFullName")
+    borrower_phone_masked: str = Field(..., alias="borrowerPhoneMasked")
+    requested_amount: str = Field(..., alias="requestedAmount")
+    requested_term_months: int = Field(..., alias="requestedTermMonths")
+    requested_payment_frequency: RequestedPaymentFrequency = Field(
+        "monthly", alias="requestedPaymentFrequency"
+    )
+    requested_repayment_structure: RequestedRepaymentStructure = Field(
+        "principal_plus_interest", alias="requestedRepaymentStructure"
+    )
+    purpose: str | None = None
+    status: str
+    owner_notes: str | None = Field(None, alias="ownerNotes")
+    created_at: datetime = Field(..., alias="createdAt")
+    reviewed_at: datetime | None = Field(None, alias="reviewedAt")
+
+
 # ---------------------------------------------------------------------------
 # Borrower loan estimate / quote (read-only, no DB writes)
 # ---------------------------------------------------------------------------

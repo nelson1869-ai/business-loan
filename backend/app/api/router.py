@@ -34,6 +34,7 @@ def register_routers(application: FastAPI) -> None:
         borrowers.router,
         borrower_portal.client_router,
         borrower_portal.owner_router,
+        borrower_portal.owner_loan_requests_router,
         registration_router.public_router,
         registration_router.staff_router,
         business_settings.router,

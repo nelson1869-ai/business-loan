@@ -9,11 +9,13 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.authorization import require_owner
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser
+from app.core.masking import mask_phone
 from app.core.phone_numbers import normalize_ph_phone_number
 from app.core.rate_limiter import opaque_rate_limit_key
 from app.features.borrower_portal.dashboard_schemas import BorrowerDashboardResponse
@@ -29,7 +31,7 @@ from app.features.borrower_portal.loans_service import (
     get_borrower_loan_schedule,
     get_borrower_loans,
 )
-from app.features.borrower_portal.models import BorrowerDevice
+from app.features.borrower_portal.models import BorrowerDevice, BorrowerLoanRequest
 from app.features.borrower_portal.payments_schemas import (
     BorrowerPaymentHistoryResponse,
     BorrowerReceiptDetailResponse,
@@ -59,6 +61,7 @@ from app.features.borrower_portal.schemas import (
     ForgotPINRequest,
     IssueResetCodeResponse,
     OwnerApproveRegistrationResponse,
+    OwnerLoanRequestItemResponse,
     RefreshTokenRequest,
     ResetPINRequest,
     ReviewBorrowerLoanRequestPayload,
@@ -73,6 +76,7 @@ from app.features.borrower_portal.service import (
     get_borrower_profile,
     hash_secret,
     issue_pin_reset_code,
+    list_all_loan_requests,
     list_borrower_devices,
     list_borrower_loan_requests,
     login_borrower_with_pin,
@@ -809,3 +813,93 @@ async def borrower_loan_quote(
             for inst in result.installments
         ],
     )
+
+
+# ---------------------------------------------------------------------------
+# Owner loan request review
+# ---------------------------------------------------------------------------
+
+owner_loan_requests_router = APIRouter(
+    prefix="/api/v1", tags=["Borrower Loan Request Management"]
+)
+
+
+def _build_owner_loan_request_item(
+    req: Any,
+) -> "OwnerLoanRequestItemResponse":
+    borrower = req.borrower
+    full_name = (
+        f"{borrower.first_name} {borrower.last_name}"
+        if borrower is not None
+        else "Unknown borrower"
+    )
+    masked_phone = mask_phone(borrower.phone_normalized) if borrower is not None else "••••"
+    return OwnerLoanRequestItemResponse(
+        id=req.id,
+        borrower_id=req.borrower_id,
+        borrower_full_name=full_name,
+        borrower_phone_masked=masked_phone,
+        requested_amount=str(req.requested_amount),
+        requested_term_months=req.requested_term_months,
+        requested_payment_frequency=req.requested_payment_frequency,
+        requested_repayment_structure=req.requested_repayment_structure,
+        purpose=req.purpose,
+        status=req.status,
+        owner_notes=req.owner_notes,
+        created_at=req.created_at,
+        reviewed_at=req.reviewed_at,
+    )
+
+
+@owner_loan_requests_router.get(
+    "/borrower-loan-requests",
+    response_model=list[OwnerLoanRequestItemResponse],
+)
+async def list_owner_loan_requests(
+    db: DbSession,
+    current_user: CurrentUser,
+    status: Annotated[
+        str | None,
+        Query(pattern="^(submitted|pending|approved|declined)$"),
+    ] = None,
+) -> list[OwnerLoanRequestItemResponse]:
+    """Owner endpoint to list borrower loan requests across all borrowers."""
+    require_owner(current_user)
+    requests = await list_all_loan_requests(db, status_filter=status)
+    return [_build_owner_loan_request_item(req) for req in requests]
+
+
+@owner_loan_requests_router.post(
+    "/borrower-loan-requests/{request_id}/review",
+    response_model=OwnerLoanRequestItemResponse,
+)
+async def review_loan_request_endpoint(
+    request_id: str,
+    payload: ReviewBorrowerLoanRequestPayload,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> OwnerLoanRequestItemResponse:
+    """Owner endpoint to approve or decline a borrower loan request."""
+    require_owner(current_user)
+    try:
+        await review_borrower_loan_request(
+            db, request_id, payload.action, payload.owner_notes, current_user
+        )
+        await db.commit()
+    except ValueError as error:
+        await db.rollback()
+        detail_msg = str(error)
+        status_code = (
+            status.HTTP_404_NOT_FOUND
+            if "not found" in detail_msg.lower()
+            else status.HTTP_409_CONFLICT
+        )
+        raise HTTPException(status_code=status_code, detail=detail_msg) from error
+
+    res = await db.execute(
+        select(BorrowerLoanRequest)
+        .where(BorrowerLoanRequest.id == request_id)
+        .options(selectinload(BorrowerLoanRequest.borrower))
+    )
+    req = res.scalar_one_or_none()
+    return _build_owner_loan_request_item(req)
