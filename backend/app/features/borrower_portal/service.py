@@ -620,6 +620,30 @@ async def generate_new_activation_code(
     return activation, raw_code
 
 
+async def regenerate_borrower_activation_code(
+    db: AsyncSession,
+    account_id: str,
+    owner_user: User,
+) -> tuple[BorrowerAccount, BorrowerActivationCode, str]:
+    """Owner action to revoke the prior activation code and issue a fresh 6-digit code.
+
+    Activation codes can only be re-issued while the account is still awaiting
+    activation. Activated, suspended, or disabled accounts are rejected.
+    """
+    account = await db.get(BorrowerAccount, account_id)
+    if account is None:
+        raise ValueError("Borrower account not found")
+    if account.account_status in ("activated", "suspended", "disabled"):
+        raise ValueError(
+            "Activation codes can only be regenerated while app access is awaiting "
+            f"activation (current status: {account.account_status})."
+        )
+    activation, raw_code = await generate_new_activation_code(
+        db, account, owner_user
+    )
+    return account, activation, raw_code
+
+
 async def verify_activation_code_and_activate(
     db: AsyncSession,
     payload: BorrowerActivationRequest,

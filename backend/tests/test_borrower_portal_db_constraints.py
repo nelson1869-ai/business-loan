@@ -15,18 +15,19 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.features.borrower_portal.models import (
     BorrowerAccount,
     BorrowerDevice,
+    BorrowerNotification,
     BorrowerRefreshToken,
 )
 from app.features.borrower_portal.service import hash_secret
 from app.features.borrowers.models import Borrower
 from app.features.loans.models import Installment, Loan
-from app.features.payments.models import Payment
+from app.features.payments.models import Payment, PaymentAllocation, PaymentReceipt
 from app.features.users.models import User
-from tests.db_test_utils import get_verified_test_db_url
+from tests.db_test_utils import clean_db_tables, get_verified_test_db_url
 
 
 class TestBorrowerPortalDatabaseConstraints(unittest.IsolatedAsyncioTestCase):
-    """Direct database schema constraint verification tests."""
+    """Verifies relational integrity, CASCADE, and UNIQUE constraints at PostgreSQL level."""
 
     async def asyncSetUp(self) -> None:
         db_url = get_verified_test_db_url()
@@ -37,17 +38,11 @@ class TestBorrowerPortalDatabaseConstraints(unittest.IsolatedAsyncioTestCase):
         )
 
         async with self.session_factory() as db:
-            await db.execute(delete(Payment))
-            await db.execute(delete(Installment))
-            await db.execute(delete(Loan))
-            await db.execute(delete(BorrowerRefreshToken))
-            await db.execute(delete(BorrowerDevice))
-            await db.execute(delete(BorrowerAccount))
-            await db.execute(delete(Borrower))
-            await db.execute(delete(User))
-            await db.commit()
+            await clean_db_tables(db)
 
     async def asyncTearDown(self) -> None:
+        async with self.session_factory() as db:
+            await clean_db_tables(db)
         await self.engine.dispose()
 
     async def test_one_borrower_account_per_borrower_constraint(self) -> None:

@@ -84,7 +84,14 @@ class _BorrowerAppAccessCardState
       ref.invalidate(borrowerAppAccessStatusProvider(widget.borrower.id));
 
       if (mounted) {
-        _showOneTimeCodeDialog(code, expires);
+        _showOneTimeCodeDialog(
+          code,
+          expires,
+          title: 'Borrower App Activation Code',
+          subtitle:
+              'Give this 6-digit code to the borrower. Generating a new code '
+              'automatically revokes previous codes.',
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -114,7 +121,51 @@ class _BorrowerAppAccessCardState
       ref.invalidate(borrowerAppAccessStatusProvider(widget.borrower.id));
 
       if (mounted) {
-        _showOneTimeCodeDialog(code, expires);
+        _showOneTimeCodeDialog(
+          code,
+          expires,
+          title: 'Borrower PIN Reset Code',
+          subtitle:
+              'Give this 6-digit code to the borrower. It can only be used '
+              'to reset their PIN in the Borrower App.',
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(ApiErrorMapper.message(e)),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  Future<void> _regenerateActivationCode(String accountId) async {
+    setState(() => _working = true);
+    try {
+      final dio = ref.read(apiClientProvider);
+      final response = await dio.post<Map<String, dynamic>>(
+        '/api/v1/borrowers/accounts/$accountId/activation-code',
+      );
+      final data = response.data ?? {};
+      final code = data['activationCode'] as String? ?? '';
+      final expires = data['expiresAt'] as String? ?? '';
+
+      ref.invalidate(borrowerAppAccessStatusProvider(widget.borrower.id));
+
+      if (mounted) {
+        _showOneTimeCodeDialog(
+          code,
+          expires,
+          title: 'Borrower App Activation Code',
+          subtitle:
+              'Give this 6-digit code to the borrower. Generating a new code '
+              'automatically revokes previous codes.',
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -159,18 +210,23 @@ class _BorrowerAppAccessCardState
     }
   }
 
-  void _showOneTimeCodeDialog(String code, String expiresAt) {
+  void _showOneTimeCodeDialog(
+    String code,
+    String expiresAt, {
+    required String title,
+    required String subtitle,
+  }) {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         title: Row(
-          children: const [
-            Icon(Icons.vpn_key, color: Color(0xFF0D9488)),
-            SizedBox(width: 8),
+          children: [
+            const Icon(Icons.vpn_key, color: Color(0xFF0D9488)),
+            const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Borrower App Activation Code',
+                title,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -180,9 +236,9 @@ class _BorrowerAppAccessCardState
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'Give this 6-digit code to the borrower. Generating a new code automatically revokes previous codes.',
-              style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+            Text(
+              subtitle,
+              style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
             ),
             const SizedBox(height: 16),
             Container(
@@ -383,7 +439,7 @@ class _BorrowerAppAccessCardState
                   label: const Text('Generate New Code'),
                   onPressed: _working || status.accountId == null
                       ? null
-                      : () => _regenerateCode(status.accountId!),
+                      : () => _regenerateActivationCode(status.accountId!),
                 ),
               ),
               const SizedBox(width: 8),

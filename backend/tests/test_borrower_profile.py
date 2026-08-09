@@ -18,7 +18,7 @@ from app.features.borrower_portal.service import create_borrower_access_token
 from app.features.borrowers.models import Borrower
 from app.features.users.models import User
 from app.main import app
-from tests.db_test_utils import get_verified_test_db_url
+from tests.db_test_utils import clean_db_tables, get_verified_test_db_url
 
 
 class TestBorrowerProfileApi(unittest.IsolatedAsyncioTestCase):
@@ -32,12 +32,7 @@ class TestBorrowerProfileApi(unittest.IsolatedAsyncioTestCase):
         )
 
         async with self.session_factory() as db:
-            await db.execute(delete(BorrowerRefreshToken))
-            await db.execute(delete(BorrowerDevice))
-            await db.execute(delete(BorrowerAccount))
-            await db.execute(delete(Borrower))
-            await db.execute(delete(User))
-            await db.commit()
+            await clean_db_tables(db)
 
         async def _override_get_db():
             async with self.session_factory() as session:
@@ -48,12 +43,7 @@ class TestBorrowerProfileApi(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self) -> None:
         app.dependency_overrides.pop(get_db, None)
         async with self.session_factory() as db:
-            await db.execute(delete(BorrowerRefreshToken))
-            await db.execute(delete(BorrowerDevice))
-            await db.execute(delete(BorrowerAccount))
-            await db.execute(delete(Borrower))
-            await db.execute(delete(User))
-            await db.commit()
+            await clean_db_tables(db)
         await self.engine.dispose()
 
     async def test_borrower_get_profile_success(self) -> None:

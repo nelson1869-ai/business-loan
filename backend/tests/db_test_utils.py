@@ -47,3 +47,45 @@ def get_verified_test_db_url() -> str:
         )
 
     return raw_url
+
+
+async def clean_db_tables(db) -> None:
+    """Safely truncate test database tables in strict foreign key order."""
+    from sqlalchemy import delete
+    from app.features.accounting.models import JournalEntry, JournalLine
+    from app.features.admin_assistant.models import AuditLog
+    from app.features.borrower_portal.models import (
+        BorrowerAccount,
+        BorrowerActivationCode,
+        BorrowerDevice,
+        BorrowerNotification,
+        BorrowerPinReset,
+        BorrowerRefreshToken,
+        BorrowerRegistrationAudit,
+        BorrowerRegistrationRequest,
+    )
+    from app.features.borrowers.models import Borrower
+    from app.features.loans.models import Installment, Loan
+    from app.features.payments.models import Payment, PaymentAllocation, PaymentReceipt
+    from app.features.users.models import User
+
+    await db.execute(delete(JournalLine))
+    await db.execute(delete(JournalEntry))
+    await db.execute(delete(AuditLog))
+    await db.execute(delete(BorrowerNotification))
+    await db.execute(delete(PaymentReceipt))
+    await db.execute(delete(PaymentAllocation))
+    await db.execute(delete(Payment))
+    await db.execute(delete(Installment))
+    await db.execute(delete(Loan))
+    await db.execute(delete(BorrowerRegistrationAudit))
+    await db.execute(delete(BorrowerPinReset))
+    await db.execute(delete(BorrowerActivationCode))
+    await db.execute(delete(BorrowerRegistrationRequest))
+    await db.execute(delete(BorrowerRefreshToken))
+    await db.execute(delete(BorrowerDevice))
+    await db.execute(delete(BorrowerAccount))
+    await db.execute(delete(Borrower))
+    await db.execute(delete(User))
+    await db.commit()
+

@@ -20,13 +20,13 @@ UserRole = Literal[
 ]
 
 
-AssignableRole = Literal["admin", "officer"]
+AssignableRole = Literal["owner"]
 
 
 class UserCreate(BaseModel):
     username: str = Field(min_length=3, max_length=100, pattern=r"^[A-Za-z0-9._-]+$")
     password: str = Field(min_length=12, max_length=72)
-    role: AssignableRole = "officer"
+    role: AssignableRole = "owner"
 
 
 class UserRoleUpdate(BaseModel):

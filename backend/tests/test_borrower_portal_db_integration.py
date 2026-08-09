@@ -19,6 +19,7 @@ from app.features.borrower_portal.models import (
     BorrowerAccount,
     BorrowerActivationCode,
     BorrowerDevice,
+    BorrowerNotification,
     BorrowerPinReset,
     BorrowerRefreshToken,
     BorrowerRegistrationAudit,
@@ -27,10 +28,10 @@ from app.features.borrower_portal.models import (
 from app.features.borrower_portal.service import hash_secret
 from app.features.borrowers.models import Borrower
 from app.features.loans.models import Installment, Loan
-from app.features.payments.models import Payment
+from app.features.payments.models import Payment, PaymentAllocation, PaymentReceipt
 from app.features.users.models import User
 from app.main import app
-from tests.db_test_utils import get_verified_test_db_url
+from tests.db_test_utils import clean_db_tables, get_verified_test_db_url
 
 
 class TestBorrowerPortalRealDatabaseIntegration(unittest.IsolatedAsyncioTestCase):
@@ -58,19 +59,7 @@ class TestBorrowerPortalRealDatabaseIntegration(unittest.IsolatedAsyncioTestCase
 
         # Truncate tables for a clean test run
         async with self.session_factory() as db:
-            await db.execute(delete(Payment))
-            await db.execute(delete(Installment))
-            await db.execute(delete(Loan))
-            await db.execute(delete(BorrowerRegistrationAudit))
-            await db.execute(delete(BorrowerPinReset))
-            await db.execute(delete(BorrowerActivationCode))
-            await db.execute(delete(BorrowerRegistrationRequest))
-            await db.execute(delete(BorrowerRefreshToken))
-            await db.execute(delete(BorrowerDevice))
-            await db.execute(delete(BorrowerAccount))
-            await db.execute(delete(Borrower))
-            await db.execute(delete(User))
-            await db.commit()
+            await clean_db_tables(db)
 
         async def _override_get_db():
             async with self.session_factory() as session:

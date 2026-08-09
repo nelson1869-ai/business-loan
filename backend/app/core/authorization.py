@@ -33,47 +33,7 @@ PERMISSIONS = frozenset(
 )
 
 ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
-    "admin": PERMISSIONS,
     "owner": PERMISSIONS,
-    "manager": PERMISSIONS - {"user.manage", "borrower_account.manage"},
-    "officer": frozenset(
-        {
-            "borrower.create",
-            "borrower.update",
-            "loan.create",
-            "payment.collect",
-            "receipt.reprint",
-            "reconciliation.submit",
-            "report.view",
-        }
-    ),
-    "loan_officer": frozenset(
-        {
-            "borrower.create",
-            "borrower.update",
-            "loan.create",
-            "payment.collect",
-            "receipt.reprint",
-            "report.view",
-        }
-    ),
-    "collector": frozenset(
-        {"payment.collect", "receipt.reprint", "reconciliation.submit"}
-    ),
-    "cashier": frozenset(
-        {
-            "payment.collect",
-            "receipt.reprint",
-            "reconciliation.submit",
-            "reconciliation.approve",
-            "accounting.view",
-            "report.view",
-        }
-    ),
-    "auditor": frozenset(
-        {"accounting.view", "report.view", "report.export", "audit.view"}
-    ),
-    "read_only_support": frozenset({"report.view"}),
 }
 
 
@@ -99,10 +59,11 @@ def require_any_permission(user: object, permissions: Iterable[str]) -> None:
 
 
 def require_owner(user: object) -> None:
-    """Enforce that the authenticated user possesses the owner or admin role."""
+    """Enforce that the authenticated user possesses the owner role."""
     role = str(getattr(user, "role", "")).lower()
-    if role not in {"owner", "admin"}:
+    if role != "owner":
         raise HTTPException(
             status_code=403, detail="Owner authorization required"
         )
+
 

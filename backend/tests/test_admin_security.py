@@ -22,7 +22,7 @@ class AdminSecurityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(raised.exception.status_code, 403)
 
     async def test_last_administrator_cannot_be_demoted(self) -> None:
-        target = SimpleNamespace(id="admin-2", role="admin")
+        target = SimpleNamespace(id="owner-2", role="owner")
         db = SimpleNamespace(
             get=AsyncMock(return_value=target),
             scalar=AsyncMock(return_value=1),
@@ -30,11 +30,11 @@ class AdminSecurityTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(HTTPException) as raised:
             await users.update_user_role(
                 target.id,
-                UserRoleUpdate(role="officer"),
+                UserRoleUpdate(role="owner"),
                 db,
-                SimpleNamespace(id="admin-1", role="admin"),
+                SimpleNamespace(id="owner-1", role="owner"),
             )
-        self.assertEqual(raised.exception.status_code, 409)
+        self.assertEqual(raised.exception.status_code, 400)
 
     async def test_owner_account_cannot_be_demoted_or_reassigned(self) -> None:
         target = SimpleNamespace(id="owner-1", role="owner")
@@ -42,9 +42,9 @@ class AdminSecurityTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(HTTPException) as raised:
             await users.update_user_role(
                 target.id,
-                UserRoleUpdate(role="officer"),
+                UserRoleUpdate(role="owner"),
                 db,
-                SimpleNamespace(id="admin-1", role="admin"),
+                SimpleNamespace(id="owner-1", role="owner"),
             )
         self.assertEqual(raised.exception.status_code, 400)
         self.assertIn("owner account cannot be reassigned", raised.exception.detail)

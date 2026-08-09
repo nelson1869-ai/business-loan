@@ -45,7 +45,7 @@ class TestOwnerLoanApprovalWorkflow(unittest.IsolatedAsyncioTestCase):
             id=self.owner_id,
             username=f"owner_{self.owner_id[:8]}",
             hashed_password="hashed_password",
-            role="admin",
+            role="owner",
         )
         # Seed Borrower
         self.borrower = Borrower(

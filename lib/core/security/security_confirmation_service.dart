@@ -66,8 +66,8 @@ class SecurityConfirmationService {
     return enteredPin.trim() == storedPin.trim();
   }
 
-  /// Prompt owner for Admin confirmation using Biometrics or PIN fallback
-  Future<bool> promptAdminConfirmation(
+  /// Prompt owner for confirmation using Biometrics or PIN fallback
+  Future<bool> promptOwnerConfirmation(
     BuildContext context, {
     required String title,
     required String description,
@@ -95,6 +95,20 @@ class SecurityConfirmationService {
 
     return pinVerified ?? false;
   }
+
+  /// Alias for backward compatibility
+  Future<bool> promptAdminConfirmation(
+    BuildContext context, {
+    required String title,
+    required String description,
+    String confirmLabel = 'Confirm Action',
+  }) =>
+      promptOwnerConfirmation(
+        context,
+        title: title,
+        description: description,
+        confirmLabel: confirmLabel,
+      );
 }
 
 class _AdminPinConfirmationDialog extends StatefulWidget {

@@ -45,7 +45,7 @@ def main() -> None:
         description="Create a Lending Nelson API user or reset a password"
     )
     parser.add_argument("username")
-    parser.add_argument("--role", choices=["officer", "admin"], default="officer")
+    parser.add_argument("--role", choices=["owner"], default="owner")
     parser.add_argument(
         "--reset-password",
         action="store_true",

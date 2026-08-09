@@ -23,6 +23,7 @@ from app.features.borrower_portal.service import (
     generate_new_activation_code,
     get_borrower_app_access_status,
     hash_secret,
+    regenerate_borrower_activation_code,
     verify_activation_code_and_activate,
 )
 from app.features.borrowers.models import Borrower
@@ -223,6 +224,61 @@ async def test_code_regeneration_invalidates_previous_code(
     assert code_b_obj.borrower_account_id == acct.id
     # db.execute was called to revoke prior unused codes
     assert db.execute.call_count >= 2
+
+
+@pytest.mark.asyncio
+async def test_regenerate_activation_code_success(
+    owner_user: User, existing_borrower: Borrower
+) -> None:
+    """Owner regenerating an activation code issues a redeemable 6-digit code."""
+    db = AsyncMock()
+    db.flush = AsyncMock()
+    acct = BorrowerAccount(
+        id="acct-100",
+        borrower_id=existing_borrower.id,
+        phone_number="09171234567",
+        phone_number_normalized="09171234567",
+        account_status="approved",
+    )
+    db.get = AsyncMock(return_value=acct)
+    db.execute.return_value = MagicMock()
+
+    account, activation, raw_code = await regenerate_borrower_activation_code(
+        db, acct.id, owner_user
+    )
+
+    assert account is acct
+    assert len(raw_code) == 6
+    assert raw_code.isdigit()
+    assert activation.borrower_account_id == acct.id
+    assert activation.used_at is None
+    assert account.account_status == "approved"
+
+
+@pytest.mark.asyncio
+async def test_regenerate_activation_code_rejects_activated_account(
+    owner_user: User,
+) -> None:
+    """An activated account can no longer receive a fresh activation code."""
+    db = AsyncMock()
+    acct = BorrowerAccount(
+        id="acct-activated",
+        borrower_id="bor-100",
+        account_status="activated",
+    )
+    db.get = AsyncMock(return_value=acct)
+
+    with pytest.raises(ValueError, match="awaiting activation"):
+        await regenerate_borrower_activation_code(db, acct.id, owner_user)
+
+
+@pytest.mark.asyncio
+async def test_regenerate_activation_code_not_found(owner_user: User) -> None:
+    db = AsyncMock()
+    db.get = AsyncMock(return_value=None)
+
+    with pytest.raises(ValueError, match="Borrower account not found"):
+        await regenerate_borrower_activation_code(db, "acct-missing", owner_user)
 
 
 @pytest.mark.asyncio
@@ -449,7 +505,73 @@ async def test_owner_endpoint_enable_access_requires_owner(
     app.dependency_overrides.clear()
 
 
-def test_no_duplicate_registration_routes() -> None:
+@pytest.mark.asyncio
+async def test_regenerate_activation_code_endpoint_requires_owner(
+    owner_user: User, officer_user: User
+) -> None:
+    async def mock_endpoint_db():
+        session = AsyncMock()
+        session.get = AsyncMock(return_value=None)
+        yield session
+
+    app.dependency_overrides[get_db] = mock_endpoint_db
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://testserver"
+    ) as client:
+        # Officer -> 403 Forbidden
+        app.dependency_overrides[get_current_user] = lambda: officer_user
+        resp_officer = await client.post(
+            "/api/v1/borrowers/accounts/acct-100/activation-code"
+        )
+        assert resp_officer.status_code == 403
+
+        # Owner -> 404 for a non-existent account
+        app.dependency_overrides[get_current_user] = lambda: owner_user
+        resp_owner = await client.post(
+            "/api/v1/borrowers/accounts/acct-missing/activation-code"
+        )
+        assert resp_owner.status_code == 404
+
+    app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_regenerate_activation_code_endpoint_returns_code_once(
+    owner_user: User, existing_borrower: Borrower
+) -> None:
+    """Owner receives a single-use raw code via the dedicated activation-code endpoint."""
+    acct = BorrowerAccount(
+        id="acct-100",
+        borrower_id=existing_borrower.id,
+        phone_number="09171234567",
+        phone_number_normalized="09171234567",
+        account_status="approved",
+    )
+
+    async def mock_endpoint_db():
+        session = AsyncMock()
+        session.get = AsyncMock(return_value=acct)
+        session.add = MagicMock()
+        session.flush = AsyncMock()
+        session.execute.return_value = MagicMock()
+        yield session
+
+    app.dependency_overrides[get_db] = mock_endpoint_db
+    app.dependency_overrides[get_current_user] = lambda: owner_user
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://testserver"
+    ) as client:
+        resp = await client.post(
+            "/api/v1/borrowers/accounts/acct-100/activation-code"
+        )
+        assert resp.status_code == 201
+        body = resp.json()
+        assert len(body["activationCode"]) == 6
+        assert body["activationCode"].isdigit()
+        assert body["borrowerAccountId"] == "acct-100"
+        assert body["accountStatus"] == "approved"
+
+    app.dependency_overrides.clear()
     """Requirement 17: Inspect FastAPI routes to ensure exactly ONE POST /api/v1/client/auth/register route exists."""
     all_routes: list[tuple[str, set[str]]] = []
     for route in app.routes:

@@ -21,12 +21,16 @@ class AuthorizationMatrixTests(unittest.TestCase):
             )
         self.assertEqual(raised.exception.status_code, 403)
 
-    def test_auditor_can_view_but_cannot_post_accounting(self) -> None:
-        require_permission(SimpleNamespace(role="auditor"), "accounting.view")
-        with self.assertRaises(Exception):
+    def test_auditor_cannot_view_or_post_accounting(self) -> None:
+        with self.assertRaises(Exception) as raised1:
+            require_permission(SimpleNamespace(role="auditor"), "accounting.view")
+        self.assertEqual(raised1.exception.status_code, 403)
+
+        with self.assertRaises(Exception) as raised2:
             require_permission(
                 SimpleNamespace(role="auditor"), "accounting.post_adjustment"
             )
+        self.assertEqual(raised2.exception.status_code, 403)
 
     def test_unknown_role_has_no_permissions(self) -> None:
         self.assertEqual(permissions_for("unexpected"), frozenset())

@@ -51,7 +51,7 @@ class CollectionSessionControlTests(unittest.IsolatedAsyncioTestCase):
                 "session-1",
                 CollectionSessionSubmit(actual_cash=Decimal("349.00")),
                 db,
-                SimpleNamespace(id="collector-1", role="officer"),
+                SimpleNamespace(id="collector-1", role="owner"),
             )
         self.assertEqual(raised.exception.status_code, 422)
         db.commit.assert_not_called()
@@ -64,7 +64,7 @@ class CollectionSessionControlTests(unittest.IsolatedAsyncioTestCase):
                 "session-1",
                 CollectionSessionDecision(reason="Counts checked"),
                 db,
-                SimpleNamespace(id="collector-1", role="admin"),
+                SimpleNamespace(id="collector-1", role="owner"),
             )
         self.assertEqual(raised.exception.status_code, 403)
 
@@ -78,7 +78,7 @@ class CollectionSessionControlTests(unittest.IsolatedAsyncioTestCase):
             "session-1",
             CollectionSessionDecision(reason="Cash count verified"),
             db,
-            SimpleNamespace(id="manager-1", role="admin"),
+            SimpleNamespace(id="manager-1", role="owner"),
         )
         self.assertEqual(session.status, "reviewed")
         self.assertEqual(session.reviewer_user_id, "manager-1")

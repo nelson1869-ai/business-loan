@@ -125,7 +125,7 @@ class TrialBalanceTests(unittest.IsolatedAsyncioTestCase):
         response = await trial_balance(
             as_of=cutoff,
             db=db,
-            current_user=SimpleNamespace(role="admin"),
+            current_user=SimpleNamespace(role="owner"),
             currency="php",
         )
 

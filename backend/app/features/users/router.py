@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
-from app.core.authorization import require_permission
+from app.core.authorization import require_owner, require_permission
 from app.core.dependencies import CurrentUser, DbSession
 from app.features.admin_assistant.models import AuditLog
 from app.features.auth.service import hash_password
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/v1/users", tags=["Users"])
 
 
 def _require_admin(current_user: CurrentUser) -> None:
-    require_permission(current_user, "user.manage")
+    require_owner(current_user)
 
 
 def _audit(db: DbSession, user_id: str, action: str, target_id: str) -> None:

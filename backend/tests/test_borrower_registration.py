@@ -121,14 +121,14 @@ class TestRegistrationSecurityHelpers(unittest.TestCase):
                 SimpleNamespace(role="officer"), "borrower_registration.review"
             )
         )
-        self.assertTrue(
+        self.assertFalse(
             has_permission(
                 SimpleNamespace(role="manager"), "borrower_registration.review"
             )
         )
         self.assertTrue(
             has_permission(
-                SimpleNamespace(role="admin"), "borrower_registration.review"
+                SimpleNamespace(role="owner"), "borrower_registration.review"
             )
         )
 

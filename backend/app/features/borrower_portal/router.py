@@ -78,6 +78,7 @@ from app.features.borrower_portal.service import (
     login_borrower_with_pin,
     owner_trust_borrower_device,
     redeem_pin_reset_code,
+    regenerate_borrower_activation_code,
     request_pin_reset,
     review_borrower_loan_request,
     revoke_borrower_device,
@@ -548,6 +549,47 @@ async def issue_reset_code_endpoint(
         account_id=reset_rec.borrower_account_id,
         reset_code=raw_code,
         expires_at=reset_rec.expires_at,
+    )
+
+
+@owner_router.post(
+    "/accounts/{account_id}/activation-code",
+    response_model=EnableAppAccessResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def regenerate_activation_code_endpoint(
+    account_id: str,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> EnableAppAccessResponse:
+    """Owner endpoint to revoke the prior activation code and issue a fresh 6-digit code.
+
+    This is distinct from ``/reset-code``, which issues a PIN reset code that
+    cannot be redeemed through borrower account activation.
+    """
+    require_owner(current_user)
+    try:
+        account, activation, raw_code = await regenerate_borrower_activation_code(
+            db, account_id, current_user
+        )
+        await db.commit()
+    except ValueError as error:
+        await db.rollback()
+        detail_msg = str(error)
+        status_code = (
+            status.HTTP_404_NOT_FOUND
+            if "not found" in detail_msg.lower()
+            else status.HTTP_409_CONFLICT
+        )
+        raise HTTPException(
+            status_code=status_code, detail=detail_msg
+        ) from error
+    return EnableAppAccessResponse(
+        borrower_id=activation.borrower_id,
+        borrower_account_id=activation.borrower_account_id,
+        account_status=account.account_status,
+        activation_code=raw_code,
+        expires_at=activation.expires_at,
     )
 
 
