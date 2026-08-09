@@ -5,6 +5,7 @@ import hmac
 import json
 import logging
 import secrets
+from calendar import monthrange
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from uuid import uuid4
@@ -257,8 +258,17 @@ from app.features.borrower_portal.schemas import (
     BorrowerRegistrationSubmitRequest,
     OwnerApproveRegistrationResponse,
 )
+from app.features.business_settings.models import BusinessSetting
 from app.features.loans.models import Loan
+from app.features.loans.schemas import LoanCreate
+from app.features.loans.service import create_loan as create_loan_account
 from decimal import Decimal
+
+_SETTINGS_ID = "default"
+_FREQUENCY_TO_PAYMENTS: dict[str, int] = {
+    "monthly": 1,
+    "twice_a_month": 2,
+}
 
 
 async def submit_borrower_registration(
@@ -979,7 +989,13 @@ async def review_borrower_loan_request(
     owner_notes: str | None,
     owner_user: User,
 ) -> BorrowerLoanRequest:
-    """Owner endpoint to approve or decline a borrower loan request."""
+    """Owner endpoint to approve or decline a borrower loan request.
+
+    Approving an approved loan request also creates a Draft loan pre-filled
+    from the requested terms and links it via created_draft_loan_id. The draft
+    still requires the normal owner Approve -> Disburse -> Activate workflow
+    before it becomes an active loan.
+    """
     now = datetime.now(UTC)
     res = await db.execute(
         select(BorrowerLoanRequest).where(BorrowerLoanRequest.id == request_id)
@@ -990,6 +1006,10 @@ async def review_borrower_loan_request(
 
     if action == "approve":
         req.status = "approved"
+        if req.created_draft_loan_id is None:
+            req.created_draft_loan_id = await _create_draft_from_loan_request(
+                db, req, owner_user
+            )
     elif action == "decline":
         req.status = "declined"
     else:
@@ -1020,6 +1040,61 @@ async def review_borrower_loan_request(
 
     await db.flush()
     return req
+
+
+def _provisional_draft_first_due_date(payments_per_month: int) -> date:
+    """Return a first due date using canonical semi-monthly slots.
+
+    Uses tomorrow as the anchor. For twice-a-month, advances to the nearest
+    15th or month-end that is >= tomorrow.
+    """
+    anchor = date.today() + timedelta(days=1)
+    if payments_per_month == 1:
+        return anchor
+    last_day = monthrange(anchor.year, anchor.month)[1]
+    candidate_15 = date(anchor.year, anchor.month, 15)
+    candidate_last = date(anchor.year, anchor.month, last_day)
+    if anchor <= candidate_15:
+        return candidate_15
+    if anchor <= candidate_last:
+        return candidate_last
+    next_month = anchor.month % 12 + 1
+    next_year = anchor.year + (1 if anchor.month == 12 else 0)
+    return date(next_year, next_month, 15)
+
+
+async def _create_draft_from_loan_request(
+    db: AsyncSession,
+    req: BorrowerLoanRequest,
+    owner_user: User,
+) -> str:
+    """Create a Draft loan pre-filled from an approved loan request.
+
+    The monthly rate is read from BusinessSetting.default_monthly_estimate_rate
+    (the same rate the borrower saw in the quote). Returns the draft loan id.
+    """
+    settings = await db.get(BusinessSetting, _SETTINGS_ID)
+    rate = (
+        settings.default_monthly_estimate_rate
+        if settings is not None
+        and settings.default_monthly_estimate_rate is not None
+        else Decimal("0.10")
+    )
+    payments_per_month = _FREQUENCY_TO_PAYMENTS.get(
+        req.requested_payment_frequency, 1
+    )
+    payload = LoanCreate(
+        borrower_id=req.borrower_id,
+        original_principal=req.requested_amount,
+        monthly_rate=rate,
+        term_months=req.requested_term_months,
+        payments_per_month=payments_per_month,
+        start_date=date.today(),
+        first_due_date=_provisional_draft_first_due_date(payments_per_month),
+        repayment_structure=req.requested_repayment_structure,
+    )
+    loan = await create_loan_account(db, payload, owner_user, initial_status="Draft")
+    return loan.id
 
 
 async def confirm_borrower_pin(

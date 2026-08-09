@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_mapper.dart';
+import '../../../core/security/officer_session.dart';
 import '../data/borrower_repository.dart';
 import '../providers/borrowers_state.dart';
 import '../widgets/borrower_card.dart';
@@ -45,29 +46,33 @@ class _BorrowerListPageState extends ConsumerState<BorrowerListPage> {
   @override
   Widget build(BuildContext context) {
     final borrowersAsync = ref.watch(borrowersNotifierProvider);
+    final session = ref.watch(ownerSessionProvider).valueOrNull;
+    final isOwner = session?.role == 'owner' || session?.role == 'admin';
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Borrowers'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.how_to_reg_outlined),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(builder: (_) => const RegistrationReviewPage()),
-              );
-            },
-            tooltip: 'Registration Applications',
-          ),
-          IconButton(
-            icon: const Icon(Icons.request_page_outlined),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(builder: (_) => const LoanRequestReviewPage()),
-              );
-            },
-            tooltip: 'Loan Requests',
-          ),
+          if (isOwner)
+            IconButton(
+              icon: const Icon(Icons.how_to_reg_outlined),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const RegistrationReviewPage()),
+                );
+              },
+              tooltip: 'Registration Applications',
+            ),
+          if (isOwner)
+            IconButton(
+              icon: const Icon(Icons.request_page_outlined),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const LoanRequestReviewPage()),
+                );
+              },
+              tooltip: 'Loan Requests',
+            ),
           IconButton(
             icon: const Icon(Icons.person_add_alt_1),
             onPressed: () {

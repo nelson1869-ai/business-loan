@@ -2,6 +2,7 @@
 
 import unittest
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete, select
@@ -11,6 +12,7 @@ from app.core.database import get_db
 from app.features.auth.service import create_token
 from app.features.borrower_portal.models import BorrowerLoanRequest
 from app.features.borrowers.models import Borrower
+from app.features.loans.models import Loan
 from app.features.users.models import User
 from app.main import app
 from tests.db_test_utils import clean_db_tables, get_verified_test_db_url
@@ -57,7 +59,7 @@ class TestOwnerLoanRequestReview(unittest.IsolatedAsyncioTestCase):
             db.add_all([owner, officer])
 
             borrower = Borrower(
-                id="bor-lr-001",
+                id="b0a0a0a0-0000-4000-8000-000000000001",
                 first_name="Lorna",
                 last_name="Reyes",
                 national_id="PH-99887766",
@@ -70,7 +72,7 @@ class TestOwnerLoanRequestReview(unittest.IsolatedAsyncioTestCase):
             await db.flush()
 
             request = BorrowerLoanRequest(
-                id="blr-001",
+                id="c0a0a0a0-0000-4000-8000-000000000001",
                 borrower_id=borrower.id,
                 requested_amount="25000.00",
                 requested_term_months=6,
@@ -160,12 +162,48 @@ class TestOwnerLoanRequestReview(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(data["status"], "approved")
             self.assertEqual(data["ownerNotes"], "Approved by owner")
             self.assertIsNotNone(data["reviewedAt"])
+            self.assertIsNotNone(data["createdDraftLoanId"])
 
         async with self.session_factory() as db:
             row = await db.get(BorrowerLoanRequest, request.id)
             self.assertEqual(row.status, "approved")
+            draft = await db.get(Loan, row.created_draft_loan_id)
+            self.assertIsNotNone(draft)
+            self.assertEqual(draft.status, "Draft")
+            self.assertEqual(draft.borrower_id, row.borrower_id)
+            self.assertEqual(draft.original_principal, Decimal("25000.00"))
+            self.assertEqual(draft.term_months, 6)
+            self.assertEqual(draft.payments_per_month, 1)
+            self.assertEqual(draft.repayment_structure, "principal_plus_interest")
 
-    async def test_owner_declines_loan_request(self) -> None:
+    async def test_owner_approves_twice_creates_single_draft(self) -> None:
+        owner, _, _, request = await self._seed()
+        token = create_token(owner, "access")
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            for _ in range(2):
+                resp = await client.post(
+                    f"/api/v1/borrower-loan-requests/{request.id}/review",
+                    headers={"Authorization": f"Bearer {token}"},
+                    json={"action": "approve"},
+                )
+                self.assertEqual(resp.status_code, 200, resp.text)
+
+        async with self.session_factory() as db:
+            row = await db.get(BorrowerLoanRequest, request.id)
+            draft = await db.get(Loan, row.created_draft_loan_id)
+            self.assertIsNotNone(draft)
+            self.assertEqual(draft.status, "Draft")
+
+            from sqlalchemy import func, select
+
+            res = await db.execute(
+                select(func.count(Loan.id)).where(Loan.borrower_id == request.borrower_id)
+            )
+            self.assertEqual(res.scalar_one(), 1)
+
+    async def test_owner_declines_does_not_create_draft(self) -> None:
         owner, _, _, request = await self._seed()
         token = create_token(owner, "access")
         async with AsyncClient(
@@ -182,6 +220,14 @@ class TestOwnerLoanRequestReview(unittest.IsolatedAsyncioTestCase):
         async with self.session_factory() as db:
             row = await db.get(BorrowerLoanRequest, request.id)
             self.assertEqual(row.status, "declined")
+            self.assertIsNone(row.created_draft_loan_id)
+
+            from sqlalchemy import func, select
+
+            res = await db.execute(
+                select(func.count(Loan.id)).where(Loan.borrower_id == request.borrower_id)
+            )
+            self.assertEqual(res.scalar_one(), 0)
 
     async def test_review_missing_request_returns_404(self) -> None:
         owner, _, _, _ = await self._seed()

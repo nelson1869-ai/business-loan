@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_error_mapper.dart';
@@ -20,6 +21,7 @@ class LoanRequestItem {
   final String? ownerNotes;
   final String createdAt;
   final String? reviewedAt;
+  final String? createdDraftLoanId;
 
   const LoanRequestItem({
     required this.id,
@@ -35,6 +37,7 @@ class LoanRequestItem {
     this.ownerNotes,
     required this.createdAt,
     this.reviewedAt,
+    this.createdDraftLoanId,
   });
 
   factory LoanRequestItem.fromJson(Map<String, dynamic> json) {
@@ -54,6 +57,7 @@ class LoanRequestItem {
       ownerNotes: json['ownerNotes'] as String?,
       createdAt: json['createdAt'] as String? ?? '',
       reviewedAt: json['reviewedAt'] as String?,
+      createdDraftLoanId: json['createdDraftLoanId'] as String?,
     );
   }
 }
@@ -292,10 +296,21 @@ class _LoanRequestCard extends ConsumerWidget {
   }
 
   void _showReviewDialog(BuildContext context, WidgetRef ref, LoanRequestItem item) {
-    showDialog<void>(
+    showDialog<String>(
       context: context,
       builder: (dialogCtx) => _LoanRequestReviewModal(item: item),
-    );
+    ).then((draftLoanId) {
+      if (draftLoanId == null || draftLoanId.isEmpty || !context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Draft loan created.'),
+          action: SnackBarAction(
+            label: 'View Draft',
+            onPressed: () => context.push('/loans/$draftLoanId'),
+          ),
+        ),
+      );
+    });
   }
 }
 
@@ -316,7 +331,7 @@ class _LoanRequestReviewModalState extends ConsumerState<_LoanRequestReviewModal
     setState(() => _working = true);
     final dio = ref.read(apiClientProvider);
     try {
-      await dio.post<Map<String, dynamic>>(
+      final response = await dio.post<Map<String, dynamic>>(
         '/api/v1/borrower-loan-requests/${widget.item.id}/review',
         data: <String, dynamic>{
           'action': action,
@@ -326,13 +341,17 @@ class _LoanRequestReviewModalState extends ConsumerState<_LoanRequestReviewModal
         },
       );
       if (!mounted) return;
-      Navigator.pop(context);
+      final createdDraftLoanId =
+          response.data?['createdDraftLoanId'] as String?;
+      Navigator.pop(context, createdDraftLoanId);
       ref.invalidate(borrowerLoanRequestsProvider);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             action == 'approve'
-                ? 'Loan request approved.'
+                ? (createdDraftLoanId != null
+                    ? 'Loan request approved. A Draft loan was created.'
+                    : 'Loan request approved.')
                 : 'Loan request declined.',
           ),
         ),

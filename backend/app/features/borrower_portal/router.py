@@ -848,6 +848,7 @@ def _build_owner_loan_request_item(
         owner_notes=req.owner_notes,
         created_at=req.created_at,
         reviewed_at=req.reviewed_at,
+        created_draft_loan_id=req.created_draft_loan_id,
     )
 
 

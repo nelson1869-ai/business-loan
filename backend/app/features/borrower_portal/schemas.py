@@ -257,6 +257,7 @@ class OwnerLoanRequestItemResponse(BaseSchema):
     owner_notes: str | None = Field(None, alias="ownerNotes")
     created_at: datetime = Field(..., alias="createdAt")
     reviewed_at: datetime | None = Field(None, alias="reviewedAt")
+    created_draft_loan_id: str | None = Field(None, alias="createdDraftLoanId")
 
 
 # ---------------------------------------------------------------------------
